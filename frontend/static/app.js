@@ -110,6 +110,7 @@
         breakdownResults: document.getElementById('breakdownResults'),
         breakdownSaveBtn: document.getElementById('breakdownSaveBtn'),
         breakdownImportBtn: document.getElementById('breakdownImportBtn'),
+        breakdownLoadBtn: document.getElementById('breakdownLoadBtn'),
         breakdownClose: document.getElementById('breakdownClose'),
         // Settings modal
         settingsModal: document.getElementById('settingsModal'),
@@ -1353,12 +1354,15 @@
 
         elements.breakdownResults.innerHTML = html;
         
-        // Add click handlers for remove buttons
-        elements.breakdownResults.querySelectorAll('.breakdown-remove-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const idx = parseInt(e.target.dataset.idx);
-                removeBreakdownItem(idx);
-            });
+        // Add click handlers for remove buttons using event delegation
+        elements.breakdownResults.addEventListener('click', (e) => {
+            const btn = e.target.closest('.breakdown-remove-btn');
+            if (!btn) return;
+            
+            const idx = parseInt(btn.dataset.idx);
+            if (isNaN(idx)) return;
+            
+            removeBreakdownItem(idx);
         });
     }
 
@@ -1371,6 +1375,37 @@
     window.updateBreakdownItem = function(idx, field, value) {
         state.breakdownItems[idx][field] = value;
     };
+
+    function loadSavedBreakdowns() {
+        const saved = JSON.parse(localStorage.getItem('breakdowns') || '{}');
+        const keys = Object.keys(saved);
+        
+        if (keys.length === 0) {
+            showToast('没有保存的拆解');
+            return;
+        }
+        
+        // Show most recent first
+        keys.sort((a, b) => new Date(saved[b].savedAt) - new Date(saved[a].savedAt));
+        
+        // Create a simple selection UI
+        const options = keys.map((k, i) => `${i + 1}. ${saved[k].text.substring(0, 30)}... (${saved[k].items.length}项)`).join('\n');
+        const choice = prompt(`已保存的拆解:\n${options}\n\n输入序号加载:`);
+        
+        if (!choice) return;
+        
+        const idx = parseInt(choice) - 1;
+        if (idx >= 0 && idx < keys.length) {
+            const selected = saved[keys[idx]];
+            state.breakdownId = keys[idx];
+            elements.breakdownInput.value = selected.text;
+            state.breakdownItems = [...selected.items];
+            renderBreakdownResults();
+            showToast(`已加载: ${selected.items.length}项`);
+        } else {
+            showToast('无效的序号');
+        }
+    }
 
     function saveBreakdowns() {
         if (state.breakdownItems.length === 0) {
@@ -1782,6 +1817,7 @@
         elements.breakdownAnalyzeBtn.addEventListener('click', analyzeBreakdown);
         elements.breakdownSaveBtn.addEventListener('click', saveBreakdowns);
         elements.breakdownImportBtn.addEventListener('click', importBreakdowns);
+        elements.breakdownLoadBtn.addEventListener('click', loadSavedBreakdowns);
         
         // Settings modal events
         elements.settingsBtn.addEventListener('click', openSettingsModal);

@@ -132,7 +132,10 @@
                         <label for="breakdownInput">输入任务描述</label>
                         <textarea id="breakdownInput" rows="2" placeholder="例如：完成项目报告，包括数据分析和PPT制作"></textarea>
                     </div>
-                    <button class="btn btn-secondary" id="breakdownAnalyzeBtn" style="margin-bottom: 16px;">🤖 AI拆解</button>
+                    <div class="breakdown-actions">
+                        <button class="btn btn-secondary" id="breakdownAnalyzeBtn">🤖 AI拆解</button>
+                        <button class="btn btn-secondary" id="breakdownLoadBtn">📂 加载</button>
+                    </div>
                     <div class="breakdown-results" id="breakdownResults"></div>
                 </div>
                 <div class="modal-footer">
