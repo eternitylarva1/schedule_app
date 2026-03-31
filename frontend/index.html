@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>日程管理</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <button class="header-btn" id="prevBtn">◀</button>
+            <h1 class="header-title" id="headerTitle">今天</h1>
+            <div class="header-right">
+                <button class="header-btn refresh-btn" id="refreshBtn" title="刷新">🔄</button>
+                <button class="header-btn" id="nextBtn">▶</button>
+            </div>
+        </header>
+
+        <!-- LLM Input Area -->
+        <div class="llm-input-area" id="llmInputArea">
+            <div class="llm-input-wrapper">
+                <input type="text" class="llm-input" id="llmInput" placeholder="输入自然语言创建日程..." autocomplete="off">
+                <button class="llm-btn" id="llmBtn">AI</button>
+                <button class="breakdown-btn" id="breakdownBtn" title="任务拆解">📋</button>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="main-content" id="mainContent">
+            <!-- Day View -->
+            <div class="view day-view" id="dayView">
+                <div class="timeline" id="timeline"></div>
+            </div>
+
+        <!-- Week View -->
+        <div class="view week-view hidden" id="weekView">
+            <div class="week-time-axis" id="weekTimeAxis"></div>
+            <div class="week-header-wrapper">
+                <div class="week-header" id="weekHeader"></div>
+            </div>
+            <div class="week-body">
+                <div class="week-grid" id="weekGrid"></div>
+            </div>
+        </div>
+
+            <!-- Todo View -->
+            <div class="view todo-view hidden" id="todoView">
+                <div class="todo-container" id="todoContainer"></div>
+            </div>
+
+            <!-- Stats View -->
+            <div class="view stats-view hidden" id="statsView">
+                <div class="stats-container" id="statsContainer"></div>
+            </div>
+        </main>
+
+        <!-- Event Creation Modal -->
+        <div class="modal hidden" id="eventModal">
+            <div class="modal-backdrop" id="modalBackdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>新建日程</h2>
+                    <button class="modal-close" id="modalClose">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="eventTitle">日程内容</label>
+                        <input type="text" id="eventTitle" placeholder="例如：明天上午9点开会" autocomplete="off">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="startTime">开始时间</label>
+                            <input type="datetime-local" id="startTime">
+                        </div>
+                        <div class="form-group">
+                            <label for="endTime">结束时间</label>
+                            <input type="datetime-local" id="endTime">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>分类</label>
+                        <div class="category-selector" id="categorySelector"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="allDayCheck">
+                            <span>全天事件</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelEventBtn">取消</button>
+                    <button class="btn btn-primary" id="saveEventBtn">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Event Detail Modal -->
+        <div class="modal hidden" id="detailModal">
+            <div class="modal-backdrop" id="detailBackdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>日程详情</h2>
+                    <button class="modal-close" id="detailClose">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="detail-content" id="detailContent"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-danger" id="deleteEventBtn">删除</button>
+                    <button class="btn btn-success" id="completeEventBtn">完成</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Breakdown Modal -->
+        <div class="modal hidden" id="breakdownModal">
+            <div class="modal-backdrop" id="breakdownBackdrop"></div>
+            <div class="modal-content modal-lg">
+                <div class="modal-header">
+                    <h2>拆解任务</h2>
+                    <button class="modal-close" id="breakdownClose">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="breakdownInput">输入任务描述</label>
+                        <textarea id="breakdownInput" rows="2" placeholder="例如：完成项目报告，包括数据分析和PPT制作"></textarea>
+                    </div>
+                    <button class="btn btn-secondary" id="breakdownAnalyzeBtn" style="margin-bottom: 16px;">🤖 AI拆解</button>
+                    <div class="breakdown-results" id="breakdownResults"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="breakdownSaveBtn">保存</button>
+                    <button class="btn btn-primary" id="breakdownImportBtn">导入到日程</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pull-to-refresh indicator -->
+        <div class="ptr-indicator" id="ptrIndicator">
+            <div class="ptr-arrow"></div>
+            <span class="ptr-icon">↻</span>
+            <span class="ptr-text">下拉刷新</span>
+        </div>
+
+        <!-- Bottom Tab Bar -->
+        <nav class="tab-bar">
+            <div class="tab-spacer"></div>
+            <button class="tab-item active" data-view="day" id="tabDay">
+                <span class="tab-icon">📅</span>
+                <span class="tab-label">日</span>
+            </button>
+            <button class="tab-item" data-view="week" id="tabWeek">
+                <span class="tab-icon">📆</span>
+                <span class="tab-label">周</span>
+            </button>
+            <button class="tab-item" data-view="add" id="tabAdd">
+                <span class="tab-icon add-icon">+</span>
+            </button>
+            <button class="tab-item" data-view="todo" id="tabTodo">
+                <span class="tab-icon">📝</span>
+                <span class="tab-label">待办</span>
+            </button>
+            <button class="tab-item" data-view="stats" id="tabStats">
+                <span class="tab-icon">📊</span>
+                <span class="tab-label">统计</span>
+            </button>
+            <div class="tab-spacer"></div>
+        </nav>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
