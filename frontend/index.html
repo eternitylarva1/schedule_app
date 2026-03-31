@@ -18,6 +18,7 @@
             <div class="header-right">
                 <button class="header-btn refresh-btn" id="refreshBtn" title="刷新">🔄</button>
                 <button class="header-btn" id="nextBtn">▶</button>
+                <button class="header-btn settings-btn" id="settingsBtn" title="设置">⚙️</button>
             </div>
         </header>
 
@@ -172,6 +173,31 @@
             </button>
             <div class="tab-spacer"></div>
         </nav>
+
+        <!-- Settings Modal -->
+        <div class="modal hidden" id="settingsModal">
+            <div class="modal-backdrop" id="settingsBackdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>设置</h2>
+                    <button class="modal-close" id="settingsClose">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-list">
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <span class="settings-item-title">允许拖动调整时间</span>
+                                <span class="settings-item-desc">在日视图中拖动任务边缘来调整开始/结束时间</span>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="enableDragResize">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="/static/app.js"></script>

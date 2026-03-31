@@ -49,7 +49,9 @@
         },
         // Breakdown state
         breakdownItems: [],
-        breakdownId: null  // ID for saved breakdowns
+        breakdownId: null,  // ID for saved breakdowns
+        // Settings
+        enableDragResize: false  // Drag to resize events - default off
     };
 
     // ============================================
@@ -109,6 +111,12 @@
         breakdownSaveBtn: document.getElementById('breakdownSaveBtn'),
         breakdownImportBtn: document.getElementById('breakdownImportBtn'),
         breakdownClose: document.getElementById('breakdownClose'),
+        // Settings modal
+        settingsModal: document.getElementById('settingsModal'),
+        settingsBackdrop: document.getElementById('settingsBackdrop'),
+        settingsClose: document.getElementById('settingsClose'),
+        settingsBtn: document.getElementById('settingsBtn'),
+        enableDragResize: document.getElementById('enableDragResize'),
     };
 
     // ============================================
@@ -631,27 +639,32 @@
                 eventEl.classList.add('completed');
             }
             
-            // Create resize handles
-            const resizeTop = document.createElement('div');
-            resizeTop.className = 'event-resize-handle resize-top';
-            
-            const resizeBottom = document.createElement('div');
-            resizeBottom.className = 'event-resize-handle resize-bottom';
+            // Create resize handles only if enabled in settings
+            let resizeTop, resizeBottom;
+            if (state.enableDragResize) {
+                resizeTop = document.createElement('div');
+                resizeTop.className = 'event-resize-handle resize-top';
+                
+                resizeBottom = document.createElement('div');
+                resizeBottom.className = 'event-resize-handle resize-bottom';
+            }
             
             eventEl.innerHTML = `
                 <div class="timeline-event-title">${escapeHtml(event.title)}</div>
                 <div class="timeline-event-time">${formatTimeRange(event)}</div>
             `;
             
-            // Add resize handles
-            eventEl.appendChild(resizeTop);
-            eventEl.appendChild(resizeBottom);
-            
-            // Add drag handlers
-            resizeTop.addEventListener('mousedown', (e) => handleEventDragStart(e, event, 'start'));
-            resizeTop.addEventListener('touchstart', (e) => handleEventDragStart(e, event, 'start'));
-            resizeBottom.addEventListener('mousedown', (e) => handleEventDragStart(e, event, 'end'));
-            resizeBottom.addEventListener('touchstart', (e) => handleEventDragStart(e, event, 'end'));
+            // Add resize handles if enabled
+            if (state.enableDragResize) {
+                eventEl.appendChild(resizeTop);
+                eventEl.appendChild(resizeBottom);
+                
+                // Add drag handlers
+                resizeTop.addEventListener('mousedown', (e) => handleEventDragStart(e, event, 'start'));
+                resizeTop.addEventListener('touchstart', (e) => handleEventDragStart(e, event, 'start'));
+                resizeBottom.addEventListener('mousedown', (e) => handleEventDragStart(e, event, 'end'));
+                resizeBottom.addEventListener('touchstart', (e) => handleEventDragStart(e, event, 'end'));
+            }
             
             eventEl.addEventListener('click', (e) => {
                 // Don't show detail if clicking resize handles
@@ -1251,6 +1264,31 @@
         elements.breakdownModal.classList.add('hidden');
     }
 
+    // ============================================
+    // Settings Modal
+    // ============================================
+    function openSettingsModal() {
+        // Load setting from localStorage
+        const saved = localStorage.getItem('enableDragResize');
+        state.enableDragResize = saved === 'true';
+        elements.enableDragResize.checked = state.enableDragResize;
+        
+        elements.settingsModal.classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+        elements.settingsModal.classList.add('hidden');
+    }
+
+    function handleDragResizeToggle(e) {
+        state.enableDragResize = e.target.checked;
+        localStorage.setItem('enableDragResize', state.enableDragResize);
+        // Re-render timeline to show/hide resize handles
+        if (state.currentView === 'day') {
+            renderTimeline();
+        }
+    }
+
     async function analyzeBreakdown() {
         const text = elements.breakdownInput.value.trim();
         if (!text) {
@@ -1711,6 +1749,12 @@
         elements.breakdownAnalyzeBtn.addEventListener('click', analyzeBreakdown);
         elements.breakdownSaveBtn.addEventListener('click', saveBreakdowns);
         elements.breakdownImportBtn.addEventListener('click', importBreakdowns);
+        
+        // Settings modal events
+        elements.settingsBtn.addEventListener('click', openSettingsModal);
+        elements.settingsBackdrop.addEventListener('click', closeSettingsModal);
+        elements.settingsClose.addEventListener('click', closeSettingsModal);
+        elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
         
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
