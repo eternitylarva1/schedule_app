@@ -1337,27 +1337,40 @@
             <div class="breakdown-item" data-idx="${idx}">
                 <div class="breakdown-item-title">
                     <input type="text" value="${escapeHtml(item.title)}" 
-                        onchange="state.breakdownItems[${idx}].title = this.value">
+                        onchange="updateBreakdownItem(${idx}, 'title', this.value)">
                 </div>
                 <div class="breakdown-item-time">
-                    <input type="time" value="${item.startTime}" 
-                        onchange="state.breakdownItems[${idx}].startTime = this.value">
+                    <input type="time" value="${item.startTime || ''}" 
+                        onchange="updateBreakdownItem(${idx}, 'startTime', this.value)">
                     <span>时长:</span>
-                    <input type="number" value="${item.duration}" min="5" max="480"
-                        onchange="state.breakdownItems[${idx}].duration = parseInt(this.value)">
+                    <input type="number" value="${item.duration || 30}" min="5" max="480"
+                        onchange="updateBreakdownItem(${idx}, 'duration', parseInt(this.value))">
                     <span>分钟</span>
-                    <button onclick="removeBreakdownItem(${idx})" style="margin-left:auto;color:var(--accent-danger)">✕</button>
+                    <button class="breakdown-remove-btn" data-idx="${idx}" style="margin-left:auto;color:var(--accent-danger)">✕</button>
                 </div>
             </div>
         `).join('');
 
         elements.breakdownResults.innerHTML = html;
+        
+        // Add click handlers for remove buttons
+        elements.breakdownResults.querySelectorAll('.breakdown-remove-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.target.dataset.idx);
+                removeBreakdownItem(idx);
+            });
+        });
     }
 
     function removeBreakdownItem(idx) {
         state.breakdownItems.splice(idx, 1);
         renderBreakdownResults();
     }
+
+    // Global function for inline onchange handlers
+    window.updateBreakdownItem = function(idx, field, value) {
+        state.breakdownItems[idx][field] = value;
+    };
 
     function saveBreakdowns() {
         if (state.breakdownItems.length === 0) {
@@ -1384,11 +1397,18 @@
             return;
         }
 
+        console.log('Importing breakdown items:', state.breakdownItems);
+        
         const now = new Date();
         let imported = 0;
+        let failed = 0;
 
         for (const item of state.breakdownItems) {
-            if (!item.title || !item.startTime) continue;
+            if (!item.title || !item.startTime) {
+                console.log('Skipping item missing title or startTime:', item);
+                failed++;
+                continue;
+            }
 
             const [hours, minutes] = item.startTime.split(':').map(Number);
             const startTime = new Date(now);
@@ -1405,19 +1425,32 @@
                 recurrence: 'none'
             };
 
-            await apiCall('events', {
-                method: 'POST',
-                body: JSON.stringify(eventData)
-            });
-            imported++;
+            console.log('Creating event:', eventData);
+            
+            try {
+                const result = await apiCall('events', {
+                    method: 'POST',
+                    body: JSON.stringify(eventData)
+                });
+                console.log('Event created result:', result);
+                
+                if (result) {
+                    imported++;
+                } else {
+                    failed++;
+                }
+            } catch (error) {
+                console.error('Failed to create event:', error);
+                failed++;
+            }
         }
 
         if (imported > 0) {
             showToast(`导入了${imported}个日程`);
             closeBreakdownModal();
-            loadData();
+            await loadData();
         } else {
-            showToast('导入失败');
+            showToast(failed > 0 ? '导入失败，请检查数据' : '没有可导入的日程');
         }
     }
 
