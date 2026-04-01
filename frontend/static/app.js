@@ -936,12 +936,16 @@
                 let swipeStartY = 0;
                 let swiping = false;
                 let isHorizontalSwipe = null;
+                let swipeDeltaX = 0;
                 
                 eventEl.addEventListener('touchstart', (e) => {
                     swipeStartX = e.touches[0].clientX;
                     swipeStartY = e.touches[0].clientY;
                     swiping = true;
                     isHorizontalSwipe = null;
+                    swipeDeltaX = 0;
+                    eventEl.style.opacity = '';
+                    eventEl.classList.remove('swiped');
                 }, { passive: true });
                 
                 eventEl.addEventListener('touchmove', (e) => {
@@ -949,6 +953,7 @@
                     
                     const deltaX = e.touches[0].clientX - swipeStartX;
                     const deltaY = e.touches[0].clientY - swipeStartY;
+                    swipeDeltaX = deltaX;
                     
                     // Determine swipe direction on first significant move
                     if (isHorizontalSwipe === null && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
@@ -960,18 +965,48 @@
                         e.preventDefault(); // Prevent page scroll
                         
                         if (deltaX < -30) {
-                            // Swipe left - reveal actions
-                            eventEl.classList.add('swiped');
+                            // Progressive opacity fade as user swipes left
+                            // deltaX goes from -30 to -150, opacity goes from 1 to 0
+                            const fadeProgress = Math.min(Math.max((-deltaX - 30) / 120, 0), 1);
+                            const opacity = 1 - (fadeProgress * 0.7); // 1 to 0.3
+                            eventEl.style.opacity = opacity;
+                            
+                            if (-deltaX >= 100) {
+                                // Threshold reached - auto delete
+                                eventEl.classList.add('swiped');
+                            } else {
+                                eventEl.classList.remove('swiped');
+                            }
                         } else if (deltaX > 30) {
-                            // Swipe right - hide actions
+                            // Swipe right - reset
+                            eventEl.style.opacity = '';
                             eventEl.classList.remove('swiped');
                         }
                     }
                 }, { passive: false });
                 
-                eventEl.addEventListener('touchend', () => {
+                eventEl.addEventListener('touchend', async () => {
+                    if (!swiping) return;
+                    
+                    // If swiped past threshold, auto delete
+                    if (swipeDeltaX < -100) {
+                        // Auto delete
+                        eventEl.style.opacity = '0';
+                        await deleteEvent(event.id);
+                        showToast('已删除');
+                        renderTodoView();
+                    } else if (swipeDeltaX < -30) {
+                        // Partial swipe - just show actions
+                        eventEl.classList.add('swiped');
+                    } else {
+                        // Reset
+                        eventEl.style.opacity = '';
+                        eventEl.classList.remove('swiped');
+                    }
+                    
                     swiping = false;
                     isHorizontalSwipe = null;
+                    swipeDeltaX = 0;
                 }, { passive: true });
                 
                 // Action button handlers
