@@ -946,7 +946,7 @@
                     swipeDeltaX = 0;
                     eventEl.style.opacity = '';
                     eventEl.classList.remove('swiped');
-                }, { passive: true });
+                }, { passive: false }); // Must be non-passive to allow preventDefault
                 
                 eventEl.addEventListener('touchmove', (e) => {
                     if (!swiping) return;
@@ -958,12 +958,15 @@
                     // Determine swipe direction on first significant move
                     if (isHorizontalSwipe === null && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
                         isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+                        // Immediately prevent default to stop page scrolling
+                        if (isHorizontalSwipe) {
+                            e.preventDefault();
+                        }
                     }
                     
                     // Only handle horizontal swipe
                     if (isHorizontalSwipe) {
-                        e.preventDefault(); // Prevent page scroll
-                        
+                        // Already prevented above
                         const mainContent = eventEl.querySelector('.todo-main-content');
                         
                         if (deltaX < 0) {
