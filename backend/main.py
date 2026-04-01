@@ -54,6 +54,13 @@ async def init_app() -> web.Application:
     # Serve static files from frontend directory
     if FRONTEND_DIR.exists():
         app.router.add_static("/static/", FRONTEND_DIR / "static", show_index=True)
+        # Explicit routes for PWA files (must be before catch-all)
+        async def serve_manifest(r):
+            return web.FileResponse(FRONTEND_DIR / "manifest.json")
+        async def serve_sw(r):
+            return web.FileResponse(FRONTEND_DIR / "service-worker.js")
+        app.router.add_get("/manifest.json", serve_manifest)
+        app.router.add_get("/service-worker.js", serve_sw)
         app.router.add_get("/", index)
         app.router.add_get("/{path:.*}", index)
 

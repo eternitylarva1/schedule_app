@@ -7,7 +7,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
+    <link rel="manifest" href="/manifest.json">
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
     <div id="app">
@@ -237,5 +239,14 @@
     </div>
 
     <script src="/static/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((reg) => console.log('SW registered:', reg.scope))
+                    .catch((err) => console.log('SW registration failed:', err));
+            });
+        }
+    </script>
 </body>
 </html>

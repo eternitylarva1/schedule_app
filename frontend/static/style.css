@@ -362,10 +362,20 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: auto;
 }
 
 .view.hidden {
     display: none;
+    opacity: 0;
+    pointer-events: none;
 }
 
 /* ============================================
@@ -620,9 +630,9 @@ body {
 }
 
 .week-header-day {
-    padding: var(--space-sm);
+    padding: var(--space-xs) var(--space-xs);
     text-align: center;
-    font-size: var(--font-size-xs);
+    font-size: 10px;
     color: var(--text-secondary);
 }
 

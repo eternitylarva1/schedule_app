@@ -1157,7 +1157,9 @@
                     const now = new Date();
                     const currentMinutes = now.getHours() * 60 + now.getMinutes();
                     const scrollTop = Math.max(0, currentMinutes - 60); // Show 1 hour before current
-                    elements.dayView.scrollTop = scrollTop;
+                    elements.dayView.scrollTo({ top: scrollTop, behavior: 'smooth' });
+                } else {
+                    elements.dayView.scrollTop = 0;
                 }
                 break;
             case 'week':
@@ -1677,6 +1679,12 @@
         // Must be at top AND user must be pulling DOWN
         if (!state.pullToRefresh.isAtTop) return;
         
+        // Get current scroll element
+        const scrollEl = getCurrentScrollElement();
+        
+        // Check again in case view changed - must be at top
+        if (scrollEl.scrollTop > 0) return;
+        
         const currentY = e.touches[0].clientY;
         const deltaY = currentY - state.pullToRefresh.startY;
         
@@ -1743,8 +1751,11 @@
         // Don't trigger pull-to-refresh during event drag
         if (state.dragState.event) return;
         
-        // Only trigger when at top of content and pulling down
-        if (elements.mainContent.scrollTop > 0) return;
+        // Get current scroll element (the visible view)
+        const scrollEl = getCurrentScrollElement();
+        
+        // Only trigger when at top and pulling down
+        if (scrollEl.scrollTop > 0) return;
         
         const currentY = e.touches[0].clientY;
         const deltaY = currentY - state.pullToRefresh.startY;
@@ -1939,7 +1950,10 @@
         elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
         
         // Tab bar
-        elements.tabDay.addEventListener('click', () => switchView('day'));
+        elements.tabDay.addEventListener('click', () => {
+            state.currentDate = new Date(); // Go to today
+            switchView('day');
+        });
         elements.tabWeek.addEventListener('click', () => switchView('week'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
         elements.tabAdd.addEventListener('click', () => openEventModal());
