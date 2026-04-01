@@ -138,7 +138,21 @@
         // Event modal - reminder fields
         reminderEnabled: document.getElementById('reminderEnabled'),
         reminderOptions: document.getElementById('reminderOptions'),
+        reminderDisplay: document.getElementById('reminderDisplay'),
+        reminderDisplayText: document.getElementById('reminderDisplayText'),
+        // Reminder picker modal
+        reminderPickerModal: document.getElementById('reminderPickerModal'),
+        reminderPickerBackdrop: document.getElementById('reminderPickerBackdrop'),
         reminderPickerScroll: document.getElementById('reminderPickerScroll'),
+        reminderPickerCancel: document.getElementById('reminderPickerCancel'),
+        reminderPickerConfirm: document.getElementById('reminderPickerConfirm'),
+        // Custom reminder modal
+        customReminderModal: document.getElementById('customReminderModal'),
+        customReminderBackdrop: document.getElementById('customReminderBackdrop'),
+        customReminderClose: document.getElementById('customReminderClose'),
+        customReminderInput: document.getElementById('customReminderInput'),
+        customReminderCancel: document.getElementById('customReminderCancel'),
+        customReminderSave: document.getElementById('customReminderSave'),
         // Detail modal
         detailModal: document.getElementById('detailModal'),
         detailBackdrop: document.getElementById('detailBackdrop'),
@@ -1309,24 +1323,65 @@
         }
     }
     
-    // Reminder picker functions (iOS-style scroll picker)
+    function updateReminderDisplayText(minutes) {
+        if (elements.reminderDisplayText) {
+            elements.reminderDisplayText.textContent = `提前${minutes}分钟`;
+        }
+    }
+    
+    // Reminder picker (bottom sheet)
     const REMINDER_MINUTES = [5, 10, 15, 30, 60];
     const PICKER_ITEM_HEIGHT = 40;
-    const PICKER_VISIBLE_ITEMS = 3; // items visible above/below center
+    let currentReminderValue = 10;
+    let isCustomReminder = false;
     
-    function getReminderPickerValue() {
-        if (!elements.reminderPickerScroll) return 10;
+    function openReminderPicker() {
+        if (!elements.reminderPickerModal) return;
+        
+        // Set scroll position to current value
+        const allValues = [...REMINDER_MINUTES, 'custom'];
+        let index = allValues.indexOf(currentReminderValue);
+        if (index === -1) index = 1; // default to 10
+        elements.reminderPickerScroll.scrollTop = index * PICKER_ITEM_HEIGHT;
+        
+        // Update active item
+        requestAnimationFrame(() => {
+            updateActivePickerItem();
+        });
+        
+        elements.reminderPickerModal.classList.remove('hidden');
+    }
+    
+    function closeReminderPicker() {
+        if (elements.reminderPickerModal) {
+            elements.reminderPickerModal.classList.add('hidden');
+        }
+    }
+    
+    function confirmReminderPicker() {
+        if (!elements.reminderPickerScroll) return;
         const scrollTop = elements.reminderPickerScroll.scrollTop;
         const index = Math.round(scrollTop / PICKER_ITEM_HEIGHT);
-        return REMINDER_MINUTES[Math.min(Math.max(index, 0), REMINDER_MINUTES.length - 1)];
+        const allValues = [...REMINDER_MINUTES, 'custom'];
+        const selected = allValues[Math.min(Math.max(index, 0), allValues.length - 1)];
+        
+        if (selected === 'custom') {
+            closeReminderPicker();
+            openCustomReminderModal();
+        } else {
+            currentReminderValue = selected;
+            updateReminderDisplayText(selected);
+            closeReminderPicker();
+        }
+    }
+    
+    function getReminderPickerValue() {
+        return currentReminderValue;
     }
     
     function setReminderPickerValue(minutes) {
-        if (!elements.reminderPickerScroll) return;
-        let index = REMINDER_MINUTES.indexOf(minutes);
-        if (index === -1) index = 1; // default to 10
-        elements.reminderPickerScroll.scrollTop = index * PICKER_ITEM_HEIGHT;
-        updateActivePickerItem();
+        currentReminderValue = minutes;
+        updateReminderDisplayText(minutes);
     }
     
     function updateActivePickerItem() {
@@ -1338,6 +1393,32 @@
             const itemCenter = item.offsetTop + item.offsetHeight / 2;
             item.classList.toggle('active', Math.abs(itemCenter - scrollCenter) < PICKER_ITEM_HEIGHT / 2);
         });
+    }
+    
+    // Custom reminder modal
+    function openCustomReminderModal() {
+        if (elements.customReminderModal) {
+            elements.customReminderInput.value = '';
+            elements.customReminderModal.classList.remove('hidden');
+            setTimeout(() => elements.customReminderInput.focus(), 100);
+        }
+    }
+    
+    function closeCustomReminderModal() {
+        if (elements.customReminderModal) {
+            elements.customReminderModal.classList.add('hidden');
+        }
+    }
+    
+    function saveCustomReminder() {
+        const value = parseInt(elements.customReminderInput.value);
+        if (!value || value < 1 || value > 1440) {
+            showToast('请输入1-1440之间的数字');
+            return;
+        }
+        currentReminderValue = value;
+        updateReminderDisplayText(value);
+        closeCustomReminderModal();
     }
 
     function closeEventModal() {
@@ -2235,9 +2316,37 @@
             elements.reminderEnabled.addEventListener('change', updateReminderOptionsVisibility);
         }
         
-        // Reminder picker scroll event
+        // Reminder display click opens picker
+        if (elements.reminderDisplay) {
+            elements.reminderDisplay.addEventListener('click', openReminderPicker);
+        }
+        
+        // Reminder picker modal events
+        if (elements.reminderPickerBackdrop) {
+            elements.reminderPickerBackdrop.addEventListener('click', closeReminderPicker);
+        }
+        if (elements.reminderPickerCancel) {
+            elements.reminderPickerCancel.addEventListener('click', closeReminderPicker);
+        }
+        if (elements.reminderPickerConfirm) {
+            elements.reminderPickerConfirm.addEventListener('click', confirmReminderPicker);
+        }
         if (elements.reminderPickerScroll) {
             elements.reminderPickerScroll.addEventListener('scroll', updateActivePickerItem);
+        }
+        
+        // Custom reminder modal events
+        if (elements.customReminderBackdrop) {
+            elements.customReminderBackdrop.addEventListener('click', closeCustomReminderModal);
+        }
+        if (elements.customReminderClose) {
+            elements.customReminderClose.addEventListener('click', closeCustomReminderModal);
+        }
+        if (elements.customReminderCancel) {
+            elements.customReminderCancel.addEventListener('click', closeCustomReminderModal);
+        }
+        if (elements.customReminderSave) {
+            elements.customReminderSave.addEventListener('click', saveCustomReminder);
         }
         
         // Detail modal
