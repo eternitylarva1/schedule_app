@@ -139,20 +139,35 @@ body {
     border-style: none !important;
     border-color: transparent !important;
     border-image: none !important;
-    background: #333 !important;
-    background-color: #333 !important;
+    background: var(--accent-primary) !important;
+    background-color: var(--accent-primary) !important;
     background-image: none !important;
     box-shadow: none !important;
     color: white !important;
     font-size: var(--font-size-lg);
     cursor: pointer;
     border-radius: 50%;
-    transition: background-color 0.1s;
+    transition: all var(--transition-fast);
     display: flex;
     align-items: center;
     justify-content: center;
     -webkit-appearance: none !important;
     appearance: none !important;
+}
+
+.header-btn:active {
+    transform: scale(0.95);
+}
+
+.header-btn svg {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block;
+    fill: none !important;
+    stroke: white !important;
 }
 
 .header-btn:active {
