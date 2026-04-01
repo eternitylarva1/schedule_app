@@ -139,34 +139,31 @@ body {
     border-style: none !important;
     border-color: transparent !important;
     border-image: none !important;
-    background: rgba(0, 0, 0, 0.4) !important;
-    background-color: rgba(0, 0, 0, 0.4) !important;
+    background: #333 !important;
+    background-color: #333 !important;
     background-image: none !important;
     box-shadow: none !important;
     color: white !important;
     font-size: var(--font-size-lg);
     cursor: pointer;
     border-radius: 50%;
-    transition: all var(--transition-fast);
+    transition: background-color 0.1s;
     display: flex;
     align-items: center;
     justify-content: center;
     -webkit-appearance: none !important;
     appearance: none !important;
-    -webkit-background-origin: none !important;
-    -webkit-background-clip: none !important;
 }
 
 .header-btn:active {
-    background: rgba(0, 0, 0, 0.6) !important;
-    background-color: rgba(0, 0, 0, 0.6) !important;
+    background: #1a1a1a !important;
+    background-color: #1a1a1a !important;
 }
 
-.header-btn * {
+.header-btn svg {
     color: white !important;
-    background: transparent !important;
-    background-color: transparent !important;
-    border: none !important;
+    fill: none !important;
+    stroke: white !important;
 }
 
 .header-title {
