@@ -1424,6 +1424,12 @@
             // Update local state
             state.selectedEvent.reminder_enabled = reminderEnabled;
             state.selectedEvent.reminder_minutes = reminderMinutes;
+            // Also update event in state.events array so it persists across tab switches
+            const idx = state.events.findIndex(e => e.id === state.selectedEvent.id);
+            if (idx !== -1) {
+                state.events[idx].reminder_enabled = reminderEnabled;
+                state.events[idx].reminder_minutes = reminderMinutes;
+            }
         }
     }
 
