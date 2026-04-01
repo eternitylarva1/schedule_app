@@ -58,7 +58,8 @@
         breakdownItems: [],
         breakdownId: null,  // ID for saved breakdowns
         // Settings
-        enableDragResize: false  // Drag to resize events - default off
+        enableDragResize: false,  // Drag to resize events - default off
+        qqReminderEnabled: false  // QQ reminder default off
     };
 
     // ============================================
@@ -132,7 +133,19 @@
         settingsClose: document.getElementById('settingsClose'),
         settingsBtn: document.getElementById('settingsBtn'),
         enableDragResize: document.getElementById('enableDragResize'),
+        enableQQReminder: document.getElementById('enableQQReminder'),
         appVersion: document.getElementById('appVersion'),
+        // Event modal - reminder fields
+        reminderEnabled: document.getElementById('reminderEnabled'),
+        reminderMinutes: document.getElementById('reminderMinutes'),
+        reminderOptions: document.getElementById('reminderOptions'),
+        // Detail modal
+        detailModal: document.getElementById('detailModal'),
+        detailBackdrop: document.getElementById('detailBackdrop'),
+        detailClose: document.getElementById('detailClose'),
+        detailContent: document.getElementById('detailContent'),
+        deleteEventBtn: document.getElementById('deleteEventBtn'),
+        saveDetailBtn: document.getElementById('saveDetailBtn'),
     };
 
     // ============================================
@@ -375,7 +388,9 @@
                     end_time: event.end_time,
                     category_id: event.category_id,
                     all_day: event.all_day,
-                    recurrence: event.recurrence
+                    recurrence: event.recurrence,
+                    reminder_enabled: event.reminder_enabled,
+                    reminder_minutes: event.reminder_minutes
                 })
             });
             console.log('updateEventAPI result:', result);
@@ -486,6 +501,31 @@
         return await apiCall('events', {
             method: 'POST',
             body: JSON.stringify(eventData)
+        });
+    }
+
+    async function updateEvent(eventId, eventData) {
+        return await apiCall(`events/${eventId}`, {
+            method: 'PUT',
+            body: JSON.stringify(eventData)
+        });
+    }
+
+    async function fetchSettings() {
+        const data = await apiCall('settings');
+        if (data) {
+            // Handle qq_reminder_enabled setting
+            if (data.qq_reminder_enabled !== undefined) {
+                state.qqReminderEnabled = data.qq_reminder_enabled === 'true';
+            }
+        }
+        return data;
+    }
+
+    async function updateSetting(key, value) {
+        return await apiCall(`settings/${key}`, {
+            method: 'PUT',
+            body: JSON.stringify({ value: value })
         });
     }
 
@@ -1245,12 +1285,25 @@
         elements.endTime.value = event && event.end_time ? toLocalDatetime(event.end_time) : '';
         elements.allDayCheck.checked = event ? event.all_day : false;
         
+        // Reset reminder fields
+        elements.reminderEnabled.checked = event ? (event.reminder_enabled === true || event.reminder_enabled === 'true') : false;
+        elements.reminderMinutes.value = event && event.reminder_minutes ? String(event.reminder_minutes) : '10';
+        
+        // Show/hide reminder options based on checkbox state
+        updateReminderOptionsVisibility();
+        
         renderCategorySelector();
         
         elements.eventModal.classList.remove('hidden');
         
         // Focus title input
         setTimeout(() => elements.eventTitle.focus(), 100);
+    }
+    
+    function updateReminderOptionsVisibility() {
+        if (elements.reminderOptions) {
+            elements.reminderOptions.style.display = elements.reminderEnabled.checked ? 'flex' : 'none';
+        }
     }
 
     function closeEventModal() {
@@ -1271,7 +1324,9 @@
             end_time: elements.endTime.value || null,
             category_id: state.selectedCategory,
             all_day: elements.allDayCheck.checked,
-            status: 'pending'
+            status: 'pending',
+            reminder_enabled: elements.reminderEnabled.checked,
+            reminder_minutes: elements.reminderEnabled.checked ? parseInt(elements.reminderMinutes.value) : 0
         };
         
         const result = await createEvent(eventData);
@@ -1286,6 +1341,9 @@
         state.selectedEvent = event;
         
         const content = elements.detailContent;
+        const reminderEnabled = event.reminder_enabled === true || event.reminder_enabled === 'true';
+        const reminderMinutes = event.reminder_minutes || 10;
+        
         content.innerHTML = `
             <div class="detail-row">
                 <span class="detail-label">标题</span>
@@ -1305,12 +1363,68 @@
                 <span class="detail-label">状态</span>
                 <span class="detail-value">${event.status === 'done' ? '已完成' : '待完成'}</span>
             </div>
+            <div class="detail-row">
+                <span class="detail-label">提醒</span>
+                <span class="detail-value">${reminderEnabled ? `提前${reminderMinutes}分钟` : '未开启'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">提醒开关</span>
+                <label class="switch">
+                    <input type="checkbox" id="detailReminderEnabled" ${reminderEnabled ? 'checked' : ''}>
+                    <span class="switch-slider"></span>
+                </label>
+            </div>
+            <div class="detail-row" id="detailReminderRow">
+                <span class="detail-label">提前</span>
+                <select id="detailReminderMinutes" class="reminder-select">
+                    <option value="5" ${reminderMinutes == 5 ? 'selected' : ''}>5</option>
+                    <option value="10" ${reminderMinutes == 10 ? 'selected' : ''}>10</option>
+                    <option value="15" ${reminderMinutes == 15 ? 'selected' : ''}>15</option>
+                    <option value="30" ${reminderMinutes == 30 ? 'selected' : ''}>30</option>
+                    <option value="60" ${reminderMinutes == 60 ? 'selected' : ''}>60</option>
+                </select>
+                <span class="detail-value">分钟</span>
+            </div>
         `;
+        
+        // Show/hide reminder options based on checkbox state
+        const detailReminderRow = document.getElementById('detailReminderRow');
+        const detailReminderEnabled = document.getElementById('detailReminderEnabled');
+        if (detailReminderRow && detailReminderEnabled) {
+            detailReminderRow.style.display = detailReminderEnabled.checked ? 'flex' : 'none';
+            detailReminderEnabled.addEventListener('change', function() {
+                detailReminderRow.style.display = this.checked ? 'flex' : 'none';
+            });
+        }
         
         // Update button states
         elements.completeEventBtn.style.display = event.status === 'done' ? 'none' : 'flex';
         
         elements.detailModal.classList.remove('hidden');
+    }
+    
+    async function saveDetailReminder() {
+        if (!state.selectedEvent || !state.selectedEvent.id) return;
+        
+        const detailReminderEnabled = document.getElementById('detailReminderEnabled');
+        const detailReminderMinutes = document.getElementById('detailReminderMinutes');
+        
+        if (!detailReminderEnabled || !detailReminderMinutes) return;
+        
+        const reminderEnabled = detailReminderEnabled.checked;
+        const reminderMinutes = reminderEnabled ? parseInt(detailReminderMinutes.value) : 0;
+        
+        const result = await updateEvent(state.selectedEvent.id, {
+            reminder_enabled: reminderEnabled,
+            reminder_minutes: reminderMinutes
+        });
+        
+        if (result) {
+            showToast('提醒已更新');
+            // Update local state
+            state.selectedEvent.reminder_enabled = reminderEnabled;
+            state.selectedEvent.reminder_minutes = reminderMinutes;
+        }
     }
 
     function closeDetailModal() {
@@ -1361,11 +1475,15 @@
     // ============================================
     // Settings Modal
     // ============================================
-    function openSettingsModal() {
+    async function openSettingsModal() {
         // Load setting from localStorage
         const saved = localStorage.getItem('enableDragResize');
         state.enableDragResize = saved === 'true';
         elements.enableDragResize.checked = state.enableDragResize;
+        
+        // Load QQ reminder setting from API
+        await fetchSettings();
+        elements.enableQQReminder.checked = state.qqReminderEnabled;
         
         // Set version
         elements.appVersion.textContent = 'v' + APP_VERSION;
@@ -1375,6 +1493,21 @@
 
     function closeSettingsModal() {
         elements.settingsModal.classList.add('hidden');
+    }
+
+    async function handleQQReminderToggle(e) {
+        const enabled = e.target.checked;
+        state.qqReminderEnabled = enabled;
+        
+        // Save to API
+        const result = await updateSetting('qq_reminder_enabled', enabled ? 'true' : 'false');
+        if (result) {
+            showToast(enabled ? 'QQ提醒已开启' : 'QQ提醒已关闭');
+        } else {
+            // Revert on failure
+            e.target.checked = !enabled;
+            state.qqReminderEnabled = !enabled;
+        }
     }
 
     function handleDragResizeToggle(e) {
@@ -2011,6 +2144,7 @@
         elements.settingsBackdrop.addEventListener('click', closeSettingsModal);
         elements.settingsClose.addEventListener('click', closeSettingsModal);
         elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
+        elements.enableQQReminder.addEventListener('change', handleQQReminderToggle);
         
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
@@ -2025,11 +2159,17 @@
         elements.cancelEventBtn.addEventListener('click', closeEventModal);
         elements.saveEventBtn.addEventListener('click', saveEvent);
         
+        // Reminder toggle in event modal
+        if (elements.reminderEnabled) {
+            elements.reminderEnabled.addEventListener('change', updateReminderOptionsVisibility);
+        }
+        
         // Detail modal
         elements.detailBackdrop.addEventListener('click', closeDetailModal);
         elements.detailClose.addEventListener('click', closeDetailModal);
         elements.deleteEventBtn.addEventListener('click', deleteSelectedEvent);
         elements.completeEventBtn.addEventListener('click', completeSelectedEvent);
+        elements.saveDetailBtn.addEventListener('click', saveDetailReminder);
         
         // Touch gestures
         elements.mainContent.addEventListener('touchstart', handleTouchStart, { passive: true });

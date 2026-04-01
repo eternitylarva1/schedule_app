@@ -1881,3 +1881,36 @@ textarea {
 .switch input:checked + .switch-slider:before {
     transform: translateX(22px);
 }
+
+/* ============================================
+    Reminder UI
+    ============================================ */
+.reminder-options {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+    margin-left: 28px; /* Align with checkbox text */
+}
+
+.reminder-options label {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+.reminder-select {
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 70px;
+}
+
+.reminder-select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}

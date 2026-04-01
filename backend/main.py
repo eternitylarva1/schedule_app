@@ -8,6 +8,7 @@ import aiohttp_cors
 
 from . import db
 from .routes import setup_routes
+from .reminder_service import ReminderService
 
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -51,16 +52,14 @@ async def init_app() -> web.Application:
     # Setup API routes
     setup_routes(app)
 
+    # Start reminder service
+    reminder_service = ReminderService(app)
+    reminder_service.start()
+    app["reminder_service"] = reminder_service
+
     # Serve static files from frontend directory
     if FRONTEND_DIR.exists():
         app.router.add_static("/static/", FRONTEND_DIR / "static", show_index=True)
-        # Explicit routes for PWA files (must be before catch-all)
-        async def serve_manifest(r):
-            return web.FileResponse(FRONTEND_DIR / "manifest.json")
-        async def serve_sw(r):
-            return web.FileResponse(FRONTEND_DIR / "service-worker.js")
-        app.router.add_get("/manifest.json", serve_manifest)
-        app.router.add_get("/service-worker.js", serve_sw)
         app.router.add_get("/", index)
         app.router.add_get("/{path:.*}", index)
 

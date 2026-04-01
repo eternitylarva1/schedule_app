@@ -23,9 +23,29 @@ async def init_db() -> None:
                 recurrence TEXT DEFAULT 'none',
                 status TEXT DEFAULT 'pending',
                 created_at TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                reminder_enabled INTEGER DEFAULT 0,
+                reminder_minutes INTEGER DEFAULT 10,
+                reminder_sent INTEGER DEFAULT 0
             )
         """)
+        
+        # Add new columns to existing tables (if not exist)
+        await db.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS reminder_enabled INTEGER DEFAULT 0")
+        await db.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS reminder_minutes INTEGER DEFAULT 10")
+        await db.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS reminder_sent INTEGER DEFAULT 0")
+        
+        # Create settings table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        
+        # Insert default settings
+        await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('qq_reminder_enabled', 'true')")
+        
         await db.commit()
 
 
@@ -35,8 +55,8 @@ async def create_event(event: Event) -> Event:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """INSERT INTO events 
-               (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at, reminder_enabled, reminder_minutes, reminder_sent)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event.title,
                 event.start_time.isoformat() if event.start_time else None,
@@ -47,6 +67,9 @@ async def create_event(event: Event) -> Event:
                 event.status,
                 now,
                 now,
+                1 if event.reminder_enabled else 0,
+                event.reminder_minutes,
+                1 if event.reminder_sent else 0,
             ),
         )
         await db.commit()
@@ -113,6 +136,9 @@ async def get_events(date_filter: str = "today") -> List[Event]:
                     status=row["status"],
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                    reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row.keys and row["reminder_enabled"] is not None else False,
+                    reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row.keys and row["reminder_minutes"] is not None else 10,
+                    reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row.keys and row["reminder_sent"] is not None else False,
                 ))
     return events
 
@@ -136,6 +162,9 @@ async def get_event(event_id: int) -> Optional[Event]:
                 status=row["status"],
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row.keys and row["reminder_enabled"] is not None else False,
+                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row.keys and row["reminder_minutes"] is not None else 10,
+                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row.keys and row["reminder_sent"] is not None else False,
             )
 
 
@@ -146,7 +175,8 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
         await db.execute(
             """UPDATE events SET 
                title = ?, start_time = ?, end_time = ?, category_id = ?, 
-               all_day = ?, recurrence = ?, status = ?, updated_at = ?
+               all_day = ?, recurrence = ?, status = ?, updated_at = ?,
+               reminder_enabled = ?, reminder_minutes = ?, reminder_sent = ?
                WHERE id = ?""",
             (
                 event.title,
@@ -157,6 +187,9 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
                 event.recurrence,
                 event.status,
                 now,
+                1 if event.reminder_enabled else 0,
+                event.reminder_minutes,
+                1 if event.reminder_sent else 0,
                 event_id,
             ),
         )
@@ -245,3 +278,21 @@ async def get_stats(date_filter: str = "today") -> dict:
         "pending": total - completed,
         "by_category": by_category,
     }
+
+
+async def get_setting(key: str) -> Optional[str]:
+    """Get a setting value by key."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT value FROM settings WHERE key = ?", (key,)) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+
+async def set_setting(key: str, value: str) -> None:
+    """Set a setting value."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+        await db.commit()

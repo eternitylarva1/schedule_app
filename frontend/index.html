@@ -101,6 +101,23 @@
                     </div>
                     <div class="form-group">
                         <label class="checkbox-label">
+                            <input type="checkbox" id="reminderEnabled">
+                            <span>开启提醒</span>
+                        </label>
+                        <div class="reminder-options" id="reminderOptions">
+                            <label for="reminderMinutes">提前</label>
+                            <select id="reminderMinutes" class="reminder-select">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                                <option value="30">30</option>
+                                <option value="60">60</option>
+                            </select>
+                            <span>分钟</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
                             <input type="checkbox" id="allDayCheck">
                             <span>全天事件</span>
                         </label>
@@ -125,6 +142,7 @@
                     <div class="detail-content" id="detailContent"></div>
                 </div>
                 <div class="modal-footer">
+                    <button class="btn btn-secondary" id="saveDetailBtn">保存</button>
                     <button class="btn btn-danger" id="deleteEventBtn">删除</button>
                     <button class="btn btn-success" id="completeEventBtn">完成</button>
                 </div>
@@ -218,6 +236,16 @@
                 </div>
                 <div class="modal-body">
                     <div class="settings-list">
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <span class="settings-item-title">开启QQ提醒</span>
+                                <span class="settings-item-desc">在任务开始前通过QQ发送提醒通知</span>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="enableQQReminder">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
                         <div class="settings-item">
                             <div class="settings-item-info">
                                 <span class="settings-item-title">允许拖动调整时间</span>

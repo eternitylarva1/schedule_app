@@ -1,5 +1,6 @@
 """REST API routes for schedule management."""
 import json
+import aiosqlite
 from aiohttp import web
 from typing import List
 
@@ -66,6 +67,9 @@ async def create_event(request: web.Request) -> web.Response:
             all_day=data.get("all_day", False),
             recurrence=data.get("recurrence", "none"),
             status=data.get("status", "pending"),
+            reminder_enabled=data.get("reminder_enabled", False),
+            reminder_minutes=data.get("reminder_minutes", 10),
+            reminder_sent=data.get("reminder_sent", False),
         )
 
         event = await db.create_event(event)
@@ -96,6 +100,9 @@ async def update_event(request: web.Request) -> web.Response:
             all_day=data.get("all_day", existing.all_day),
             recurrence=data.get("recurrence", existing.recurrence),
             status=data.get("status", existing.status),
+            reminder_enabled=data.get("reminder_enabled", existing.reminder_enabled),
+            reminder_minutes=data.get("reminder_minutes", existing.reminder_minutes),
+            reminder_sent=data.get("reminder_sent", existing.reminder_sent),
         )
 
         updated = await db.update_event(event_id, event)
@@ -319,6 +326,42 @@ async def llm_breakdown(request: web.Request) -> web.Response:
         return error_response("LLM拆解失败")
 
 
+async def get_settings(request: web.Request) -> web.Response:
+    """GET /api/settings - get all settings."""
+    try:
+        # Get all settings
+        settings = {}
+        async with aiosqlite.connect(db.DB_PATH) as conn:
+            conn.row_factory = aiosqlite.Row
+            async with conn.execute("SELECT key, value FROM settings") as cursor:
+                rows = await cursor.fetchall()
+                for row in rows:
+                    settings[row["key"]] = row["value"]
+        return json_response(settings)
+    except Exception as e:
+        return error_response(f"获取设置失败: {str(e)}")
+
+
+async def update_setting(request: web.Request) -> web.Response:
+    """PUT /api/settings/{key} - update a setting."""
+    key = request.match_info["key"]
+    
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    value = data.get("value")
+    if value is None:
+        return error_response("缺少value字段")
+    
+    try:
+        await db.set_setting(key, str(value))
+        return json_response({"key": key, "value": str(value)})
+    except Exception as e:
+        return error_response(f"更新设置失败: {str(e)}")
+
+
 def _parse_datetime(value: any):
     """Parse datetime from string."""
     from datetime import datetime
@@ -344,6 +387,9 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_put("/api/events/{id}/uncomplete", uncomplete_event)
     app.router.add_get("/api/stats", get_stats)
     app.router.add_get("/api/categories", get_categories)
+    # Settings endpoints
+    app.router.add_get("/api/settings", get_settings)
+    app.router.add_put("/api/settings/{key}", update_setting)
     # LLM endpoints
     app.router.add_post("/api/llm/chat", llm_chat)
     app.router.add_post("/api/llm/create", llm_create)

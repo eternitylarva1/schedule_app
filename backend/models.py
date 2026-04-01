@@ -17,6 +17,9 @@ class Event:
     status: str = "pending"  # pending/done/cancelled
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    reminder_enabled: bool = False
+    reminder_minutes: int = 10
+    reminder_sent: bool = False
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""
@@ -34,6 +37,13 @@ class Event:
         for key in ['start_time', 'end_time', 'created_at', 'updated_at']:
             if d.get(key) and isinstance(d[key], str):
                 d[key] = datetime.fromisoformat(d[key])
+        # Parse boolean fields
+        if 'reminder_enabled' in d:
+            d['reminder_enabled'] = bool(d['reminder_enabled'])
+        if 'reminder_sent' in d:
+            d['reminder_sent'] = bool(d['reminder_sent'])
+        if 'reminder_minutes' in d and d['reminder_minutes'] is not None:
+            d['reminder_minutes'] = int(d['reminder_minutes'])
         # Remove None values for optional fields
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
