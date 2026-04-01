@@ -136,7 +136,13 @@ body {
     width: 44px;
     height: 44px;
     border: none !important;
+    border-style: none !important;
+    border-color: transparent !important;
+    border-image: none !important;
     background: rgba(0, 0, 0, 0.4) !important;
+    background-color: rgba(0, 0, 0, 0.4) !important;
+    background-image: none !important;
+    box-shadow: none !important;
     color: white !important;
     font-size: var(--font-size-lg);
     cursor: pointer;
@@ -145,16 +151,22 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    -webkit-appearance: none;
-    appearance: none;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    -webkit-background-origin: none !important;
+    -webkit-background-clip: none !important;
 }
 
 .header-btn:active {
     background: rgba(0, 0, 0, 0.6) !important;
+    background-color: rgba(0, 0, 0, 0.6) !important;
 }
 
 .header-btn * {
     color: white !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
 }
 
 .header-title {
