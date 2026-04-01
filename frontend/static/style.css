@@ -161,7 +161,12 @@ body {
 }
 
 .header-btn svg {
-    color: white !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block;
     fill: none !important;
     stroke: white !important;
 }
