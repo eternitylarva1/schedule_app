@@ -23,17 +23,23 @@ async def init_db() -> None:
                 recurrence TEXT DEFAULT 'none',
                 status TEXT DEFAULT 'pending',
                 created_at TEXT,
-                updated_at TEXT,
-                reminder_enabled INTEGER DEFAULT 0,
-                reminder_minutes INTEGER DEFAULT 10,
-                reminder_sent INTEGER DEFAULT 0
+                updated_at TEXT
             )
         """)
         
-        # Add new columns to existing tables (if not exist)
-        await db.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS reminder_enabled INTEGER DEFAULT 0")
-        await db.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS reminder_minutes INTEGER DEFAULT 10")
-        await db.execute("ALTER TABLE events ADD COLUMN IF NOT EXISTS reminder_sent INTEGER DEFAULT 0")
+        # Add new columns to existing tables (SQLite doesn't support IF NOT EXISTS for ADD COLUMN)
+        try:
+            await db.execute("ALTER TABLE events ADD COLUMN reminder_enabled INTEGER DEFAULT 0")
+        except Exception:
+            pass  # Column already exists
+        try:
+            await db.execute("ALTER TABLE events ADD COLUMN reminder_minutes INTEGER DEFAULT 10")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE events ADD COLUMN reminder_sent INTEGER DEFAULT 0")
+        except Exception:
+            pass
         
         # Create settings table
         await db.execute("""
@@ -136,9 +142,9 @@ async def get_events(date_filter: str = "today") -> List[Event]:
                     status=row["status"],
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
-                    reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row.keys and row["reminder_enabled"] is not None else False,
-                    reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row.keys and row["reminder_minutes"] is not None else 10,
-                    reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row.keys and row["reminder_sent"] is not None else False,
+                    reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
+                    reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 10,
+                    reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
                 ))
     return events
 
@@ -162,9 +168,9 @@ async def get_event(event_id: int) -> Optional[Event]:
                 status=row["status"],
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
-                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row.keys and row["reminder_enabled"] is not None else False,
-                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row.keys and row["reminder_minutes"] is not None else 10,
-                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row.keys and row["reminder_sent"] is not None else False,
+                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
+                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 10,
+                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
             )
 
 
