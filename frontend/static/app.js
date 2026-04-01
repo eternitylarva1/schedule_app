@@ -50,7 +50,8 @@
         swipe: {
             startX: 0,
             startY: 0,
-            isSwiping: false
+            isSwiping: false,
+            deltaX: 0
         },
         // Breakdown state
         breakdownItems: [],
@@ -1157,9 +1158,7 @@
                     const now = new Date();
                     const currentMinutes = now.getHours() * 60 + now.getMinutes();
                     const scrollTop = Math.max(0, currentMinutes - 60); // Show 1 hour before current
-                    elements.dayView.scrollTo({ top: scrollTop, behavior: 'smooth' });
-                } else {
-                    elements.dayView.scrollTop = 0;
+                    elements.dayView.scrollTop = scrollTop;
                 }
                 break;
             case 'week':
@@ -1196,7 +1195,35 @@
         }
         
         state.currentDate = new Date(date);
-        loadData();
+        
+        // Add slide animation for day view
+        if (state.currentView === 'day') {
+            const slider = document.getElementById('daySlider');
+            if (slider) {
+                slider.classList.remove('animating');
+                slider.style.transform = `translateX(${-direction * 100}%)`;
+                
+                // Render new content
+                renderTimeline();
+                renderHeaderTitle();
+                
+                // Animate to center
+                requestAnimationFrame(() => {
+                    slider.classList.add('animating');
+                    slider.style.transform = 'translateX(0)';
+                });
+                
+                // Clean up animation class
+                setTimeout(() => {
+                    slider.classList.remove('animating');
+                    slider.style.transform = '';
+                }, 300);
+            } else {
+                loadData();
+            }
+        } else {
+            loadData();
+        }
         
         // Re-enable after debounce delay
         setTimeout(() => {
@@ -1679,12 +1706,6 @@
         // Must be at top AND user must be pulling DOWN
         if (!state.pullToRefresh.isAtTop) return;
         
-        // Get current scroll element
-        const scrollEl = getCurrentScrollElement();
-        
-        // Check again in case view changed - must be at top
-        if (scrollEl.scrollTop > 0) return;
-        
         const currentY = e.touches[0].clientY;
         const deltaY = currentY - state.pullToRefresh.startY;
         
@@ -1751,11 +1772,8 @@
         // Don't trigger pull-to-refresh during event drag
         if (state.dragState.event) return;
         
-        // Get current scroll element (the visible view)
-        const scrollEl = getCurrentScrollElement();
-        
-        // Only trigger when at top and pulling down
-        if (scrollEl.scrollTop > 0) return;
+        // Only trigger when at top of content and pulling down
+        if (elements.mainContent.scrollTop > 0) return;
         
         const currentY = e.touches[0].clientY;
         const deltaY = currentY - state.pullToRefresh.startY;
@@ -1860,6 +1878,16 @@
         state.swipe.startX = e.touches[0].clientX;
         state.swipe.startY = e.touches[0].clientY;
         state.swipe.isSwiping = true;
+        state.swipe.deltaX = 0;
+        
+        // For day view - prepare for slide animation
+        if (state.currentView === 'day') {
+            const slider = document.getElementById('daySlider');
+            if (slider) {
+                slider.classList.remove('animating');
+                slider.style.transition = 'none';
+            }
+        }
     }
 
     function handleTouchMove(e) {
@@ -1870,6 +1898,7 @@
         
         const deltaX = e.touches[0].clientX - state.swipe.startX;
         const deltaY = e.touches[0].clientY - state.swipe.startY;
+        state.swipe.deltaX = deltaX;
         
         // Pull to refresh (vertical swipe down at top)
         if (state.mainContent.scrollTop === 0 && deltaY > 0) {
@@ -1884,23 +1913,60 @@
                 });
             }
         }
+        
+        // Day view horizontal swipe - follow finger
+        if (state.currentView === 'day' && Math.abs(deltaX) > 5 && Math.abs(deltaX) > Math.abs(deltaY)) {
+            e.preventDefault();
+            const slider = document.getElementById('daySlider');
+            if (slider) {
+                // Scale down the movement for better feel
+                const movePercent = (deltaX / window.innerWidth) * 100;
+                slider.style.transform = `translateX(${movePercent}%)`;
+            }
+        }
     }
 
     function handleTouchEnd(e) {
         if (!state.swipe.isSwiping) return;
         
-        const deltaX = e.changedTouches[0].clientX - state.swipe.startX;
+        const deltaX = state.swipe.deltaX || (e.changedTouches[0].clientX - state.swipe.startX);
         
-        // Horizontal swipe for date navigation
-        if (Math.abs(deltaX) > 50) {
-            if (deltaX > 0) {
-                navigateDate(-1); // Swipe right = go to previous
-            } else {
-                navigateDate(1); // Swipe left = go to next
+        // Day view horizontal swipe - follow finger
+        if (state.currentView === 'day' && Math.abs(deltaX) > 50) {
+            const direction = deltaX > 0 ? -1 : 1;
+            const slider = document.getElementById('daySlider');
+            
+            // Update date
+            state.currentDate.setDate(state.currentDate.getDate() + direction);
+            renderTimeline();
+            renderHeaderTitle();
+            
+            // Animate to center
+            if (slider) {
+                slider.classList.add('animating');
+                slider.style.transform = 'translateX(0)';
+                setTimeout(() => {
+                    slider.classList.remove('animating');
+                    slider.style.transform = '';
+                }, 300);
+            }
+        } else {
+            // Reset position
+            if (state.currentView === 'day') {
+                const slider = document.getElementById('daySlider');
+                if (slider) {
+                    slider.classList.add('animating');
+                    slider.style.transform = 'translateX(0)';
+                    setTimeout(() => {
+                        slider.classList.remove('animating');
+                        slider.style.transform = '';
+                    }, 300);
+                }
             }
         }
         
         state.swipe.isSwiping = false;
+        state.swipe.deltaX = 0;
     }
 
     // ============================================
@@ -1950,10 +2016,7 @@
         elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
         
         // Tab bar
-        elements.tabDay.addEventListener('click', () => {
-            state.currentDate = new Date(); // Go to today
-            switchView('day');
-        });
+        elements.tabDay.addEventListener('click', () => switchView('day'));
         elements.tabWeek.addEventListener('click', () => switchView('week'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
         elements.tabAdd.addEventListener('click', () => openEventModal());
