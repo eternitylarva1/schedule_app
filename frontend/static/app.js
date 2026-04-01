@@ -978,8 +978,11 @@
                                 eventEl.classList.remove('swiped');
                             }
                         } else if (deltaX > 30) {
-                            // Swipe right - reset
-                            eventEl.style.opacity = '';
+                            // Swipe right - Progressive opacity fade for delete
+                            // deltaX goes from 30 to 150, opacity goes from 1 to 0.3
+                            const fadeProgress = Math.min(Math.max((deltaX - 30) / 120, 0), 1);
+                            const opacity = 1 - (fadeProgress * 0.7); // 1 to 0.3
+                            eventEl.style.opacity = opacity;
                             eventEl.classList.remove('swiped');
                         }
                     }
@@ -988,7 +991,7 @@
                 eventEl.addEventListener('touchend', async () => {
                     if (!swiping) return;
                     
-                    // If swiped past threshold, auto delete
+                    // If swiped left past threshold, auto delete
                     if (swipeDeltaX < -100) {
                         // Auto delete
                         eventEl.style.opacity = '0';
@@ -998,6 +1001,15 @@
                     } else if (swipeDeltaX < -30) {
                         // Partial swipe - just show actions
                         eventEl.classList.add('swiped');
+                    } else if (swipeDeltaX > 100) {
+                        // Swipe right past threshold - auto delete
+                        eventEl.style.opacity = '0';
+                        await deleteEvent(event.id);
+                        showToast('已删除');
+                        renderTodoView();
+                    } else if (swipeDeltaX > 30) {
+                        // Partial right swipe - just fade
+                        eventEl.style.opacity = '';
                     } else {
                         // Reset
                         eventEl.style.opacity = '';
