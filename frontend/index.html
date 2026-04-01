@@ -105,15 +105,16 @@
                             <span>开启提醒</span>
                         </label>
                         <div class="reminder-options" id="reminderOptions">
-                            <label for="reminderMinutes">提前</label>
-                            <select id="reminderMinutes" class="reminder-select">
-                                <option value="5">5</option>
-                                <option value="10" selected>10</option>
-                                <option value="15">15</option>
-                                <option value="30">30</option>
-                                <option value="60">60</option>
-                            </select>
-                            <span>分钟</span>
+                            <div class="reminder-picker" id="reminderPicker">
+                                <div class="reminder-picker-mask"></div>
+                                <div class="reminder-picker-scroll" id="reminderPickerScroll">
+                                    <div class="reminder-picker-item" data-value="5">5分钟</div>
+                                    <div class="reminder-picker-item" data-value="10">10分钟</div>
+                                    <div class="reminder-picker-item" data-value="15">15分钟</div>
+                                    <div class="reminder-picker-item" data-value="30">30分钟</div>
+                                    <div class="reminder-picker-item" data-value="60">60分钟</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="form-group">

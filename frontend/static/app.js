@@ -137,8 +137,8 @@
         appVersion: document.getElementById('appVersion'),
         // Event modal - reminder fields
         reminderEnabled: document.getElementById('reminderEnabled'),
-        reminderMinutes: document.getElementById('reminderMinutes'),
         reminderOptions: document.getElementById('reminderOptions'),
+        reminderPickerScroll: document.getElementById('reminderPickerScroll'),
         // Detail modal
         detailModal: document.getElementById('detailModal'),
         detailBackdrop: document.getElementById('detailBackdrop'),
@@ -1287,7 +1287,10 @@
         
         // Reset reminder fields
         elements.reminderEnabled.checked = event ? (event.reminder_enabled === true || event.reminder_enabled === 'true') : false;
-        elements.reminderMinutes.value = event && event.reminder_minutes ? String(event.reminder_minutes) : '10';
+        
+        // Set picker scroll position based on reminder_minutes
+        const minutes = event && event.reminder_minutes ? event.reminder_minutes : 10;
+        setReminderPickerValue(minutes);
         
         // Show/hide reminder options based on checkbox state
         updateReminderOptionsVisibility();
@@ -1302,8 +1305,38 @@
     
     function updateReminderOptionsVisibility() {
         if (elements.reminderOptions) {
-            elements.reminderOptions.style.display = elements.reminderEnabled.checked ? 'flex' : 'none';
+            elements.reminderOptions.style.display = elements.reminderEnabled.checked ? 'block' : 'none';
         }
+    }
+    
+    // Reminder picker functions (iOS-style scroll picker)
+    const REMINDER_MINUTES = [5, 10, 15, 30, 60];
+    const PICKER_ITEM_HEIGHT = 40;
+    
+    function getReminderPickerValue() {
+        if (!elements.reminderPickerScroll) return 10;
+        const scrollTop = elements.reminderPickerScroll.scrollTop;
+        const index = Math.round(scrollTop / PICKER_ITEM_HEIGHT);
+        return REMINDER_MINUTES[Math.min(Math.max(index, 0), REMINDER_MINUTES.length - 1)];
+    }
+    
+    function setReminderPickerValue(minutes) {
+        if (!elements.reminderPickerScroll) return;
+        let index = REMINDER_MINUTES.indexOf(minutes);
+        if (index === -1) index = 1; // default to 10
+        elements.reminderPickerScroll.scrollTop = index * PICKER_ITEM_HEIGHT;
+        updateActivePickerItem();
+    }
+    
+    function updateActivePickerItem() {
+        const scroll = elements.reminderPickerScroll;
+        if (!scroll) return;
+        const items = scroll.querySelectorAll('.reminder-picker-item');
+        const scrollCenter = scroll.scrollTop + scroll.clientHeight / 2;
+        items.forEach(item => {
+            const itemCenter = item.offsetTop + item.offsetHeight / 2;
+            item.classList.toggle('active', Math.abs(itemCenter - scrollCenter) < PICKER_ITEM_HEIGHT / 2);
+        });
     }
 
     function closeEventModal() {
@@ -1326,7 +1359,7 @@
             all_day: elements.allDayCheck.checked,
             status: 'pending',
             reminder_enabled: elements.reminderEnabled.checked,
-            reminder_minutes: elements.reminderEnabled.checked ? parseInt(elements.reminderMinutes.value) : 0
+            reminder_minutes: elements.reminderEnabled.checked ? getReminderPickerValue() : 0
         };
         
         const result = await createEvent(eventData);
@@ -1376,13 +1409,16 @@
             </div>
             <div class="detail-row" id="detailReminderRow">
                 <span class="detail-label">提前</span>
-                <select id="detailReminderMinutes" class="reminder-select">
-                    <option value="5" ${reminderMinutes == 5 ? 'selected' : ''}>5</option>
-                    <option value="10" ${reminderMinutes == 10 ? 'selected' : ''}>10</option>
-                    <option value="15" ${reminderMinutes == 15 ? 'selected' : ''}>15</option>
-                    <option value="30" ${reminderMinutes == 30 ? 'selected' : ''}>30</option>
-                    <option value="60" ${reminderMinutes == 60 ? 'selected' : ''}>60</option>
-                </select>
+                <div class="reminder-picker detail-reminder-picker" data-scroll-id="detailReminderPicker">
+                    <div class="reminder-picker-mask"></div>
+                    <div class="reminder-picker-scroll" id="detailReminderPickerScroll" data-default-value="${reminderMinutes}">
+                        <div class="reminder-picker-item" data-value="5">5分钟</div>
+                        <div class="reminder-picker-item" data-value="10">10分钟</div>
+                        <div class="reminder-picker-item" data-value="15">15分钟</div>
+                        <div class="reminder-picker-item" data-value="30">30分钟</div>
+                        <div class="reminder-picker-item" data-value="60">60分钟</div>
+                    </div>
+                </div>
                 <span class="detail-value">分钟</span>
             </div>
         `;
@@ -1397,6 +1433,21 @@
             });
         }
         
+        // Initialize detail picker scroll position
+        const detailScroll = document.getElementById('detailReminderPickerScroll');
+        if (detailScroll) {
+            const defaultValue = parseInt(detailScroll.dataset.defaultValue) || 10;
+            const defaultIndex = REMINDER_MINUTES.indexOf(defaultValue);
+            detailScroll.scrollTop = (defaultIndex >= 0 ? defaultIndex : 1) * PICKER_ITEM_HEIGHT;
+            // Update active item
+            const items = detailScroll.querySelectorAll('.reminder-picker-item');
+            const scrollCenter = detailScroll.scrollTop + detailScroll.clientHeight / 2;
+            items.forEach(item => {
+                const itemCenter = item.offsetTop + item.offsetHeight / 2;
+                item.classList.toggle('active', Math.abs(itemCenter - scrollCenter) < PICKER_ITEM_HEIGHT / 2);
+            });
+        }
+        
         // Update button states
         elements.completeEventBtn.style.display = event.status === 'done' ? 'none' : 'flex';
         
@@ -1407,12 +1458,15 @@
         if (!state.selectedEvent || !state.selectedEvent.id) return;
         
         const detailReminderEnabled = document.getElementById('detailReminderEnabled');
-        const detailReminderMinutes = document.getElementById('detailReminderMinutes');
+        const detailPickerScroll = document.getElementById('detailReminderPickerScroll');
         
-        if (!detailReminderEnabled || !detailReminderMinutes) return;
+        if (!detailReminderEnabled || !detailPickerScroll) return;
         
         const reminderEnabled = detailReminderEnabled.checked;
-        const reminderMinutes = reminderEnabled ? parseInt(detailReminderMinutes.value) : 0;
+        // Read value from picker scroll position
+        const scrollTop = detailPickerScroll.scrollTop;
+        const index = Math.round(scrollTop / PICKER_ITEM_HEIGHT);
+        const reminderMinutes = reminderEnabled ? REMINDER_MINUTES[Math.min(Math.max(index, 0), REMINDER_MINUTES.length - 1)] : 0;
         
         const result = await updateEvent(state.selectedEvent.id, {
             reminder_enabled: reminderEnabled,
@@ -2168,6 +2222,11 @@
         // Reminder toggle in event modal
         if (elements.reminderEnabled) {
             elements.reminderEnabled.addEventListener('change', updateReminderOptionsVisibility);
+        }
+        
+        // Reminder picker scroll event
+        if (elements.reminderPickerScroll) {
+            elements.reminderPickerScroll.addEventListener('scroll', updateActivePickerItem);
         }
         
         // Detail modal
