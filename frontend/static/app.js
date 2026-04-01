@@ -964,26 +964,22 @@
                     if (isHorizontalSwipe) {
                         e.preventDefault(); // Prevent page scroll
                         
-                        if (deltaX < -30) {
-                            // Progressive opacity fade as user swipes left
-                            // deltaX goes from -30 to -150, opacity goes from 1 to 0
-                            const fadeProgress = Math.min(Math.max((-deltaX - 30) / 120, 0), 1);
+                        const mainContent = eventEl.querySelector('.todo-main-content');
+                        
+                        if (deltaX < 0) {
+                            // Swipe left - show actions with progressive opacity
+                            const moveX = Math.max(deltaX, -90); // Limit to -90px
+                            const fadeProgress = Math.min(Math.max((-deltaX - 30) / 60, 0), 1);
                             const opacity = 1 - (fadeProgress * 0.7); // 1 to 0.3
+                            mainContent.style.transform = `translateX(${moveX}px)`;
                             eventEl.style.opacity = opacity;
-                            
-                            if (-deltaX >= 100) {
-                                // Threshold reached - auto delete
-                                eventEl.classList.add('swiped');
-                            } else {
-                                eventEl.classList.remove('swiped');
-                            }
-                        } else if (deltaX > 30) {
-                            // Swipe right - Progressive opacity fade for delete
-                            // deltaX goes from 30 to 150, opacity goes from 1 to 0.3
+                        } else if (deltaX > 0) {
+                            // Swipe right - delete with progressive opacity
                             const fadeProgress = Math.min(Math.max((deltaX - 30) / 120, 0), 1);
                             const opacity = 1 - (fadeProgress * 0.7); // 1 to 0.3
+                            const moveX = Math.min(deltaX, 150); // Limit to 150px
+                            mainContent.style.transform = `translateX(${moveX}px)`;
                             eventEl.style.opacity = opacity;
-                            eventEl.classList.remove('swiped');
                         }
                     }
                 }, { passive: false });
@@ -991,15 +987,8 @@
                 eventEl.addEventListener('touchend', async () => {
                     if (!swiping) return;
                     
-                    // If swiped left past threshold, auto delete
-                    if (swipeDeltaX < -100) {
-                        // Auto delete
-                        eventEl.style.opacity = '0';
-                        await deleteEvent(event.id);
-                        showToast('已删除');
-                        renderTodoView();
-                    } else if (swipeDeltaX < -30) {
-                        // Partial swipe - just show actions
+                    if (swipeDeltaX < -90) {
+                        // Swiped left past threshold - keep actions visible
                         eventEl.classList.add('swiped');
                     } else if (swipeDeltaX > 100) {
                         // Swipe right past threshold - auto delete
@@ -1007,9 +996,6 @@
                         await deleteEvent(event.id);
                         showToast('已删除');
                         renderTodoView();
-                    } else if (swipeDeltaX > 30) {
-                        // Partial right swipe - just fade
-                        eventEl.style.opacity = '';
                     } else {
                         // Reset
                         eventEl.style.opacity = '';
