@@ -7,6 +7,11 @@
     'use strict';
 
     // ============================================
+    // App Version
+    // ============================================
+    const APP_VERSION = '1.0.0';
+
+    // ============================================
     // State Management
     // ============================================
     const state = {
@@ -125,6 +130,7 @@
         settingsClose: document.getElementById('settingsClose'),
         settingsBtn: document.getElementById('settingsBtn'),
         enableDragResize: document.getElementById('enableDragResize'),
+        appVersion: document.getElementById('appVersion'),
     };
 
     // ============================================
@@ -1294,6 +1300,9 @@
         const saved = localStorage.getItem('enableDragResize');
         state.enableDragResize = saved === 'true';
         elements.enableDragResize.checked = state.enableDragResize;
+        
+        // Set version
+        elements.appVersion.textContent = 'v' + APP_VERSION;
         
         elements.settingsModal.classList.remove('hidden');
     }
