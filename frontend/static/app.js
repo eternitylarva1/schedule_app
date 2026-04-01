@@ -2044,7 +2044,7 @@
         
         // Touch gestures
         elements.mainContent.addEventListener('touchstart', handleTouchStart, { passive: true });
-        elements.mainContent.addEventListener('touchmove', handleTouchMove, { passive: true });
+        elements.mainContent.addEventListener('touchmove', handleTouchMove, { passive: false });
         elements.mainContent.addEventListener('touchend', handleTouchEnd, { passive: true });
         
         // Pull-to-refresh (attached to document for better detection)
