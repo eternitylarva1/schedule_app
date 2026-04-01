@@ -1773,8 +1773,11 @@
         // Don't trigger pull-to-refresh during event drag
         if (state.dragState.event) return;
         
-        // Only trigger when at top of content and pulling down
-        if (elements.mainContent.scrollTop > 0) return;
+        // Get current scroll element (the visible view)
+        const scrollEl = getCurrentScrollElement();
+        
+        // Only trigger when at top and pulling down
+        if (scrollEl.scrollTop > 0) return;
         
         const currentY = e.touches[0].clientY;
         const deltaY = currentY - state.pullToRefresh.startY;
@@ -1902,23 +1905,9 @@
         const deltaY = e.touches[0].clientY - state.swipe.startY;
         state.swipe.deltaX = deltaX;
         
-        // Determine swipe direction
-        if (state.swipe.isHorizontal === false && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
+        // Determine swipe direction with low threshold for faster response
+        if (state.swipe.isHorizontal === false && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
             state.swipe.isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
-        }
-        
-        // Pull to refresh (vertical swipe down at top)
-        if (!state.swipe.isHorizontal && state.mainContent.scrollTop === 0 && deltaY > 0) {
-            const pullDistance = deltaY;
-            if (pullDistance > 30 && !state.pullToRefresh.isRefreshing) {
-                elements.ptrIndicator.classList.add('visible');
-                elements.ptrIndicator.classList.add('refreshing');
-                state.pullToRefresh.isRefreshing = true;
-                loadData().then(() => {
-                    elements.ptrIndicator.classList.remove('visible', 'refreshing');
-                    state.pullToRefresh.isRefreshing = false;
-                });
-            }
         }
         
         // Day view horizontal swipe - follow finger and prevent scroll
@@ -1926,7 +1915,7 @@
             e.preventDefault();
             const slider = document.getElementById('daySlider');
             if (slider) {
-                // Scale down the movement for better feel
+                // Direct 1:1 movement for smooth feel
                 const movePercent = (deltaX / window.innerWidth) * 100;
                 slider.style.transform = `translateX(${movePercent}%)`;
             }
