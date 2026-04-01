@@ -373,7 +373,9 @@ body {
    ============================================ */
 .day-view {
     position: relative;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .view-slider {

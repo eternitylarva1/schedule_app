@@ -51,7 +51,8 @@
             startX: 0,
             startY: 0,
             isSwiping: false,
-            deltaX: 0
+            deltaX: 0,
+            isHorizontal: false
         },
         // Breakdown state
         breakdownItems: [],
@@ -1879,6 +1880,7 @@
         state.swipe.startY = e.touches[0].clientY;
         state.swipe.isSwiping = true;
         state.swipe.deltaX = 0;
+        state.swipe.isHorizontal = false;
         
         // For day view - prepare for slide animation
         if (state.currentView === 'day') {
@@ -1900,8 +1902,13 @@
         const deltaY = e.touches[0].clientY - state.swipe.startY;
         state.swipe.deltaX = deltaX;
         
+        // Determine swipe direction
+        if (state.swipe.isHorizontal === false && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
+            state.swipe.isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+        }
+        
         // Pull to refresh (vertical swipe down at top)
-        if (state.mainContent.scrollTop === 0 && deltaY > 0) {
+        if (!state.swipe.isHorizontal && state.mainContent.scrollTop === 0 && deltaY > 0) {
             const pullDistance = deltaY;
             if (pullDistance > 30 && !state.pullToRefresh.isRefreshing) {
                 elements.ptrIndicator.classList.add('visible');
@@ -1914,8 +1921,8 @@
             }
         }
         
-        // Day view horizontal swipe - follow finger
-        if (state.currentView === 'day' && Math.abs(deltaX) > 5 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        // Day view horizontal swipe - follow finger and prevent scroll
+        if (state.currentView === 'day' && state.swipe.isHorizontal) {
             e.preventDefault();
             const slider = document.getElementById('daySlider');
             if (slider) {
@@ -1932,7 +1939,7 @@
         const deltaX = state.swipe.deltaX || (e.changedTouches[0].clientX - state.swipe.startX);
         
         // Day view horizontal swipe - follow finger
-        if (state.currentView === 'day' && Math.abs(deltaX) > 50) {
+        if (state.currentView === 'day' && state.swipe.isHorizontal && Math.abs(deltaX) > 50) {
             const direction = deltaX > 0 ? -1 : 1;
             const slider = document.getElementById('daySlider');
             
@@ -1967,6 +1974,7 @@
         
         state.swipe.isSwiping = false;
         state.swipe.deltaX = 0;
+        state.swipe.isHorizontal = false;
     }
 
     // ============================================
