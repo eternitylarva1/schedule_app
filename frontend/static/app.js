@@ -1312,6 +1312,7 @@
     // Reminder picker functions (iOS-style scroll picker)
     const REMINDER_MINUTES = [5, 10, 15, 30, 60];
     const PICKER_ITEM_HEIGHT = 40;
+    const PICKER_VISIBLE_ITEMS = 3; // items visible above/below center
     
     function getReminderPickerValue() {
         if (!elements.reminderPickerScroll) return 10;
@@ -1331,7 +1332,7 @@
     function updateActivePickerItem() {
         const scroll = elements.reminderPickerScroll;
         if (!scroll) return;
-        const items = scroll.querySelectorAll('.reminder-picker-item');
+        const items = scroll.querySelectorAll('.reminder-picker-item:not(.placeholder)');
         const scrollCenter = scroll.scrollTop + scroll.clientHeight / 2;
         items.forEach(item => {
             const itemCenter = item.offsetTop + item.offsetHeight / 2;
@@ -1351,10 +1352,18 @@
             return;
         }
         
+        // Validate end time >= start time
+        const startTime = elements.startTime.value;
+        const endTime = elements.endTime.value;
+        if (startTime && endTime && new Date(endTime) < new Date(startTime)) {
+            showToast('结束时间不能早于开始时间');
+            return;
+        }
+        
         const eventData = {
             title: title,
-            start_time: elements.startTime.value || null,
-            end_time: elements.endTime.value || null,
+            start_time: startTime || null,
+            end_time: endTime || null,
             category_id: state.selectedCategory,
             all_day: elements.allDayCheck.checked,
             status: 'pending',
@@ -1412,11 +1421,13 @@
                 <div class="reminder-picker detail-reminder-picker" data-scroll-id="detailReminderPicker">
                     <div class="reminder-picker-mask"></div>
                     <div class="reminder-picker-scroll" id="detailReminderPickerScroll" data-default-value="${reminderMinutes}">
-                        <div class="reminder-picker-item" data-value="5">5分钟</div>
-                        <div class="reminder-picker-item" data-value="10">10分钟</div>
-                        <div class="reminder-picker-item" data-value="15">15分钟</div>
-                        <div class="reminder-picker-item" data-value="30">30分钟</div>
-                        <div class="reminder-picker-item" data-value="60">60分钟</div>
+                        <div class="reminder-picker-item placeholder"></div>
+                        <div class="reminder-picker-item" data-value="5">提前5分钟</div>
+                        <div class="reminder-picker-item" data-value="10">提前10分钟</div>
+                        <div class="reminder-picker-item" data-value="15">提前15分钟</div>
+                        <div class="reminder-picker-item" data-value="30">提前30分钟</div>
+                        <div class="reminder-picker-item" data-value="60">提前60分钟</div>
+                        <div class="reminder-picker-item placeholder"></div>
                     </div>
                 </div>
                 <span class="detail-value">分钟</span>
@@ -1440,7 +1451,7 @@
             const defaultIndex = REMINDER_MINUTES.indexOf(defaultValue);
             detailScroll.scrollTop = (defaultIndex >= 0 ? defaultIndex : 1) * PICKER_ITEM_HEIGHT;
             // Update active item
-            const items = detailScroll.querySelectorAll('.reminder-picker-item');
+            const items = detailScroll.querySelectorAll('.reminder-picker-item:not(.placeholder)');
             const scrollCenter = detailScroll.scrollTop + detailScroll.clientHeight / 2;
             items.forEach(item => {
                 const itemCenter = item.offsetTop + item.offsetHeight / 2;

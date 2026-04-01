@@ -1970,6 +1970,11 @@ textarea {
     transform: scale(1.1);
 }
 
+.reminder-picker-item.placeholder {
+    visibility: hidden;
+    pointer-events: none;
+}
+
 .reminder-picker-item:active {
     opacity: 0.7;
 }
