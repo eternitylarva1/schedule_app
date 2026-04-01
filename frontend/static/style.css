@@ -136,7 +136,7 @@ body {
     width: 44px;
     height: 44px;
     border: none;
-    background: rgba(255, 255, 255, 0.15);
+    background: transparent;
     color: white;
     font-size: var(--font-size-lg);
     cursor: pointer;
@@ -148,7 +148,7 @@ body {
 }
 
 .header-btn:active {
-    background: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.15);
 }
 
 .header-title {
@@ -1539,13 +1539,30 @@ body {
 }
 
 .breakdown-item-time input {
-    width: 120px;
     padding: var(--space-xs);
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     font-size: var(--font-size-xs);
+}
+
+.breakdown-date-input {
+    width: 130px;
+}
+
+.breakdown-time-input {
+    width: 90px;
+}
+
+.breakdown-item-title input {
+    width: 100%;
+    padding: var(--space-sm);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
 }
 
 .breakdown-item-title {
@@ -1567,6 +1584,46 @@ body {
     text-align: center;
     padding: var(--space-lg);
     color: var(--text-muted);
+}
+
+/* Saved Breakdowns List */
+.saved-breakdowns-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.saved-breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+}
+
+.saved-breakdown-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.saved-breakdown-text {
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.saved-breakdown-meta {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.saved-breakdown-load-btn {
+    flex-shrink: 0;
+    padding: var(--space-sm) var(--space-md);
 }
 
 textarea {

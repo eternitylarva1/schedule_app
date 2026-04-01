@@ -132,8 +132,13 @@
                         <label for="breakdownInput">输入任务描述</label>
                         <textarea id="breakdownInput" rows="2" placeholder="例如：完成项目报告，包括数据分析和PPT制作"></textarea>
                     </div>
+                    <div class="form-group">
+                        <label for="breakdownDate">导入日期</label>
+                        <input type="date" id="breakdownDate">
+                    </div>
                     <div class="breakdown-actions">
                         <button class="btn btn-secondary" id="breakdownAnalyzeBtn">🤖 AI拆解</button>
+                        <button class="btn btn-secondary" id="breakdownAddBtn">➕ 添加</button>
                         <button class="btn btn-secondary" id="breakdownLoadBtn">📂 加载</button>
                     </div>
                     <div class="breakdown-results" id="breakdownResults"></div>
@@ -141,6 +146,20 @@
                 <div class="modal-footer">
                     <button class="btn btn-secondary" id="breakdownSaveBtn">保存</button>
                     <button class="btn btn-primary" id="breakdownImportBtn">导入到日程</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Saved Breakdowns Selection Modal -->
+        <div class="modal hidden" id="savedBreakdownsModal">
+            <div class="modal-backdrop" id="savedBreakdownsBackdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>选择保存的拆解</h2>
+                    <button class="modal-close" id="savedBreakdownsClose">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="saved-breakdowns-list" id="savedBreakdownsList"></div>
                 </div>
             </div>
         </div>

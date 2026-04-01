@@ -108,10 +108,17 @@
         breakdownInput: document.getElementById('breakdownInput'),
         breakdownAnalyzeBtn: document.getElementById('breakdownAnalyzeBtn'),
         breakdownResults: document.getElementById('breakdownResults'),
+        breakdownDate: document.getElementById('breakdownDate'),
         breakdownSaveBtn: document.getElementById('breakdownSaveBtn'),
         breakdownImportBtn: document.getElementById('breakdownImportBtn'),
         breakdownLoadBtn: document.getElementById('breakdownLoadBtn'),
+        breakdownAddBtn: document.getElementById('breakdownAddBtn'),
         breakdownClose: document.getElementById('breakdownClose'),
+        // Saved breakdowns modal
+        savedBreakdownsModal: document.getElementById('savedBreakdownsModal'),
+        savedBreakdownsBackdrop: document.getElementById('savedBreakdownsBackdrop'),
+        savedBreakdownsClose: document.getElementById('savedBreakdownsClose'),
+        savedBreakdownsList: document.getElementById('savedBreakdownsList'),
         // Settings modal
         settingsModal: document.getElementById('settingsModal'),
         settingsBackdrop: document.getElementById('settingsBackdrop'),
@@ -922,32 +929,43 @@
                 let swipeStartX = 0;
                 let swipeStartY = 0;
                 let swiping = false;
+                let isHorizontalSwipe = null;
                 
                 eventEl.addEventListener('touchstart', (e) => {
                     swipeStartX = e.touches[0].clientX;
                     swipeStartY = e.touches[0].clientY;
                     swiping = true;
+                    isHorizontalSwipe = null;
                 }, { passive: true });
                 
                 eventEl.addEventListener('touchmove', (e) => {
                     if (!swiping) return;
+                    
                     const deltaX = e.touches[0].clientX - swipeStartX;
                     const deltaY = e.touches[0].clientY - swipeStartY;
                     
+                    // Determine swipe direction on first significant move
+                    if (isHorizontalSwipe === null && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
+                        isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+                    }
+                    
                     // Only handle horizontal swipe
-                    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
-                        if (deltaX < 0) {
+                    if (isHorizontalSwipe) {
+                        e.preventDefault(); // Prevent page scroll
+                        
+                        if (deltaX < -30) {
                             // Swipe left - reveal actions
                             eventEl.classList.add('swiped');
-                        } else {
+                        } else if (deltaX > 30) {
                             // Swipe right - hide actions
                             eventEl.classList.remove('swiped');
                         }
                     }
-                }, { passive: true });
+                }, { passive: false });
                 
                 eventEl.addEventListener('touchend', () => {
                     swiping = false;
+                    isHorizontalSwipe = null;
                 }, { passive: true });
                 
                 // Action button handlers
@@ -1257,6 +1275,9 @@
         elements.breakdownInput.value = '';
         state.breakdownItems = [];
         state.breakdownId = 'breakdown_' + Date.now();
+        // Set default date to today
+        const today = new Date();
+        elements.breakdownDate.value = today.toISOString().split('T')[0];
         elements.breakdownResults.innerHTML = '<div class="breakdown-empty">输入任务描述，点击"AI拆解"按钮分解任务</div>';
         elements.breakdownModal.classList.remove('hidden');
     }
@@ -1311,6 +1332,7 @@
                 state.breakdownItems = result.subtasks.map((item, idx) => ({
                     id: idx + 1,
                     title: item.title || item.name || '',
+                    date: item.date || elements.breakdownDate.value || '',
                     startTime: item.start_time || item.startTime || '',
                     duration: item.duration_minutes || item.duration || 30,
                     category_id: item.category_id || 'work'
@@ -1341,8 +1363,12 @@
                         onchange="updateBreakdownItem(${idx}, 'title', this.value)">
                 </div>
                 <div class="breakdown-item-time">
+                    <input type="date" value="${item.date || ''}" 
+                        onchange="updateBreakdownItem(${idx}, 'date', this.value)"
+                        class="breakdown-date-input">
                     <input type="time" value="${item.startTime || ''}" 
-                        onchange="updateBreakdownItem(${idx}, 'startTime', this.value)">
+                        onchange="updateBreakdownItem(${idx}, 'startTime', this.value)"
+                        class="breakdown-time-input">
                     <span>时长:</span>
                     <input type="number" value="${item.duration || 30}" min="5" max="480"
                         onchange="updateBreakdownItem(${idx}, 'duration', parseInt(this.value))">
@@ -1371,6 +1397,18 @@
         renderBreakdownResults();
     }
 
+    function addBreakdownItem() {
+        state.breakdownItems.push({
+            id: state.breakdownItems.length + 1,
+            title: '',
+            date: elements.breakdownDate.value || new Date().toISOString().split('T')[0],
+            startTime: '',
+            duration: 30,
+            category_id: 'work'
+        });
+        renderBreakdownResults();
+    }
+
     // Global function for inline onchange handlers
     window.updateBreakdownItem = function(idx, field, value) {
         state.breakdownItems[idx][field] = value;
@@ -1388,23 +1426,40 @@
         // Show most recent first
         keys.sort((a, b) => new Date(saved[b].savedAt) - new Date(saved[a].savedAt));
         
-        // Create a simple selection UI
-        const options = keys.map((k, i) => `${i + 1}. ${saved[k].text.substring(0, 30)}... (${saved[k].items.length}项)`).join('\n');
-        const choice = prompt(`已保存的拆解:\n${options}\n\n输入序号加载:`);
-        
-        if (!choice) return;
-        
-        const idx = parseInt(choice) - 1;
-        if (idx >= 0 && idx < keys.length) {
-            const selected = saved[keys[idx]];
-            state.breakdownId = keys[idx];
-            elements.breakdownInput.value = selected.text;
-            state.breakdownItems = [...selected.items];
-            renderBreakdownResults();
-            showToast(`已加载: ${selected.items.length}项`);
+        // Render the list
+        if (keys.length === 0) {
+            elements.savedBreakdownsList.innerHTML = '<div class="empty-state"><div class="empty-text">没有保存的拆解</div></div>';
         } else {
-            showToast('无效的序号');
+            elements.savedBreakdownsList.innerHTML = keys.map((k, i) => `
+                <div class="saved-breakdown-item" data-key="${k}">
+                    <div class="saved-breakdown-info">
+                        <div class="saved-breakdown-text">${escapeHtml(saved[k].text.substring(0, 50))}${saved[k].text.length > 50 ? '...' : ''}</div>
+                        <div class="saved-breakdown-meta">${saved[k].items.length}项 · ${new Date(saved[k].savedAt).toLocaleDateString()}</div>
+                    </div>
+                    <button class="btn btn-secondary saved-breakdown-load-btn">加载</button>
+                </div>
+            `).join('');
+            
+            // Add click handlers
+            elements.savedBreakdownsList.querySelectorAll('.saved-breakdown-load-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const key = e.target.closest('.saved-breakdown-item').dataset.key;
+                    const selected = saved[key];
+                    state.breakdownId = key;
+                    elements.breakdownInput.value = selected.text;
+                    state.breakdownItems = [...selected.items];
+                    renderBreakdownResults();
+                    closeSavedBreakdownsModal();
+                    showToast(`已加载: ${selected.items.length}项`);
+                });
+            });
         }
+        
+        elements.savedBreakdownsModal.classList.remove('hidden');
+    }
+
+    function closeSavedBreakdownsModal() {
+        elements.savedBreakdownsModal.classList.add('hidden');
     }
 
     function saveBreakdowns() {
@@ -1434,7 +1489,7 @@
 
         console.log('Importing breakdown items:', state.breakdownItems);
         
-        const now = new Date();
+        const globalDate = elements.breakdownDate.value;
         let imported = 0;
         let failed = 0;
 
@@ -1445,9 +1500,17 @@
                 continue;
             }
 
+            // Use per-item date if available, otherwise use global date
+            const dateValue = item.date || globalDate;
+            if (!dateValue) {
+                console.log('Skipping item missing date:', item);
+                failed++;
+                continue;
+            }
+            
+            const [year, month, day] = dateValue.split('-').map(Number);
             const [hours, minutes] = item.startTime.split(':').map(Number);
-            const startTime = new Date(now);
-            startTime.setHours(hours, minutes, 0, 0);
+            const startTime = new Date(year, month - 1, day, hours, minutes, 0, 0);
 
             const endTime = new Date(startTime.getTime() + (item.duration || 30) * 60 * 1000);
 
@@ -1818,6 +1881,11 @@
         elements.breakdownSaveBtn.addEventListener('click', saveBreakdowns);
         elements.breakdownImportBtn.addEventListener('click', importBreakdowns);
         elements.breakdownLoadBtn.addEventListener('click', loadSavedBreakdowns);
+        elements.breakdownAddBtn.addEventListener('click', addBreakdownItem);
+        
+        // Saved breakdowns modal events
+        elements.savedBreakdownsBackdrop.addEventListener('click', closeSavedBreakdownsModal);
+        elements.savedBreakdownsClose.addEventListener('click', closeSavedBreakdownsModal);
         
         // Settings modal events
         elements.settingsBtn.addEventListener('click', openSettingsModal);
