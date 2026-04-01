@@ -1886,6 +1886,7 @@ textarea {
     Reminder UI - Bottom Sheet Picker
     ============================================ */
 .reminder-options {
+    display: none;
     margin-top: var(--space-sm);
     margin-left: 28px;
 }
