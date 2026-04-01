@@ -135,9 +135,9 @@ body {
 .header-btn {
     width: 44px;
     height: 44px;
-    border: none;
-    background: rgba(0, 0, 0, 0.3);
-    color: white;
+    border: none !important;
+    background: rgba(0, 0, 0, 0.4) !important;
+    color: white !important;
     font-size: var(--font-size-lg);
     cursor: pointer;
     border-radius: 50%;
@@ -145,10 +145,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    -webkit-appearance: none;
+    appearance: none;
 }
 
 .header-btn:active {
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6) !important;
+}
+
+.header-btn * {
+    color: white !important;
 }
 
 .header-title {
