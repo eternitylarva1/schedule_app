@@ -1462,12 +1462,7 @@ body {
     width: 40px;
 }
 
-.tab-item[data-view="add"] {
-    position: relative;
-    top: -12px;
-    opacity: 0.3;
-    pointer-events: none;
-}
+
 
 /* ============================================
    Floating Add Button (content area)
