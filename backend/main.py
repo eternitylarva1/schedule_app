@@ -67,8 +67,8 @@ async def init_app() -> web.Application:
     # Serve static files from frontend directory
     if FRONTEND_DIR.exists():
         app.router.add_static("/static/", FRONTEND_DIR / "static", show_index=True)
+        # Add index for root - but NOT a catch-all to avoid intercepting /api/*
         app.router.add_get("/", index)
-        app.router.add_get("/{path:.*}", index)
 
     # CORS setup
     cors = aiohttp_cors.setup(app, defaults={
