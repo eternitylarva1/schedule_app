@@ -317,12 +317,13 @@ async def llm_breakdown(request: web.Request) -> web.Response:
     
     user_text = data.get("text", "").strip()
     horizon = data.get("horizon", "short")
+    self_description = data.get("self_description", "").strip()
     if not user_text:
         return error_response("请输入任务描述")
     
     from .llm_service import llm_service
     
-    result = await llm_service.breakdown_task(user_text, horizon=horizon)
+    result = await llm_service.breakdown_task(user_text, horizon=horizon, self_description=self_description)
     if result:
         return json_response(result)
     else:

@@ -65,6 +65,7 @@
         enableDragResize: false,  // Drag to resize events - default off
         qqReminderEnabled: false,  // QQ reminder default off
         defaultTaskReminderEnabled: true,
+        userSelfDescription: '',  // User's current status for task breakdown
         statsClockTimer: null,
     };
 
@@ -149,6 +150,7 @@
         enableDragResize: document.getElementById('enableDragResize'),
         enableQQReminder: document.getElementById('enableQQReminder'),
         defaultTaskReminderEnabled: document.getElementById('defaultTaskReminderEnabled'),
+        userSelfDescription: document.getElementById('userSelfDescription'),
         appVersion: document.getElementById('appVersion'),
         // Event modal - reminder fields
         reminderEnabled: document.getElementById('reminderEnabled'),
@@ -1823,6 +1825,16 @@
         elements.enableQQReminder.checked = state.qqReminderEnabled;
         elements.defaultTaskReminderEnabled.checked = state.defaultTaskReminderEnabled;
         
+        // Load user self description from API
+        const settings = await apiCall('settings');
+        if (settings && settings.self_description) {
+            state.userSelfDescription = settings.self_description;
+            elements.userSelfDescription.value = settings.self_description;
+        } else {
+            state.userSelfDescription = '';
+            elements.userSelfDescription.value = '';
+        }
+        
         // Set version
         elements.appVersion.textContent = 'v' + APP_VERSION;
         
@@ -1830,6 +1842,13 @@
     }
 
     function closeSettingsModal() {
+        // Save user self description to API
+        const desc = elements.userSelfDescription.value.trim();
+        if (desc !== state.userSelfDescription) {
+            state.userSelfDescription = desc;
+            updateSetting('self_description', desc);
+        }
+        
         elements.settingsModal.classList.add('hidden');
     }
 
@@ -1886,7 +1905,8 @@
                 method: 'POST',
                 body: JSON.stringify({ 
                     text: text,
-                    horizon: state.breakdownHorizon || 'short'
+                    horizon: state.breakdownHorizon || 'short',
+                    self_description: state.userSelfDescription || ''
                 })
             });
 

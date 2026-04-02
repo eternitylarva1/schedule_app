@@ -124,7 +124,7 @@ class LLMService:
         
         return None
 
-    async def breakdown_task(self, user_text: str, horizon: str = "short") -> Optional[Dict[str, Any]]:
+    async def breakdown_task(self, user_text: str, horizon: str = "short", self_description: str = "") -> Optional[Dict[str, Any]]:
         """Break down a complex task into subtasks.
         
         Returns dict with subtasks array or None if failed.
@@ -140,13 +140,20 @@ class LLMService:
             "long": "长期目标（通常6个月以上）",
         }.get(horizon, "短期目标（通常1-7天）")
 
+        # Build context section
+        context_section = ""
+        if self_description:
+            context_section = f"""
+用户现状背景：{self_description}
+
+"""
+
         prompt = f"""用户想要将一个复杂任务分解为多个子任务，请分析并返回JSON格式。
 
 当前日期：{current_date} {current_time}
 规划层级：{horizon_hint}
 任务：{user_text}
-
-请将任务分解为多个可执行的子任务，返回JSON格式：
+{context_section}请将任务分解为多个可执行的子任务，返回JSON格式：
 {{
     "subtasks": [
         {{
