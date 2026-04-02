@@ -1310,8 +1310,10 @@
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'semester' ? 'active' : ''}" data-horizon="semester">学期</button>
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'long' ? 'active' : ''}" data-horizon="long">长期</button>
                 </div>
+                <button class="goals-ref-toggle" id="goalsRefToggle">📅 参考</button>
                 <button class="goals-add-btn">+ 添加目标</button>
             </div>
+            <div class="goals-reference hidden" id="goalsReference"></div>
             <div class="goals-list"></div>
         `;
         
@@ -1329,6 +1331,69 @@
         container.querySelector('.goals-add-btn').addEventListener('click', () => {
             openBreakdownModal({ horizon: state.goalsHorizon, text: '' });
         });
+        
+        // Bind reference toggle
+        const refToggle = container.querySelector('#goalsRefToggle');
+        const refContainer = container.querySelector('#goalsReference');
+        refToggle.addEventListener('click', async () => {
+            refContainer.classList.toggle('hidden');
+            if (!refContainer.classList.contains('hidden')) {
+                await renderGoalsReference();
+            }
+        });
+    }
+    
+    async function renderGoalsReference() {
+        const refContainer = elements.goalsContainer.querySelector('#goalsReference');
+        if (!refContainer) return;
+        
+        refContainer.innerHTML = '<div class="goals-ref-loading">加载中...</div>';
+        
+        try {
+            // Fetch week and month events in parallel
+            const [weekEvents, monthEvents] = await Promise.all([
+                fetchEvents('week'),
+                fetchEvents('month')
+            ]);
+            
+            // Filter pending events (not completed)
+            const pendingWeekEvents = (weekEvents || []).filter(e => e.status !== 'completed').slice(0, 5);
+            const pendingMonthEvents = monthEvents || [];
+            const pendingMonthTotal = pendingMonthEvents.filter(e => e.status !== 'completed').length;
+            const completedMonthCount = pendingMonthEvents.filter(e => e.status === 'completed').length;
+            
+            const weekHtml = pendingWeekEvents.length > 0 
+                ? pendingWeekEvents.map(event => {
+                    const eventDate = new Date(event.start_time);
+                    const dayName = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][eventDate.getDay()];
+                    const timeStr = event.all_day ? '全天' : formatTime(eventDate);
+                    return `
+                        <div class="goals-ref-event">
+                            <span class="goals-ref-event-title">${escapeHtml(event.title)}</span>
+                            <span class="goals-ref-event-time">${dayName} ${timeStr}</span>
+                        </div>
+                    `;
+                }).join('')
+                : '<div class="goals-ref-empty">本周暂无待办日程</div>';
+            
+            const monthHtml = pendingMonthTotal > 0
+                ? `<div class="goals-ref-summary">共${pendingMonthTotal}个日程，${completedMonthCount}个已完成</div>`
+                : '<div class="goals-ref-empty">本月暂无待办日程</div>';
+            
+            refContainer.innerHTML = `
+                <div class="goals-ref-section">
+                    <div class="goals-ref-title">📅 本周日程</div>
+                    <div class="goals-ref-list">${weekHtml}</div>
+                </div>
+                <div class="goals-ref-section">
+                    <div class="goals-ref-title">📆 本月日程</div>
+                    ${monthHtml}
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error loading reference events:', error);
+            refContainer.innerHTML = '<div class="goals-ref-empty">加载失败</div>';
+        }
     }
     
     async function renderGoalsList() {
