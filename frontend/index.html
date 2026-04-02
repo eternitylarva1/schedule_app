@@ -64,6 +64,12 @@
             </div>
         </div>
 
+        <!-- Month View -->
+        <div class="view month-view hidden" id="monthView">
+            <div class="month-header" id="monthHeader"></div>
+            <div class="month-grid" id="monthGrid"></div>
+        </div>
+
             <!-- Todo View -->
             <div class="view todo-view hidden" id="todoView">
                 <div class="todo-container" id="todoContainer"></div>
@@ -215,6 +221,10 @@
             <button class="tab-item" data-view="week" id="tabWeek">
                 <span class="tab-icon">📆</span>
                 <span class="tab-label">周</span>
+            </button>
+            <button class="tab-item" data-view="month" id="tabMonth">
+                <span class="tab-icon">🗓️</span>
+                <span class="tab-label">月</span>
             </button>
             <button class="tab-item" data-view="add" id="tabAdd">
                 <span class="tab-icon add-icon">+</span>

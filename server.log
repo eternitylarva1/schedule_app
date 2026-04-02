@@ -1,0 +1,234 @@
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:55:59 +0800] "GET /api/goals HTTP/1.1" 200 182 "-" "curl/8.7.1"
+INFO:root:Request: GET /
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:08 +0800] "GET / HTTP/1.1" 304 179 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /static/style.css
+INFO:root:Request: GET /static/app.js
+INFO:root:Response: 200
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:08 +0800] "GET /static/style.css HTTP/1.1" 304 179 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:08 +0800] "GET /static/app.js HTTP/1.1" 304 180 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:08 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:08 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:08 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:09 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /service-worker.js
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:09 +0800] "GET /service-worker.js HTTP/1.1" 404 174 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /favicon.ico
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:09 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /manifest.json
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:09 +0800] "GET /manifest.json HTTP/1.1" 404 174 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:18 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:22:56:18 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:27 +0800] "GET / HTTP/1.1" 304 179 "-" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /static/style.css
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:27 +0800] "GET /static/style.css HTTP/1.1" 304 179 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /static/app.js
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:28 +0800] "GET /static/app.js HTTP/1.1" 304 180 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:28 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:28 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:28 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /favicon.ico
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:28 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:28 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:29 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:30 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:31 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:33 +0800] "GET /api/goals?horizon=semester HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:34 +0800] "GET /api/goals?horizon=long HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:34 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:24:59 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:25:01 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:16 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:27 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:27 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:27 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:29 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:29 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:29 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:29 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:32 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:32 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:33 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:34 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:34 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:26:34 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:19 +0800] "GET /api/goals?horizon=long HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:19 +0800] "GET /api/goals?horizon=semester HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:20 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:52 +0800] "GET /api/goals?horizon=semester HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:52 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:54 +0800] "GET /api/goals?horizon=semester HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:55 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:55 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:55 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:55 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:55 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:55 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:56 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:56 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:56 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:57 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:57 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:57 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:57 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:57 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:27:57 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:28:00 +0800] "GET /api/goals?horizon=semester HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:28:08 +0800] "GET /api/events?date=month HTTP/1.1" 200 910 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: PUT /api/events/95/complete
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:28:11 +0800] "PUT /api/events/95/complete HTTP/1.1" 200 703 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:28:51 +0800] "GET /api/events?date=month HTTP/1.1" 200 907 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:10.191.245.205 [02/Apr/2026:23:28:51 +0800] "GET /api/goals?horizon=semester HTTP/1.1" 200 182 "http://10.191.245.200:8080/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Mobile Safari/537.36"
+INFO:root:Request: GET /
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:31 +0800] "GET / HTTP/1.1" 200 239 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /static/style.css
+INFO:root:Request: GET /static/app.js
+INFO:root:Response: 200
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:31 +0800] "GET /static/style.css HTTP/1.1" 200 238 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:31 +0800] "GET /static/app.js HTTP/1.1" 200 254 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:32 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:32 +0800] "GET /api/events?date=month HTTP/1.1" 200 907 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:32 +0800] "GET /api/stats?date=today HTTP/1.1" 200 262 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:32 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 182 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /service-worker.js
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:32 +0800] "GET /service-worker.js HTTP/1.1" 404 174 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+INFO:root:Request: GET /manifest.json
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:127.0.0.1 [02/Apr/2026:23:37:32 +0800] "GET /manifest.json HTTP/1.1" 404 174 "http://localhost:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"

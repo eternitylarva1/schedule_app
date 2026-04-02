@@ -25,12 +25,12 @@ def error_response(message: str, code: int = 1) -> web.Response:
 
 
 async def get_events(request: web.Request) -> web.Response:
-    """GET /api/events?date=today|week|month|YYYY-MM-DD - list events."""
+    """GET /api/events?date=today|week|month|YYYY-MM-DD|YYYY-MM - list events."""
     date_filter = request.query.get("date", "today")
-    # Accept today/week/month or specific date (YYYY-MM-DD)
+    # Accept today/week/month or specific date (YYYY-MM-DD) or month (YYYY-MM)
     valid_filters = ("today", "week", "month")
     import re
-    if date_filter not in valid_filters and not re.match(r'^\d{4}-\d{2}-\d{2}$', date_filter):
+    if date_filter not in valid_filters and not re.match(r'^\d{4}-\d{2}-\d{2}$', date_filter) and not re.match(r'^\d{4}-\d{2}$', date_filter):
         date_filter = "today"
 
     try:

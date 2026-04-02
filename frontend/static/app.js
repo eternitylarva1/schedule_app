@@ -16,6 +16,7 @@
     // ============================================
     const state = {
         currentDate: new Date(),
+        currentMonth: new Date(),  // Track current displayed month in month view
         currentView: 'day',
         events: [],
         categories: [
@@ -82,6 +83,9 @@
         llmInputArea: document.getElementById('llmInputArea'),
         dayView: document.getElementById('dayView'),
         weekView: document.getElementById('weekView'),
+        monthView: document.getElementById('monthView'),
+        monthHeader: document.getElementById('monthHeader'),
+        monthGrid: document.getElementById('monthGrid'),
         weekHeader: document.getElementById('weekHeader'),
         weekGrid: document.getElementById('weekGrid'),
         todoView: document.getElementById('todoView'),
@@ -95,6 +99,7 @@
         ptrIndicator: document.getElementById('ptrIndicator'),
         tabDay: document.getElementById('tabDay'),
         tabWeek: document.getElementById('tabWeek'),
+        tabMonth: document.getElementById('tabMonth'),
         tabTodo: document.getElementById('tabTodo'),
         tabGoals: document.getElementById('tabGoals'),
         tabAdd: document.getElementById('tabAdd'),
@@ -697,6 +702,9 @@
             } else {
                 elements.headerTitle.textContent = `${start.getMonth() + 1}/${end.getMonth() + 1}月`;
             }
+        } else if (state.currentView === 'month') {
+            const month = state.currentMonth;
+            elements.headerTitle.textContent = `${month.getFullYear()}年${month.getMonth() + 1}月`;
         } else if (state.currentView === 'goals') {
             elements.headerTitle.textContent = '规划';
         } else if (state.currentView === 'stats') {
@@ -926,6 +934,131 @@
             });
             
             weekGrid.appendChild(cell);
+        });
+    }
+
+    function renderMonthView() {
+        const month = state.currentMonth;
+        const year = month.getFullYear();
+        const monthIndex = month.getMonth();
+        
+        // Render month header (weekday names)
+        const monthHeader = elements.monthHeader;
+        monthHeader.innerHTML = '';
+        const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+        weekdays.forEach((day, index) => {
+            const dayEl = document.createElement('div');
+            dayEl.className = 'month-header-day' + (index === 0 || index === 6 ? ' weekend' : '');
+            dayEl.textContent = day;
+            monthHeader.appendChild(dayEl);
+        });
+        
+        // Calculate days in month
+        const firstDayOfMonth = new Date(year, monthIndex, 1);
+        const lastDayOfMonth = new Date(year, monthIndex + 1, 0);
+        const daysInMonth = lastDayOfMonth.getDate();
+        const startDayOfWeek = firstDayOfMonth.getDay(); // 0 = Sunday
+        
+        // Create array of all days to display (including padding from prev/next month)
+        const days = [];
+        
+        // Previous month padding
+        const prevMonth = new Date(year, monthIndex, 0);
+        const daysInPrevMonth = prevMonth.getDate();
+        for (let i = startDayOfWeek - 1; i >= 0; i--) {
+            days.push({
+                date: new Date(year, monthIndex - 1, daysInPrevMonth - i),
+                isCurrentMonth: false
+            });
+        }
+        
+        // Current month days
+        for (let i = 1; i <= daysInMonth; i++) {
+            days.push({
+                date: new Date(year, monthIndex, i),
+                isCurrentMonth: true
+            });
+        }
+        
+        // Next month padding to complete the last week
+        const remainingDays = 7 - (days.length % 7);
+        if (remainingDays < 7) {
+            for (let i = 1; i <= remainingDays; i++) {
+                days.push({
+                    date: new Date(year, monthIndex + 1, i),
+                    isCurrentMonth: false
+                });
+            }
+        }
+        
+        // Render month grid
+        const monthGrid = elements.monthGrid;
+        monthGrid.innerHTML = '';
+        
+        days.forEach(dayInfo => {
+            const cell = document.createElement('div');
+            cell.className = 'month-cell';
+            
+            if (!dayInfo.isCurrentMonth) {
+                cell.classList.add('other-month');
+            }
+            
+            if (isToday(dayInfo.date)) {
+                cell.classList.add('today');
+            }
+            
+            // Day number
+            const dayNumber = document.createElement('div');
+            dayNumber.className = 'month-day-number';
+            dayNumber.textContent = dayInfo.date.getDate();
+            cell.appendChild(dayNumber);
+            
+            // Events container
+            const eventsContainer = document.createElement('div');
+            eventsContainer.className = 'month-events';
+            
+            // Get events for this day
+            const dayEvents = state.events.filter(event => {
+                if (!event.start_time) return false;
+                return isSameDay(event.start_time, dayInfo.date);
+            });
+            
+            // Sort events by start time
+            dayEvents.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+            
+            // Show up to 3 events, then +more
+            const MAX_EVENTS = 3;
+            dayEvents.slice(0, MAX_EVENTS).forEach(event => {
+                const eventEl = document.createElement('div');
+                eventEl.className = 'month-event';
+                eventEl.style.background = getCategoryColor(event.category_id);
+                eventEl.textContent = event.title;
+                
+                // Click on event to show detail
+                eventEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showEventDetail(event);
+                });
+                
+                eventsContainer.appendChild(eventEl);
+            });
+            
+            if (dayEvents.length > MAX_EVENTS) {
+                const moreEl = document.createElement('div');
+                moreEl.className = 'month-more';
+                moreEl.textContent = `+${dayEvents.length - MAX_EVENTS}更多`;
+                eventsContainer.appendChild(moreEl);
+            }
+            
+            cell.appendChild(eventsContainer);
+            
+            // Click on cell to switch to day view
+            cell.addEventListener('click', () => {
+                state.currentDate = new Date(dayInfo.date);
+                switchView('day');
+            });
+            
+            monthGrid.appendChild(cell);
         });
     }
 
@@ -1380,6 +1513,7 @@
         // Hide all views
         elements.dayView.classList.add('hidden');
         elements.weekView.classList.add('hidden');
+        elements.monthView.classList.add('hidden');
         elements.todoView.classList.add('hidden');
         elements.goalsView.classList.add('hidden');
         elements.statsView.classList.add('hidden');
@@ -1409,6 +1543,10 @@
             case 'week':
                 elements.weekView.classList.remove('hidden');
                 renderWeekView();
+                break;
+            case 'month':
+                elements.monthView.classList.remove('hidden');
+                renderMonthView();
                 break;
             case 'todo':
                 elements.todoView.classList.remove('hidden');
@@ -1442,6 +1580,12 @@
             date.setDate(date.getDate() + direction);
         } else if (state.currentView === 'week') {
             date.setDate(date.getDate() + (direction * 7));
+        } else if (state.currentView === 'month') {
+            // Navigate by month
+            state.currentMonth.setMonth(state.currentMonth.getMonth() + direction);
+            state.currentMonth = new Date(state.currentMonth);
+            // Also update currentDate to first day of the month for consistency
+            state.currentDate = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth(), 1);
         }
         
         state.currentDate = new Date(date);
@@ -1471,6 +1615,9 @@
             } else {
                 loadData();
             }
+        } else if (state.currentView === 'month') {
+            // For month view, just re-render (loadData already called in the navigateDate)
+            loadData();
         } else {
             loadData();
         }
@@ -2122,8 +2269,15 @@
     async function loadData() {
         state.isLoading = true;
         
-        // Always fetch month data to keep all events in sync
-        const dateFilter = 'month';
+        // Determine date filter based on current view
+        let dateFilter = 'month'; // Default to current month
+        
+        if (state.currentView === 'month') {
+            // For month view, fetch the displayed month specifically
+            const year = state.currentMonth.getFullYear();
+            const month = state.currentMonth.getMonth() + 1;
+            dateFilter = `${year}-${String(month).padStart(2, '0')}`;
+        }
         
         try {
             await Promise.all([
@@ -2139,6 +2293,8 @@
                 renderTimeline();
             } else if (state.currentView === 'week') {
                 renderWeekView();
+            } else if (state.currentView === 'month') {
+                renderMonthView();
             } else if (state.currentView === 'stats') {
                 renderStatsView();
             }

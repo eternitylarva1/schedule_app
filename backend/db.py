@@ -115,7 +115,7 @@ async def get_events(date_filter: str = "today") -> List[Event]:
     now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Check if date_filter is a specific date (YYYY-MM-DD format)
+    # Check if date_filter is a specific date (YYYY-MM-DD format) or month (YYYY-MM format)
     if re.match(r'^\d{4}-\d{2}-\d{2}$', date_filter):
         try:
             target_date = datetime.strptime(date_filter, '%Y-%m-%d')
@@ -125,6 +125,23 @@ async def get_events(date_filter: str = "today") -> List[Event]:
             # Invalid date format, fallback to today
             start = today_start
             end = today_start + timedelta(days=1)
+    elif re.match(r'^\d{4}-\d{2}$', date_filter):
+        # YYYY-MM format - get events for the entire month
+        try:
+            year = int(date_filter[:4])
+            month = int(date_filter[5:7])
+            start = datetime(year, month, 1, 0, 0, 0, 0)
+            if month == 12:
+                end = datetime(year + 1, 1, 1, 0, 0, 0, 0)
+            else:
+                end = datetime(year, month + 1, 1, 0, 0, 0, 0)
+        except ValueError:
+            # Invalid month format, fallback to current month
+            start = today_start.replace(day=1)
+            if start.month == 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start.month + 1)
     elif date_filter == "today":
         start = today_start
         end = today_start + timedelta(days=1)
