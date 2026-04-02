@@ -1439,6 +1439,41 @@ body {
 }
 
 /* ============================================
+    Day View Calendar Segmented Control
+    ============================================ */
+.calendar-segmented {
+    display: flex;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    gap: 2px;
+    margin: var(--space-sm) var(--space-md);
+    flex-shrink: 0;
+}
+
+.cal-segment {
+    flex: 1;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    min-height: 36px;
+    transition: all var(--transition-fast);
+}
+
+.cal-segment.active {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.cal-segment:hover:not(.active) {
+    background: var(--bg-hover);
+}
+
+/* ============================================
     Bottom Tab Bar (4 tabs)
     ============================================ */
 .tab-bar {
