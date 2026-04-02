@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from .models import Event
+from .models import Event, Goal
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
@@ -48,6 +48,27 @@ async def init_db() -> None:
                 value TEXT
             )
         """)
+
+        # Goals table for multi-horizon planning
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                horizon TEXT DEFAULT 'short',
+                status TEXT DEFAULT 'active',
+                start_date TEXT,
+                end_date TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+
+        # Link events to goals (optional)
+        try:
+            await db.execute("ALTER TABLE events ADD COLUMN goal_id INTEGER")
+        except Exception:
+            pass
         
         # Insert default settings
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('qq_reminder_enabled', 'true')")
@@ -305,3 +326,112 @@ async def set_setting(key: str, value: str) -> None:
             (key, value),
         )
         await db.commit()
+
+
+async def create_goal(goal: Goal) -> Goal:
+    """Create a new goal."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO goals
+               (title, description, horizon, status, start_date, end_date, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                goal.title,
+                goal.description,
+                goal.horizon,
+                goal.status,
+                goal.start_date.isoformat() if goal.start_date else None,
+                goal.end_date.isoformat() if goal.end_date else None,
+                now,
+                now,
+            ),
+        )
+        await db.commit()
+        goal.id = cursor.lastrowid
+        goal.created_at = datetime.now()
+        goal.updated_at = datetime.now()
+    return goal
+
+
+async def get_goals(horizon: str | None = None) -> List[Goal]:
+    """Get goals, optionally filtered by horizon."""
+    query = "SELECT * FROM goals"
+    params: tuple = ()
+    if horizon in {"short", "semester", "long"}:
+        query += " WHERE horizon = ?"
+        params = (horizon,)
+    query += " ORDER BY created_at DESC"
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            goals: List[Goal] = []
+            for row in rows:
+                goals.append(Goal(
+                    id=row["id"],
+                    title=row["title"],
+                    description=row["description"] or "",
+                    horizon=row["horizon"] or "short",
+                    status=row["status"] or "active",
+                    start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
+                    end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                    updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                ))
+    return goals
+
+
+async def get_goal(goal_id: int) -> Optional[Goal]:
+    """Get a single goal by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return Goal(
+                id=row["id"],
+                title=row["title"],
+                description=row["description"] or "",
+                horizon=row["horizon"] or "short",
+                status=row["status"] or "active",
+                start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
+                end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+            )
+
+
+async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
+    """Update an existing goal."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """UPDATE goals SET
+               title = ?, description = ?, horizon = ?, status = ?,
+               start_date = ?, end_date = ?, updated_at = ?
+               WHERE id = ?""",
+            (
+                goal.title,
+                goal.description,
+                goal.horizon,
+                goal.status,
+                goal.start_date.isoformat() if goal.start_date else None,
+                goal.end_date.isoformat() if goal.end_date else None,
+                now,
+                goal_id,
+            ),
+        )
+        await db.commit()
+    return await get_goal(goal_id)
+
+
+async def delete_goal(goal_id: int) -> bool:
+    """Delete a goal and unlink its events."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("UPDATE events SET goal_id = NULL WHERE goal_id = ?", (goal_id,))
+        cursor = await db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+        await db.commit()
+        return cursor.rowcount > 0

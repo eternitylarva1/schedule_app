@@ -57,6 +57,9 @@
         // Breakdown state
         breakdownItems: [],
         breakdownId: null,  // ID for saved breakdowns
+        breakdownHorizon: 'short',
+        goals: [],
+        goalsHorizon: 'short',
         // Settings
         enableDragResize: false,  // Drag to resize events - default off
         qqReminderEnabled: false,  // QQ reminder default off
@@ -83,15 +86,17 @@
         weekGrid: document.getElementById('weekGrid'),
         todoView: document.getElementById('todoView'),
         todoContainer: document.getElementById('todoContainer'),
+        goalsView: document.getElementById('goalsView'),
+        goalsContainer: document.getElementById('goalsContainer'),
         statsView: document.getElementById('statsView'),
         statsContainer: document.getElementById('statsContainer'),
         timeline: document.getElementById('timeline'),
         weekTimeAxis: document.getElementById('weekTimeAxis'),
-        completeEventBtn: document.getElementById('completeEventBtn'),
         ptrIndicator: document.getElementById('ptrIndicator'),
         tabDay: document.getElementById('tabDay'),
         tabWeek: document.getElementById('tabWeek'),
         tabTodo: document.getElementById('tabTodo'),
+        tabGoals: document.getElementById('tabGoals'),
         tabAdd: document.getElementById('tabAdd'),
         tabStats: document.getElementById('tabStats'),
         mainContent: document.getElementById('mainContent'),
@@ -119,6 +124,7 @@
         breakdownAnalyzeBtn: document.getElementById('breakdownAnalyzeBtn'),
         breakdownResults: document.getElementById('breakdownResults'),
         breakdownDate: document.getElementById('breakdownDate'),
+        breakdownHorizon: document.getElementById('breakdownHorizon'),
         breakdownSaveBtn: document.getElementById('breakdownSaveBtn'),
         breakdownImportBtn: document.getElementById('breakdownImportBtn'),
         breakdownLoadBtn: document.getElementById('breakdownLoadBtn'),
@@ -241,6 +247,21 @@
         const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
         
         return `${startTime} - ${endTime}`;
+    }
+
+    function horizonLabel(horizon) {
+        if (horizon === 'semester') return '学期目标';
+        if (horizon === 'long') return '长期目标';
+        return '短期目标';
+    }
+
+    async function markEventDoneQuick(eventId) {
+        const result = await completeEvent(eventId);
+        if (!result) return;
+        showToast('已完成 ✓');
+        await loadData();
+        if (state.currentView === 'todo') await renderTodoView();
+        else if (state.currentView === 'goals') await renderGoalsView();
     }
 
     // ============================================
@@ -506,6 +527,35 @@
         });
     }
 
+    async function fetchGoals(horizon = 'short') {
+        const data = await apiCall(`goals?horizon=${horizon}`);
+        if (data) {
+            state.goals = data;
+            return data;
+        }
+        return [];
+    }
+
+    async function createGoal(goalData) {
+        return await apiCall('goals', {
+            method: 'POST',
+            body: JSON.stringify(goalData)
+        });
+    }
+
+    async function updateGoal(goalId, goalData) {
+        return await apiCall(`goals/${goalId}`, {
+            method: 'PUT',
+            body: JSON.stringify(goalData)
+        });
+    }
+
+    async function deleteGoal(goalId) {
+        return await apiCall(`goals/${goalId}`, {
+            method: 'DELETE'
+        });
+    }
+
     async function fetchSettings() {
         const data = await apiCall('settings');
         if (data) {
@@ -646,6 +696,8 @@
             } else {
                 elements.headerTitle.textContent = `${start.getMonth() + 1}/${end.getMonth() + 1}月`;
             }
+        } else if (state.currentView === 'goals') {
+            elements.headerTitle.textContent = '规划';
         } else if (state.currentView === 'stats') {
             elements.headerTitle.textContent = '统计';
         }
@@ -706,7 +758,17 @@
             eventEl.innerHTML = `
                 <div class="timeline-event-title">${escapeHtml(event.title)}</div>
                 <div class="timeline-event-time">${formatTimeRange(event)}</div>
+                ${event.status !== 'done' ? '<button class="event-quick-complete" title="快速完成">✓</button>' : ''}
             `;
+            
+            // Add quick complete handler
+            const quickCompleteBtn = eventEl.querySelector('.event-quick-complete');
+            if (quickCompleteBtn) {
+                quickCompleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    markEventDoneQuick(event.id);
+                });
+            }
             
             // Add resize handles if enabled
             if (state.enableDragResize) {
@@ -829,6 +891,19 @@
                 eventEl.appendChild(titleEl);
                 if (heightPercent > 4) {
                     eventEl.appendChild(timeEl);
+                }
+                
+                // Add quick complete button for pending events
+                if (event.status !== 'done') {
+                    const quickCompleteBtn = document.createElement('button');
+                    quickCompleteBtn.className = 'week-event-complete';
+                    quickCompleteBtn.textContent = '✓';
+                    quickCompleteBtn.title = '快速完成';
+                    quickCompleteBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        markEventDoneQuick(event.id);
+                    });
+                    eventEl.appendChild(quickCompleteBtn);
                 }
                 
                 // Click on event to show detail
@@ -1086,6 +1161,103 @@
         });
     }
 
+    // ============================================
+    // Goals View
+    // ============================================
+    function renderGoalsViewSkeleton() {
+        const container = elements.goalsContainer;
+        
+        container.innerHTML = `
+            <div class="goals-toolbar">
+                <div class="goals-horizon-tabs">
+                    <button class="goals-horizon-tab ${state.goalsHorizon === 'short' ? 'active' : ''}" data-horizon="short">短期</button>
+                    <button class="goals-horizon-tab ${state.goalsHorizon === 'semester' ? 'active' : ''}" data-horizon="semester">学期</button>
+                    <button class="goals-horizon-tab ${state.goalsHorizon === 'long' ? 'active' : ''}" data-horizon="long">长期</button>
+                </div>
+                <button class="goals-add-btn">+ 添加目标</button>
+            </div>
+            <div class="goals-list"></div>
+        `;
+        
+        // Bind horizon tab clicks
+        container.querySelectorAll('.goals-horizon-tab').forEach(tab => {
+            tab.addEventListener('click', async (e) => {
+                const horizon = e.target.dataset.horizon;
+                state.goalsHorizon = horizon;
+                renderGoalsViewSkeleton();
+                await renderGoalsList();
+            });
+        });
+        
+        // Bind add button
+        container.querySelector('.goals-add-btn').addEventListener('click', () => {
+            openBreakdownModal({ horizon: state.goalsHorizon, text: '' });
+        });
+    }
+    
+    async function renderGoalsList() {
+        const listEl = elements.goalsContainer.querySelector('.goals-list');
+        if (!listEl) return;
+        
+        const goals = await fetchGoals(state.goalsHorizon);
+        
+        if (!goals || goals.length === 0) {
+            listEl.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🎯</div>
+                    <div class="empty-text">暂无${horizonLabel(state.goalsHorizon)}</div>
+                </div>
+            `;
+            return;
+        }
+        
+        listEl.innerHTML = goals.map(goal => `
+            <div class="goal-card" data-goal-id="${goal.id}">
+                <div class="goal-card-head">
+                    <div class="goal-title-wrap">
+                        <div class="goal-title">${escapeHtml(goal.title)}</div>
+                        <div class="goal-meta">${horizonLabel(goal.horizon)} · ${goal.subtask_count || 0}项</div>
+                    </div>
+                    <div class="goal-actions">
+                        <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${goal.id}" title="拆解">📋</button>
+                        <button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${goal.id}" title="展开">▶</button>
+                        <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${goal.id}" title="删除">🗑️</button>
+                    </div>
+                </div>
+                ${goal.description ? `<div class="goal-desc">${escapeHtml(goal.description)}</div>` : ''}
+            </div>
+        `).join('');
+        
+        // Bind goal card events
+        listEl.querySelectorAll('.goal-action-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const goalId = btn.dataset.goalId;
+                
+                if (action === 'decompose') {
+                    openBreakdownModal({ horizon: state.goalsHorizon, text: '' });
+                } else if (action === 'delete') {
+                    const confirmed = await showConfirm('确定删除这个目标吗？');
+                    if (confirmed) {
+                        await deleteGoal(goalId);
+                        showToast('已删除');
+                        await renderGoalsList();
+                    }
+                } else if (action === 'toggle') {
+                    const card = btn.closest('.goal-card');
+                    card.classList.toggle('expanded');
+                    btn.textContent = card.classList.contains('expanded') ? '▼' : '▶';
+                }
+            });
+        });
+    }
+    
+    async function renderGoalsView() {
+        renderGoalsViewSkeleton();
+        await renderGoalsList();
+    }
+
     function renderStatsView() {
         const stats = state.stats;
         const container = elements.statsContainer;
@@ -1208,6 +1380,7 @@
         elements.dayView.classList.add('hidden');
         elements.weekView.classList.add('hidden');
         elements.todoView.classList.add('hidden');
+        elements.goalsView.classList.add('hidden');
         elements.statsView.classList.add('hidden');
         
         stopStatsClock();
@@ -1237,6 +1410,10 @@
                 elements.statsView.classList.remove('hidden');
                 renderStatsView();
                 startStatsClock();
+                break;
+            case 'goals':
+                elements.goalsView.classList.remove('hidden');
+                await renderGoalsView();
                 break;
             case 'add':
                 openEventModal();
@@ -1399,9 +1576,6 @@
             </div>
         `;
         
-        // Update button states
-        elements.completeEventBtn.style.display = event.status === 'done' ? 'none' : 'flex';
-        
         elements.detailModal.classList.remove('hidden');
     }
     
@@ -1463,10 +1637,12 @@
     // ============================================
     // Breakdown Functions
     // ============================================
-    function openBreakdownModal() {
-        elements.breakdownInput.value = '';
+    function openBreakdownModal(options = {}) {
+        elements.breakdownInput.value = options.text || '';
         state.breakdownItems = [];
         state.breakdownId = 'breakdown_' + Date.now();
+        state.breakdownHorizon = options.horizon || state.goalsHorizon || 'short';
+        if (elements.breakdownHorizon) elements.breakdownHorizon.value = state.breakdownHorizon;
         // Set default date to today
         const today = new Date();
         elements.breakdownDate.value = today.toISOString().split('T')[0];
@@ -1553,7 +1729,10 @@
         try {
             const result = await apiCall('llm/breakdown', {
                 method: 'POST',
-                body: JSON.stringify({ text: text })
+                body: JSON.stringify({ 
+                    text: text,
+                    horizon: state.breakdownHorizon || 'short'
+                })
             });
 
             if (result && result.subtasks) {
@@ -1646,19 +1825,23 @@
         const saved = JSON.parse(localStorage.getItem('breakdowns') || '{}');
         const keys = Object.keys(saved);
         
-        if (keys.length === 0) {
+        // Filter by current horizon
+        const currentHorizon = state.breakdownHorizon || 'short';
+        const filteredKeys = keys.filter(k => saved[k].horizon === currentHorizon);
+        
+        if (filteredKeys.length === 0) {
             showToast('没有保存的拆解');
             return;
         }
         
         // Show most recent first
-        keys.sort((a, b) => new Date(saved[b].savedAt) - new Date(saved[a].savedAt));
+        filteredKeys.sort((a, b) => new Date(saved[b].savedAt) - new Date(saved[a].savedAt));
         
         // Render the list
-        if (keys.length === 0) {
+        if (filteredKeys.length === 0) {
             elements.savedBreakdownsList.innerHTML = '<div class="empty-state"><div class="empty-text">没有保存的拆解</div></div>';
         } else {
-            elements.savedBreakdownsList.innerHTML = keys.map((k, i) => `
+            elements.savedBreakdownsList.innerHTML = filteredKeys.map((k, i) => `
                 <div class="saved-breakdown-item" data-key="${k}">
                     <div class="saved-breakdown-info">
                         <div class="saved-breakdown-text">${escapeHtml(saved[k].text.substring(0, 50))}${saved[k].text.length > 50 ? '...' : ''}</div>
@@ -1676,6 +1859,8 @@
                     state.breakdownId = key;
                     elements.breakdownInput.value = selected.text;
                     state.breakdownItems = [...selected.items];
+                    state.breakdownHorizon = selected.horizon || 'short';
+                    if (elements.breakdownHorizon) elements.breakdownHorizon.value = state.breakdownHorizon;
                     renderBreakdownResults();
                     closeSavedBreakdownsModal();
                     showToast(`已加载: ${selected.items.length}项`);
@@ -1702,6 +1887,7 @@
             id: state.breakdownId,
             text: elements.breakdownInput.value,
             items: state.breakdownItems,
+            horizon: state.breakdownHorizon || 'short',
             savedAt: new Date().toISOString()
         };
         localStorage.setItem('breakdowns', JSON.stringify(saved));
@@ -2101,6 +2287,7 @@
         elements.tabDay.addEventListener('click', () => switchView('day'));
         elements.tabWeek.addEventListener('click', () => switchView('week'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
+        elements.tabGoals.addEventListener('click', () => switchView('goals'));
         elements.tabAdd.addEventListener('click', () => openEventModal());
         elements.tabStats.addEventListener('click', () => switchView('stats'));
         
@@ -2114,7 +2301,6 @@
         elements.detailBackdrop.addEventListener('click', closeDetailModal);
         elements.detailClose.addEventListener('click', closeDetailModal);
         elements.deleteEventBtn.addEventListener('click', deleteSelectedEvent);
-        elements.completeEventBtn.addEventListener('click', completeSelectedEvent);
         elements.saveDetailBtn.addEventListener('click', saveDetailReminder);
         
         // Touch gestures

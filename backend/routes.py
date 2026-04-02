@@ -5,7 +5,7 @@ from aiohttp import web
 from typing import Any
 
 from . import db
-from .models import Event, CATEGORIES
+from .models import Event, Goal, CATEGORIES
 
 
 def json_response(data: Any, code: int = 0) -> web.Response:
@@ -316,16 +316,100 @@ async def llm_breakdown(request: web.Request) -> web.Response:
         return error_response("无效的请求")
     
     user_text = data.get("text", "").strip()
+    horizon = data.get("horizon", "short")
     if not user_text:
         return error_response("请输入任务描述")
     
     from .llm_service import llm_service
     
-    result = await llm_service.breakdown_task(user_text)
+    result = await llm_service.breakdown_task(user_text, horizon=horizon)
     if result:
         return json_response(result)
     else:
         return error_response("LLM拆解失败")
+
+
+async def get_goals(request: web.Request) -> web.Response:
+    """GET /api/goals?horizon=short|semester|long - list goals."""
+    horizon = request.query.get("horizon")
+    try:
+        goals = await db.get_goals(horizon)
+        return json_response([g.to_dict() for g in goals])
+    except Exception as e:
+        return error_response(f"获取目标失败: {str(e)}")
+
+
+async def create_goal(request: web.Request) -> web.Response:
+    """POST /api/goals - create goal."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+
+    try:
+        goal = Goal(
+            title=data.get("title", "").strip(),
+            description=data.get("description", "").strip(),
+            horizon=data.get("horizon", "short"),
+            status=data.get("status", "active"),
+            start_date=_parse_datetime(data.get("start_date")),
+            end_date=_parse_datetime(data.get("end_date")),
+        )
+        if not goal.title:
+            return error_response("目标标题不能为空")
+        if goal.horizon not in {"short", "semester", "long"}:
+            return error_response("无效目标类型")
+
+        created = await db.create_goal(goal)
+        return json_response(created.to_dict())
+    except Exception as e:
+        return error_response(f"创建目标失败: {str(e)}")
+
+
+async def update_goal(request: web.Request) -> web.Response:
+    """PUT /api/goals/{id} - update goal."""
+    goal_id = int(request.match_info["id"])
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+
+    try:
+        existing = await db.get_goal(goal_id)
+        if not existing:
+            return error_response("目标不存在", code=404)
+
+        updated_goal = Goal(
+            title=data.get("title", existing.title).strip(),
+            description=data.get("description", existing.description).strip(),
+            horizon=data.get("horizon", existing.horizon),
+            status=data.get("status", existing.status),
+            start_date=_parse_datetime(data.get("start_date")) or existing.start_date,
+            end_date=_parse_datetime(data.get("end_date")) or existing.end_date,
+        )
+        if not updated_goal.title:
+            return error_response("目标标题不能为空")
+        if updated_goal.horizon not in {"short", "semester", "long"}:
+            return error_response("无效目标类型")
+
+        result = await db.update_goal(goal_id, updated_goal)
+        if not result:
+            return error_response("目标不存在", code=404)
+        return json_response(result.to_dict())
+    except Exception as e:
+        return error_response(f"更新目标失败: {str(e)}")
+
+
+async def delete_goal(request: web.Request) -> web.Response:
+    """DELETE /api/goals/{id} - delete goal."""
+    goal_id = int(request.match_info["id"])
+    try:
+        success = await db.delete_goal(goal_id)
+        if success:
+            return json_response({"deleted": True})
+        return error_response("目标不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除目标失败: {str(e)}")
 
 
 async def get_settings(request: web.Request) -> web.Response:
@@ -389,6 +473,11 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_put("/api/events/{id}/uncomplete", uncomplete_event)
     app.router.add_get("/api/stats", get_stats)
     app.router.add_get("/api/categories", get_categories)
+    # Goals endpoints
+    app.router.add_get("/api/goals", get_goals)
+    app.router.add_post("/api/goals", create_goal)
+    app.router.add_put("/api/goals/{id}", update_goal)
+    app.router.add_delete("/api/goals/{id}", delete_goal)
     # Settings endpoints
     app.router.add_get("/api/settings", get_settings)
     app.router.add_put("/api/settings/{key}", update_setting)

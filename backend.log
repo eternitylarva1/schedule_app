@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "C:\Users\gaoming\Downloads\AI_Planner\schedule_app\backend\main.py", line 9, in <module>
+    from . import db
+ImportError: attempted relative import with no known parent package

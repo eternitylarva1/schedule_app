@@ -124,7 +124,7 @@ class LLMService:
         
         return None
 
-    async def breakdown_task(self, user_text: str) -> Optional[Dict[str, Any]]:
+    async def breakdown_task(self, user_text: str, horizon: str = "short") -> Optional[Dict[str, Any]]:
         """Break down a complex task into subtasks.
         
         Returns dict with subtasks array or None if failed.
@@ -134,9 +134,16 @@ class LLMService:
         current_date = now.strftime("%Y年%m月%d日")
         current_time = now.strftime("%H:%M")
         
+        horizon_hint = {
+            "short": "短期目标（通常1-7天）",
+            "semester": "学期目标（通常1-6个月）",
+            "long": "长期目标（通常6个月以上）",
+        }.get(horizon, "短期目标（通常1-7天）")
+
         prompt = f"""用户想要将一个复杂任务分解为多个子任务，请分析并返回JSON格式。
 
 当前日期：{current_date} {current_time}
+规划层级：{horizon_hint}
 任务：{user_text}
 
 请将任务分解为多个可执行的子任务，返回JSON格式：
@@ -154,6 +161,9 @@ class LLMService:
 
 规则：
 - 根据任务复杂度分解为2-5个步骤
+- 若是短期目标：步骤要具体到可直接执行
+- 若是学期目标：步骤按阶段推进，强调里程碑
+- 若是长期目标：步骤先给阶段方向，再给近期可执行动作
 - 每个步骤有明确的开始时间和时长
 - 时间用HH:MM格式（如"09:00"、"14:30"）
 - 如果没明确时间，根据任务逻辑推断合理时间
