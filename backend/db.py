@@ -319,10 +319,14 @@ async def get_stats(date_filter: str = "today") -> dict[str, int | dict[str, int
             rows = await cursor.fetchall()
             by_category = {row[0]: row[1] for row in rows}
 
+    # Calculate completion rate
+    completion_rate = round((completed / total * 100)) if total > 0 else 0
+
     return {
         "total": total,
         "completed": completed,
         "pending": total - completed,
+        "completion_rate": completion_rate,
         "by_category": by_category,
     }
 
