@@ -18,7 +18,7 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 logging.basicConfig(level=logging.INFO)
 
 
-async def index(request: web.Request) -> web.Response:
+async def index(request: web.Request) -> web.StreamResponse:
     """Serve index.html for root path."""
     index_path = FRONTEND_DIR / "index.html"
     if index_path.exists():
@@ -52,10 +52,17 @@ async def init_app() -> web.Application:
     # Setup API routes
     setup_routes(app)
 
-    # Start reminder service
-    reminder_service = ReminderService(app)
-    reminder_service.start()
-    app["reminder_service"] = reminder_service
+    # Register reminder service lifecycle hooks (must run on web.run_app event loop)
+    app["reminder_service"] = ReminderService(app)
+
+    async def _on_startup(_: web.Application) -> None:
+        app["reminder_service"].start()
+
+    async def _on_cleanup(_: web.Application) -> None:
+        await app["reminder_service"].stop()
+
+    app.on_startup.append(_on_startup)
+    app.on_cleanup.append(_on_cleanup)
 
     # Serve static files from frontend directory
     if FRONTEND_DIR.exists():
