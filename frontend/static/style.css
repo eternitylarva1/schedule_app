@@ -1465,6 +1465,38 @@ body {
 .tab-item[data-view="add"] {
     position: relative;
     top: -12px;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+/* ============================================
+   Floating Add Button (content area)
+   ============================================ */
+.content-fab {
+    position: fixed;
+    bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + 20px);
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    font-size: 28px;
+    font-weight: 300;
+    cursor: pointer;
+    z-index: 90;
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    line-height: 1;
+}
+
+.content-fab:active {
+    transform: scale(0.95);
+    box-shadow: var(--shadow-sm);
 }
 
 .add-icon {

@@ -100,6 +100,7 @@
         tabAdd: document.getElementById('tabAdd'),
         tabStats: document.getElementById('tabStats'),
         mainContent: document.getElementById('mainContent'),
+        contentAddBtn: document.getElementById('contentAddBtn'),
         // Event modal
         eventModal: document.getElementById('eventModal'),
         modalBackdrop: document.getElementById('modalBackdrop'),
@@ -1385,6 +1386,13 @@
         
         stopStatsClock();
 
+        // Show/hide floating add button (only in day/week/todo views)
+        if (view === 'day' || view === 'week' || view === 'todo') {
+            elements.contentAddBtn.classList.remove('hidden');
+        } else {
+            elements.contentAddBtn.classList.add('hidden');
+        }
+
         // Show active view
         switch (view) {
             case 'day':
@@ -2288,8 +2296,12 @@
         elements.tabWeek.addEventListener('click', () => switchView('week'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
         elements.tabGoals.addEventListener('click', () => switchView('goals'));
+        // tabAdd listener kept but button is hidden via CSS - use contentAddBtn instead
         elements.tabAdd.addEventListener('click', () => openEventModal());
         elements.tabStats.addEventListener('click', () => switchView('stats'));
+
+        // Floating add button (content area, visible in day/week/todo)
+        elements.contentAddBtn.addEventListener('click', () => openEventModal());
         
         // Event modal
         elements.modalBackdrop.addEventListener('click', closeEventModal);
