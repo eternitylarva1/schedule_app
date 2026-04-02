@@ -1,27 +1,27 @@
 """Event dataclass model."""
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from datetime import datetime
-from typing import Optional
+from typing import Any
 
 
 @dataclass
 class Event:
     """Event model for schedule management."""
-    id: Optional[int] = None
+    id: int | None = None
     title: str = ""
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
     category_id: str = "work"
     all_day: bool = False
     recurrence: str = "none"  # none/daily/weekly/monthly
     status: str = "pending"  # pending/done/cancelled
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     reminder_enabled: bool = False
-    reminder_minutes: int = 10
+    reminder_minutes: int = 1
     reminder_sent: bool = False
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         d = asdict(self)
         # Convert datetime to ISO string
@@ -31,7 +31,7 @@ class Event:
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Event":
+    def from_dict(cls, d: dict[str, Any]) -> "Event":
         """Create Event from dictionary."""
         # Parse datetime fields
         for key in ['start_time', 'end_time', 'created_at', 'updated_at']:

@@ -102,14 +102,8 @@
                     <div class="form-group">
                         <label class="checkbox-label">
                             <input type="checkbox" id="reminderEnabled">
-                            <span>开启提醒</span>
+                            <span>开启提醒（默认提前1分钟）</span>
                         </label>
-                        <div class="reminder-options" id="reminderOptions">
-                            <div class="reminder-display" id="reminderDisplay">
-                                <span id="reminderDisplayText">提前10分钟</span>
-                                <svg class="reminder-arrow" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                            </div>
-                        </div>
                     </div>
                     <div class="form-group">
                         <label class="checkbox-label">
@@ -253,60 +247,22 @@
                         </div>
                         <div class="settings-item">
                             <div class="settings-item-info">
+                                <span class="settings-item-title">默认开启任务提醒</span>
+                                <span class="settings-item-desc">新建任务时默认在开始前1分钟提醒</span>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="defaultTaskReminderEnabled">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
                                 <span class="settings-item-title">版本信息</span>
                                 <span class="settings-item-desc" id="appVersion">v1.0.0</span>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Reminder Picker Modal (Bottom Sheet) -->
-    <div class="reminder-picker-modal hidden" id="reminderPickerModal">
-        <div class="reminder-picker-backdrop" id="reminderPickerBackdrop"></div>
-        <div class="reminder-picker-sheet">
-            <div class="reminder-picker-header">
-                <span class="reminder-picker-cancel" id="reminderPickerCancel">取消</span>
-                <span class="reminder-picker-title">选择提醒时间</span>
-                <span class="reminder-picker-confirm" id="reminderPickerConfirm">确定</span>
-            </div>
-            <div class="reminder-picker-body">
-                <div class="reminder-picker-container">
-                    <div class="reminder-picker-mask"></div>
-                    <div class="reminder-picker-scroll" id="reminderPickerScroll">
-                        <div class="reminder-picker-item placeholder"></div>
-                        <div class="reminder-picker-item" data-value="5">提前5分钟</div>
-                        <div class="reminder-picker-item" data-value="10">提前10分钟</div>
-                        <div class="reminder-picker-item" data-value="15">提前15分钟</div>
-                        <div class="reminder-picker-item" data-value="30">提前30分钟</div>
-                        <div class="reminder-picker-item" data-value="60">提前60分钟</div>
-                        <div class="reminder-picker-item" data-value="custom">自定义</div>
-                        <div class="reminder-picker-item placeholder"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Custom Reminder Input Modal -->
-    <div class="modal hidden" id="customReminderModal">
-        <div class="modal-backdrop" id="customReminderBackdrop"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>自定义提醒时间</h2>
-                <button class="modal-close" id="customReminderClose">×</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>提前多少分钟</label>
-                    <input type="number" id="customReminderInput" min="1" max="1440" placeholder="输入分钟数（1-1440）" class="custom-reminder-input">
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="customReminderCancel">取消</button>
-                <button class="btn btn-primary" id="customReminderSave">确定</button>
             </div>
         </div>
     </div>

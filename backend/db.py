@@ -33,7 +33,7 @@ async def init_db() -> None:
         except Exception:
             pass  # Column already exists
         try:
-            await db.execute("ALTER TABLE events ADD COLUMN reminder_minutes INTEGER DEFAULT 10")
+            await db.execute("ALTER TABLE events ADD COLUMN reminder_minutes INTEGER DEFAULT 1")
         except Exception:
             pass
         try:
@@ -51,6 +51,7 @@ async def init_db() -> None:
         
         # Insert default settings
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('qq_reminder_enabled', 'true')")
+        await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('default_task_reminder_enabled', 'true')")
         
         await db.commit()
 
@@ -143,7 +144,7 @@ async def get_events(date_filter: str = "today") -> List[Event]:
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                     reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
-                    reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 10,
+                    reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
                     reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
                 ))
     return events
@@ -169,7 +170,7 @@ async def get_event(event_id: int) -> Optional[Event]:
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                 reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
-                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 10,
+                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
                 reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
             )
 
@@ -229,7 +230,7 @@ async def uncomplete_event(event_id: int) -> Optional[Event]:
     return await update_event(event_id, event)
 
 
-async def get_stats(date_filter: str = "today") -> dict:
+async def get_stats(date_filter: str = "today") -> dict[str, int | dict[str, int]]:
     """Get event statistics."""
     from datetime import timedelta
 
@@ -258,7 +259,8 @@ async def get_stats(date_filter: str = "today") -> dict:
             "SELECT COUNT(*) as count FROM events WHERE start_time >= ? AND start_time < ?",
             (start.isoformat(), end.isoformat()),
         ) as cursor:
-            total = (await cursor.fetchone())[0]
+            total_row = await cursor.fetchone()
+            total = total_row[0] if total_row else 0
 
         # Completed count
         async with db.execute(
@@ -266,7 +268,8 @@ async def get_stats(date_filter: str = "today") -> dict:
                WHERE start_time >= ? AND start_time < ? AND status = 'done'""",
             (start.isoformat(), end.isoformat()),
         ) as cursor:
-            completed = (await cursor.fetchone())[0]
+            completed_row = await cursor.fetchone()
+            completed = completed_row[0] if completed_row else 0
 
         # By category
         async with db.execute(

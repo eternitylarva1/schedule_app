@@ -2,13 +2,13 @@
 import json
 import aiosqlite
 from aiohttp import web
-from typing import List
+from typing import Any
 
 from . import db
 from .models import Event, CATEGORIES
 
 
-def json_response(data: any, code: int = 0) -> web.Response:
+def json_response(data: Any, code: int = 0) -> web.Response:
     """Create JSON response with standard format."""
     return web.json_response({
         "code": code,
@@ -68,7 +68,7 @@ async def create_event(request: web.Request) -> web.Response:
             recurrence=data.get("recurrence", "none"),
             status=data.get("status", "pending"),
             reminder_enabled=data.get("reminder_enabled", False),
-            reminder_minutes=data.get("reminder_minutes", 10),
+            reminder_minutes=data.get("reminder_minutes", 1),
             reminder_sent=data.get("reminder_sent", False),
         )
 
@@ -106,6 +106,8 @@ async def update_event(request: web.Request) -> web.Response:
         )
 
         updated = await db.update_event(event_id, event)
+        if not updated:
+            return error_response("事件不存在", code=404)
         return json_response(updated.to_dict())
     except Exception as e:
         return error_response(f"更新事件失败: {str(e)}")
@@ -362,7 +364,7 @@ async def update_setting(request: web.Request) -> web.Response:
         return error_response(f"更新设置失败: {str(e)}")
 
 
-def _parse_datetime(value: any):
+def _parse_datetime(value: Any):
     """Parse datetime from string."""
     from datetime import datetime
     if value is None:

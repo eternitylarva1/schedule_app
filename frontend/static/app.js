@@ -59,7 +59,9 @@
         breakdownId: null,  // ID for saved breakdowns
         // Settings
         enableDragResize: false,  // Drag to resize events - default off
-        qqReminderEnabled: false  // QQ reminder default off
+        qqReminderEnabled: false,  // QQ reminder default off
+        defaultTaskReminderEnabled: true,
+        statsClockTimer: null,
     };
 
     // ============================================
@@ -134,31 +136,10 @@
         settingsBtn: document.getElementById('settingsBtn'),
         enableDragResize: document.getElementById('enableDragResize'),
         enableQQReminder: document.getElementById('enableQQReminder'),
+        defaultTaskReminderEnabled: document.getElementById('defaultTaskReminderEnabled'),
         appVersion: document.getElementById('appVersion'),
         // Event modal - reminder fields
         reminderEnabled: document.getElementById('reminderEnabled'),
-        reminderOptions: document.getElementById('reminderOptions'),
-        reminderDisplay: document.getElementById('reminderDisplay'),
-        reminderDisplayText: document.getElementById('reminderDisplayText'),
-        // Reminder picker modal
-        reminderPickerModal: document.getElementById('reminderPickerModal'),
-        reminderPickerBackdrop: document.getElementById('reminderPickerBackdrop'),
-        reminderPickerScroll: document.getElementById('reminderPickerScroll'),
-        reminderPickerCancel: document.getElementById('reminderPickerCancel'),
-        reminderPickerConfirm: document.getElementById('reminderPickerConfirm'),
-        // Custom reminder modal
-        customReminderModal: document.getElementById('customReminderModal'),
-        customReminderBackdrop: document.getElementById('customReminderBackdrop'),
-        customReminderClose: document.getElementById('customReminderClose'),
-        customReminderInput: document.getElementById('customReminderInput'),
-        customReminderCancel: document.getElementById('customReminderCancel'),
-        customReminderSave: document.getElementById('customReminderSave'),
-        // Detail modal
-        detailModal: document.getElementById('detailModal'),
-        detailBackdrop: document.getElementById('detailBackdrop'),
-        detailClose: document.getElementById('detailClose'),
-        detailContent: document.getElementById('detailContent'),
-        deleteEventBtn: document.getElementById('deleteEventBtn'),
         saveDetailBtn: document.getElementById('saveDetailBtn'),
     };
 
@@ -531,6 +512,9 @@
             // Handle qq_reminder_enabled setting
             if (data.qq_reminder_enabled !== undefined) {
                 state.qqReminderEnabled = data.qq_reminder_enabled === 'true';
+            }
+            if (data.default_task_reminder_enabled !== undefined) {
+                state.defaultTaskReminderEnabled = data.default_task_reminder_enabled === 'true';
             }
         }
         return data;
@@ -1105,8 +1089,15 @@
     function renderStatsView() {
         const stats = state.stats;
         const container = elements.statsContainer;
+        const now = new Date();
+        const currentTime = `${formatDate(now, 'full')} ${formatTime(now)}`;
         
         container.innerHTML = `
+            <div class="stats-card stats-clock-card">
+                <h3 class="stats-title">当前时间</h3>
+                <div class="stats-clock-value">${currentTime}</div>
+            </div>
+
             <div class="stats-card">
                 <h3 class="stats-title">今日概览</h3>
                 <div class="stats-grid">
@@ -1156,6 +1147,22 @@
         `;
     }
 
+    function startStatsClock() {
+        stopStatsClock();
+        state.statsClockTimer = setInterval(() => {
+            if (state.currentView === 'stats') {
+                renderStatsView();
+            }
+        }, 1000);
+    }
+
+    function stopStatsClock() {
+        if (state.statsClockTimer) {
+            clearInterval(state.statsClockTimer);
+            state.statsClockTimer = null;
+        }
+    }
+
     function renderCategorySelector() {
         const selector = elements.categorySelector;
         selector.innerHTML = '';
@@ -1203,6 +1210,8 @@
         elements.todoView.classList.add('hidden');
         elements.statsView.classList.add('hidden');
         
+        stopStatsClock();
+
         // Show active view
         switch (view) {
             case 'day':
@@ -1227,6 +1236,7 @@
             case 'stats':
                 elements.statsView.classList.remove('hidden');
                 renderStatsView();
+                startStatsClock();
                 break;
             case 'add':
                 openEventModal();
@@ -1300,14 +1310,9 @@
         elements.allDayCheck.checked = event ? event.all_day : false;
         
         // Reset reminder fields
-        elements.reminderEnabled.checked = event ? (event.reminder_enabled === true || event.reminder_enabled === 'true') : false;
-        
-        // Set picker scroll position based on reminder_minutes
-        const minutes = event && event.reminder_minutes ? event.reminder_minutes : 10;
-        setReminderPickerValue(minutes);
-        
-        // Show/hide reminder options based on checkbox state
-        updateReminderOptionsVisibility();
+        elements.reminderEnabled.checked = event
+            ? (event.reminder_enabled === true || event.reminder_enabled === 'true')
+            : state.defaultTaskReminderEnabled;
         
         renderCategorySelector();
         
@@ -1317,110 +1322,6 @@
         setTimeout(() => elements.eventTitle.focus(), 100);
     }
     
-    function updateReminderOptionsVisibility() {
-        if (elements.reminderOptions) {
-            elements.reminderOptions.style.display = elements.reminderEnabled.checked ? 'block' : 'none';
-        }
-    }
-    
-    function updateReminderDisplayText(minutes) {
-        if (elements.reminderDisplayText) {
-            elements.reminderDisplayText.textContent = `提前${minutes}分钟`;
-        }
-    }
-    
-    // Reminder picker (bottom sheet)
-    const REMINDER_MINUTES = [5, 10, 15, 30, 60];
-    const PICKER_ITEM_HEIGHT = 40;
-    let currentReminderValue = 10;
-    let isCustomReminder = false;
-    
-    function openReminderPicker() {
-        if (!elements.reminderPickerModal) return;
-        
-        // Set scroll position to current value
-        const allValues = [...REMINDER_MINUTES, 'custom'];
-        let index = allValues.indexOf(currentReminderValue);
-        if (index === -1) index = 1; // default to 10
-        elements.reminderPickerScroll.scrollTop = index * PICKER_ITEM_HEIGHT;
-        
-        // Update active item
-        requestAnimationFrame(() => {
-            updateActivePickerItem();
-        });
-        
-        elements.reminderPickerModal.classList.remove('hidden');
-    }
-    
-    function closeReminderPicker() {
-        if (elements.reminderPickerModal) {
-            elements.reminderPickerModal.classList.add('hidden');
-        }
-    }
-    
-    function confirmReminderPicker() {
-        if (!elements.reminderPickerScroll) return;
-        const scrollTop = elements.reminderPickerScroll.scrollTop;
-        const index = Math.round(scrollTop / PICKER_ITEM_HEIGHT);
-        const allValues = [...REMINDER_MINUTES, 'custom'];
-        const selected = allValues[Math.min(Math.max(index, 0), allValues.length - 1)];
-        
-        if (selected === 'custom') {
-            closeReminderPicker();
-            openCustomReminderModal();
-        } else {
-            currentReminderValue = selected;
-            updateReminderDisplayText(selected);
-            closeReminderPicker();
-        }
-    }
-    
-    function getReminderPickerValue() {
-        return currentReminderValue;
-    }
-    
-    function setReminderPickerValue(minutes) {
-        currentReminderValue = minutes;
-        updateReminderDisplayText(minutes);
-    }
-    
-    function updateActivePickerItem() {
-        const scroll = elements.reminderPickerScroll;
-        if (!scroll) return;
-        const items = scroll.querySelectorAll('.reminder-picker-item:not(.placeholder)');
-        const scrollCenter = scroll.scrollTop + scroll.clientHeight / 2;
-        items.forEach(item => {
-            const itemCenter = item.offsetTop + item.offsetHeight / 2;
-            item.classList.toggle('active', Math.abs(itemCenter - scrollCenter) < PICKER_ITEM_HEIGHT / 2);
-        });
-    }
-    
-    // Custom reminder modal
-    function openCustomReminderModal() {
-        if (elements.customReminderModal) {
-            elements.customReminderInput.value = '';
-            elements.customReminderModal.classList.remove('hidden');
-            setTimeout(() => elements.customReminderInput.focus(), 100);
-        }
-    }
-    
-    function closeCustomReminderModal() {
-        if (elements.customReminderModal) {
-            elements.customReminderModal.classList.add('hidden');
-        }
-    }
-    
-    function saveCustomReminder() {
-        const value = parseInt(elements.customReminderInput.value);
-        if (!value || value < 1 || value > 1440) {
-            showToast('请输入1-1440之间的数字');
-            return;
-        }
-        currentReminderValue = value;
-        updateReminderDisplayText(value);
-        closeCustomReminderModal();
-    }
-
     function closeEventModal() {
         elements.eventModal.classList.add('hidden');
         state.selectedEvent = null;
@@ -1449,7 +1350,7 @@
             all_day: elements.allDayCheck.checked,
             status: 'pending',
             reminder_enabled: elements.reminderEnabled.checked,
-            reminder_minutes: elements.reminderEnabled.checked ? getReminderPickerValue() : 0
+            reminder_minutes: elements.reminderEnabled.checked ? 1 : 0
         };
         
         const result = await createEvent(eventData);
@@ -1465,7 +1366,6 @@
         
         const content = elements.detailContent;
         const reminderEnabled = event.reminder_enabled === true || event.reminder_enabled === 'true';
-        const reminderMinutes = event.reminder_minutes || 10;
         
         content.innerHTML = `
             <div class="detail-row">
@@ -1488,7 +1388,7 @@
             </div>
             <div class="detail-row">
                 <span class="detail-label">提醒</span>
-                <span class="detail-value">${reminderEnabled ? `提前${reminderMinutes}分钟` : '未开启'}</span>
+                <span class="detail-value">${reminderEnabled ? '开始前1分钟' : '未开启'}</span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">提醒开关</span>
@@ -1497,48 +1397,7 @@
                     <span class="switch-slider"></span>
                 </label>
             </div>
-            <div class="detail-row" id="detailReminderRow">
-                <span class="detail-label">提前</span>
-                <div class="reminder-picker detail-reminder-picker" data-scroll-id="detailReminderPicker">
-                    <div class="reminder-picker-mask"></div>
-                    <div class="reminder-picker-scroll" id="detailReminderPickerScroll" data-default-value="${reminderMinutes}">
-                        <div class="reminder-picker-item placeholder"></div>
-                        <div class="reminder-picker-item" data-value="5">提前5分钟</div>
-                        <div class="reminder-picker-item" data-value="10">提前10分钟</div>
-                        <div class="reminder-picker-item" data-value="15">提前15分钟</div>
-                        <div class="reminder-picker-item" data-value="30">提前30分钟</div>
-                        <div class="reminder-picker-item" data-value="60">提前60分钟</div>
-                        <div class="reminder-picker-item placeholder"></div>
-                    </div>
-                </div>
-                <span class="detail-value">分钟</span>
-            </div>
         `;
-        
-        // Show/hide reminder options based on checkbox state
-        const detailReminderRow = document.getElementById('detailReminderRow');
-        const detailReminderEnabled = document.getElementById('detailReminderEnabled');
-        if (detailReminderRow && detailReminderEnabled) {
-            detailReminderRow.style.display = detailReminderEnabled.checked ? 'flex' : 'none';
-            detailReminderEnabled.addEventListener('change', function() {
-                detailReminderRow.style.display = this.checked ? 'flex' : 'none';
-            });
-        }
-        
-        // Initialize detail picker scroll position
-        const detailScroll = document.getElementById('detailReminderPickerScroll');
-        if (detailScroll) {
-            const defaultValue = parseInt(detailScroll.dataset.defaultValue) || 10;
-            const defaultIndex = REMINDER_MINUTES.indexOf(defaultValue);
-            detailScroll.scrollTop = (defaultIndex >= 0 ? defaultIndex : 1) * PICKER_ITEM_HEIGHT;
-            // Update active item
-            const items = detailScroll.querySelectorAll('.reminder-picker-item:not(.placeholder)');
-            const scrollCenter = detailScroll.scrollTop + detailScroll.clientHeight / 2;
-            items.forEach(item => {
-                const itemCenter = item.offsetTop + item.offsetHeight / 2;
-                item.classList.toggle('active', Math.abs(itemCenter - scrollCenter) < PICKER_ITEM_HEIGHT / 2);
-            });
-        }
         
         // Update button states
         elements.completeEventBtn.style.display = event.status === 'done' ? 'none' : 'flex';
@@ -1550,15 +1409,10 @@
         if (!state.selectedEvent || !state.selectedEvent.id) return;
         
         const detailReminderEnabled = document.getElementById('detailReminderEnabled');
-        const detailPickerScroll = document.getElementById('detailReminderPickerScroll');
-        
-        if (!detailReminderEnabled || !detailPickerScroll) return;
+        if (!detailReminderEnabled) return;
         
         const reminderEnabled = detailReminderEnabled.checked;
-        // Read value from picker scroll position
-        const scrollTop = detailPickerScroll.scrollTop;
-        const index = Math.round(scrollTop / PICKER_ITEM_HEIGHT);
-        const reminderMinutes = reminderEnabled ? REMINDER_MINUTES[Math.min(Math.max(index, 0), REMINDER_MINUTES.length - 1)] : 0;
+        const reminderMinutes = reminderEnabled ? 1 : 0;
         
         const result = await updateEvent(state.selectedEvent.id, {
             reminder_enabled: reminderEnabled,
@@ -1636,6 +1490,7 @@
         // Load QQ reminder setting from API
         await fetchSettings();
         elements.enableQQReminder.checked = state.qqReminderEnabled;
+        elements.defaultTaskReminderEnabled.checked = state.defaultTaskReminderEnabled;
         
         // Set version
         elements.appVersion.textContent = 'v' + APP_VERSION;
@@ -1668,6 +1523,19 @@
         // Re-render timeline to show/hide resize handles
         if (state.currentView === 'day') {
             renderTimeline();
+        }
+    }
+
+    async function handleDefaultTaskReminderToggle(e) {
+        const enabled = e.target.checked;
+        state.defaultTaskReminderEnabled = enabled;
+
+        const result = await updateSetting('default_task_reminder_enabled', enabled ? 'true' : 'false');
+        if (result) {
+            showToast(enabled ? '新任务默认提醒已开启' : '新任务默认提醒已关闭');
+        } else {
+            e.target.checked = !enabled;
+            state.defaultTaskReminderEnabled = !enabled;
         }
     }
 
@@ -2054,76 +1922,6 @@
         }
     }
 
-    function handlePullTouchMove(e) {
-        // Don't trigger pull-to-refresh during event drag
-        if (state.dragState.event) return;
-        
-        // Get current scroll element (the visible view)
-        const scrollEl = getCurrentScrollElement();
-        
-        // Only trigger when at top and pulling down
-        if (scrollEl.scrollTop > 0) return;
-        
-        const currentY = e.touches[0].clientY;
-        const deltaY = currentY - state.pullToRefresh.startY;
-        
-        // Only allow pull down (positive delta)
-        if (deltaY <= 0) {
-            // Reset if pulling up
-            elements.app.classList.remove('pulling');
-            elements.app.style.transform = '';
-            return;
-        }
-        
-        // Apply resistance - make it harder to pull as you go deeper
-        const resistance = 0.5;
-        const distance = Math.min(deltaY * resistance, 150); // Cap at 150px
-        state.pullToRefresh.pullDistance = distance;
-        
-        // Add pulling class to disable transitions
-        elements.app.classList.add('pulling');
-        elements.app.style.transform = `translateY(${distance}px)`;
-        
-        // Update indicator
-        if (distance > 20) {
-            elements.ptrIndicator.classList.add('visible');
-        }
-        if (distance > 60) {
-            elements.ptrIndicator.classList.add('enough');
-        } else {
-            elements.ptrIndicator.classList.remove('enough');
-        }
-    }
-
-    function handlePullTouchEnd(e) {
-        // Don't handle pull-to-refresh during event drag
-        if (state.dragState.event) return;
-        
-        // Remove pulling class to enable transitions
-        elements.app.classList.remove('pulling');
-        
-        const distance = state.pullToRefresh.pullDistance;
-        
-        if (distance > 60) {
-            // Refresh triggered - show spinner
-            elements.app.style.transform = 'translateY(60px)';
-            elements.ptrIndicator.classList.remove('visible');
-            elements.ptrIndicator.classList.add('refreshing');
-            state.pullToRefresh.isRefreshing = true;
-            
-            loadData().then(() => {
-                elements.app.style.transform = '';
-                elements.ptrIndicator.classList.remove('refreshing', 'enough');
-                state.pullToRefresh.isRefreshing = false;
-                state.pullToRefresh.pullDistance = 0;
-            });
-        } else {
-            // Spring back
-            elements.app.style.transform = '';
-            elements.ptrIndicator.classList.remove('visible', 'enough');
-        }
-    }
-
     // ============================================
     // Data Loading
     // ============================================
@@ -2297,6 +2095,7 @@
         elements.settingsClose.addEventListener('click', closeSettingsModal);
         elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
         elements.enableQQReminder.addEventListener('change', handleQQReminderToggle);
+        elements.defaultTaskReminderEnabled.addEventListener('change', handleDefaultTaskReminderToggle);
         
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
@@ -2310,44 +2109,6 @@
         elements.modalClose.addEventListener('click', closeEventModal);
         elements.cancelEventBtn.addEventListener('click', closeEventModal);
         elements.saveEventBtn.addEventListener('click', saveEvent);
-        
-        // Reminder toggle in event modal
-        if (elements.reminderEnabled) {
-            elements.reminderEnabled.addEventListener('change', updateReminderOptionsVisibility);
-        }
-        
-        // Reminder display click opens picker
-        if (elements.reminderDisplay) {
-            elements.reminderDisplay.addEventListener('click', openReminderPicker);
-        }
-        
-        // Reminder picker modal events
-        if (elements.reminderPickerBackdrop) {
-            elements.reminderPickerBackdrop.addEventListener('click', closeReminderPicker);
-        }
-        if (elements.reminderPickerCancel) {
-            elements.reminderPickerCancel.addEventListener('click', closeReminderPicker);
-        }
-        if (elements.reminderPickerConfirm) {
-            elements.reminderPickerConfirm.addEventListener('click', confirmReminderPicker);
-        }
-        if (elements.reminderPickerScroll) {
-            elements.reminderPickerScroll.addEventListener('scroll', updateActivePickerItem);
-        }
-        
-        // Custom reminder modal events
-        if (elements.customReminderBackdrop) {
-            elements.customReminderBackdrop.addEventListener('click', closeCustomReminderModal);
-        }
-        if (elements.customReminderClose) {
-            elements.customReminderClose.addEventListener('click', closeCustomReminderModal);
-        }
-        if (elements.customReminderCancel) {
-            elements.customReminderCancel.addEventListener('click', closeCustomReminderModal);
-        }
-        if (elements.customReminderSave) {
-            elements.customReminderSave.addEventListener('click', saveCustomReminder);
-        }
         
         // Detail modal
         elements.detailBackdrop.addEventListener('click', closeDetailModal);

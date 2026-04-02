@@ -3,7 +3,7 @@ import asyncio
 import aiohttp
 import aiosqlite
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Any
 
 from . import db
 from .models import Event
@@ -23,7 +23,7 @@ class ReminderService:
             app: The aiohttp application instance.
         """
         self.app = app
-        self._task: Optional[asyncio.Task] = None
+        self._task: Optional[asyncio.Task[Any]] = None
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
     
@@ -93,7 +93,7 @@ class ReminderService:
             
             for row in rows:
                 start_time = datetime.fromisoformat(row["start_time"])
-                reminder_minutes = row["reminder_minutes"] if "reminder_minutes" in row.keys() else 10
+                reminder_minutes = row["reminder_minutes"] if "reminder_minutes" in row.keys() else 1
                 
                 # Check if event is within reminder window
                 time_until_event = start_time - now
