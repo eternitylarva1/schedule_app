@@ -48,27 +48,32 @@
         <main class="main-content" id="mainContent">
             <!-- Day View -->
             <div class="view day-view" id="dayView">
+                <div class="calendar-segmented" id="calendarSegmented">
+                    <button class="cal-segment active" data-subview="day">日</button>
+                    <button class="cal-segment" data-subview="week">周</button>
+                    <button class="cal-segment" data-subview="month">月</button>
+                </div>
                 <div class="view-slider" id="daySlider">
                     <div class="timeline" id="timeline"></div>
                 </div>
             </div>
 
-        <!-- Week View -->
-        <div class="view week-view hidden" id="weekView">
-            <div class="week-time-axis" id="weekTimeAxis"></div>
-            <div class="week-header-wrapper">
-                <div class="week-header" id="weekHeader"></div>
+            <!-- Week View -->
+            <div class="view week-view hidden" id="weekView">
+                <div class="week-time-axis" id="weekTimeAxis"></div>
+                <div class="week-header-wrapper">
+                    <div class="week-header" id="weekHeader"></div>
+                </div>
+                <div class="week-body">
+                    <div class="week-grid" id="weekGrid"></div>
+                </div>
             </div>
-            <div class="week-body">
-                <div class="week-grid" id="weekGrid"></div>
-            </div>
-        </div>
 
-        <!-- Month View -->
-        <div class="view month-view hidden" id="monthView">
-            <div class="month-header" id="monthHeader"></div>
-            <div class="month-grid" id="monthGrid"></div>
-        </div>
+            <!-- Month View -->
+            <div class="view month-view hidden" id="monthView">
+                <div class="month-header" id="monthHeader"></div>
+                <div class="month-grid" id="monthGrid"></div>
+            </div>
 
             <!-- Todo View -->
             <div class="view todo-view hidden" id="todoView">
@@ -213,18 +218,9 @@
 
         <!-- Bottom Tab Bar -->
         <nav class="tab-bar">
-            <div class="tab-spacer"></div>
             <button class="tab-item active" data-view="day" id="tabDay">
                 <span class="tab-icon">📅</span>
-                <span class="tab-label">日</span>
-            </button>
-            <button class="tab-item" data-view="week" id="tabWeek">
-                <span class="tab-icon">📆</span>
-                <span class="tab-label">周</span>
-            </button>
-            <button class="tab-item" data-view="month" id="tabMonth">
-                <span class="tab-icon">🗓️</span>
-                <span class="tab-label">月</span>
+                <span class="tab-label">日历</span>
             </button>
             <button class="tab-item" data-view="todo" id="tabTodo">
                 <span class="tab-icon">📝</span>
@@ -238,7 +234,6 @@
                 <span class="tab-icon">📊</span>
                 <span class="tab-label">统计</span>
             </button>
-            <div class="tab-spacer"></div>
         </nav>
 
         <!-- Settings Modal -->
