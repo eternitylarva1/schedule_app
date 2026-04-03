@@ -1729,7 +1729,6 @@
                 
                 // Render based on calendar subview
                 if (state.calendarSubview === 'day') {
-                    elements.dayView.classList.remove('hidden');
                     elements.daySlider.classList.remove('hidden');
                     elements.weekView.classList.add('hidden');
                     elements.monthView.classList.add('hidden');
@@ -1742,13 +1741,11 @@
                         elements.dayView.scrollTop = scrollTop;
                     }
                 } else if (state.calendarSubview === 'week') {
-                    elements.dayView.classList.add('hidden');
                     elements.daySlider.classList.add('hidden');
                     elements.weekView.classList.remove('hidden');
                     elements.monthView.classList.add('hidden');
                     renderWeekView();
                 } else if (state.calendarSubview === 'month') {
-                    elements.dayView.classList.add('hidden');
                     elements.daySlider.classList.add('hidden');
                     elements.weekView.classList.add('hidden');
                     elements.monthView.classList.remove('hidden');
@@ -2722,19 +2719,16 @@
             });
             // Re-render based on subview
             if (state.calendarSubview === 'day') {
-                elements.dayView.classList.remove('hidden');
                 elements.daySlider.classList.remove('hidden');
                 elements.weekView.classList.add('hidden');
                 elements.monthView.classList.add('hidden');
                 renderTimeline();
             } else if (state.calendarSubview === 'week') {
-                elements.dayView.classList.add('hidden');
                 elements.daySlider.classList.add('hidden');
                 elements.weekView.classList.remove('hidden');
                 elements.monthView.classList.add('hidden');
                 renderWeekView();
             } else if (state.calendarSubview === 'month') {
-                elements.dayView.classList.add('hidden');
                 elements.daySlider.classList.add('hidden');
                 elements.weekView.classList.add('hidden');
                 elements.monthView.classList.remove('hidden');

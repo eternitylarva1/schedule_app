@@ -47,13 +47,15 @@
 
         <!-- Main Content Area -->
         <main class="main-content" id="mainContent">
+            <!-- Calendar Segmented Control (outside dayView so it's always visible) -->
+            <div class="calendar-segmented" id="calendarSegmented">
+                <button class="cal-segment active" data-subview="day">日</button>
+                <button class="cal-segment" data-subview="week">周</button>
+                <button class="cal-segment" data-subview="month">月</button>
+            </div>
+
             <!-- Day View -->
             <div class="view day-view" id="dayView">
-                <div class="calendar-segmented" id="calendarSegmented">
-                    <button class="cal-segment active" data-subview="day">日</button>
-                    <button class="cal-segment" data-subview="week">周</button>
-                    <button class="cal-segment" data-subview="month">月</button>
-                </div>
                 <div class="view-slider" id="daySlider">
                     <div class="timeline" id="timeline"></div>
                 </div>
@@ -296,7 +298,7 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260404-4"></script>
+    <script src="/static/app.js?v=20260404-5"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {
