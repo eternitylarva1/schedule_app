@@ -97,6 +97,7 @@
         statsView: document.getElementById('statsView'),
         statsContainer: document.getElementById('statsContainer'),
         timeline: document.getElementById('timeline'),
+        daySlider: document.getElementById('daySlider'),
         weekTimeAxis: document.getElementById('weekTimeAxis'),
         ptrIndicator: document.getElementById('ptrIndicator'),
         tabDay: document.getElementById('tabDay'),
