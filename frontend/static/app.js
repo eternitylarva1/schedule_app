@@ -2607,9 +2607,20 @@
             const direction = deltaX > 0 ? -1 : 1;
             const slider = document.getElementById('daySlider');
             
-            // Update date
-            state.currentDate.setDate(state.currentDate.getDate() + direction);
-            renderTimeline();
+            // Update date based on calendarSubview
+            if (state.calendarSubview === 'day') {
+                state.currentDate.setDate(state.currentDate.getDate() + direction);
+                renderTimeline();
+            } else if (state.calendarSubview === 'week') {
+                state.currentDate.setDate(state.currentDate.getDate() + (direction * 7));
+                renderAgendaList('week');
+            } else if (state.calendarSubview === 'month') {
+                // Navigate by month
+                state.currentMonth.setMonth(state.currentMonth.getMonth() + direction);
+                state.currentMonth = new Date(state.currentMonth);
+                state.currentDate = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth(), 1);
+                renderAgendaList('month');
+            }
             renderHeaderTitle();
             
             // Animate to center
