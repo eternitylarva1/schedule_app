@@ -1630,14 +1630,6 @@
                     renderMonthView();
                 }
                 break;
-            case 'week':
-                elements.weekView.classList.remove('hidden');
-                renderWeekView();
-                break;
-            case 'month':
-                elements.monthView.classList.remove('hidden');
-                renderMonthView();
-                break;
             case 'todo':
                 elements.todoView.classList.remove('hidden');
                 await renderTodoView();
@@ -2389,8 +2381,8 @@
         // Determine date filter based on current view
         let dateFilter = 'month'; // Default to current month
         
-        if (state.currentView === 'day' && state.calendarSubview === 'month') {
-            // For month subview, fetch the displayed month specifically
+        if (state.currentView === 'month') {
+            // For month view, fetch the displayed month specifically
             const year = state.currentMonth.getFullYear();
             const month = state.currentMonth.getMonth() + 1;
             dateFilter = `${year}-${String(month).padStart(2, '0')}`;
@@ -2407,14 +2399,11 @@
             renderHeaderTitle();
             
             if (state.currentView === 'day') {
-                // Render based on calendar subview
-                if (state.calendarSubview === 'day') {
-                    renderTimeline();
-                } else if (state.calendarSubview === 'week') {
-                    renderWeekView();
-                } else if (state.calendarSubview === 'month') {
-                    renderMonthView();
-                }
+                renderTimeline();
+            } else if (state.currentView === 'week') {
+                renderWeekView();
+            } else if (state.currentView === 'month') {
+                renderMonthView();
             } else if (state.currentView === 'stats') {
                 renderStatsView();
             }
@@ -2571,8 +2560,6 @@
         elements.tabDay.addEventListener('click', () => switchView('day'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
         elements.tabGoals.addEventListener('click', () => switchView('goals'));
-        // tabAdd listener kept but button is hidden via CSS - use contentAddBtn instead
-        elements.tabAdd.addEventListener('click', () => openEventModal());
         elements.tabStats.addEventListener('click', () => switchView('stats'));
 
         // Calendar segmented control (in day view)
@@ -2586,16 +2573,25 @@
             });
             // Re-render based on subview
             if (state.calendarSubview === 'day') {
+                elements.daySlider.classList.remove('hidden');
+                elements.weekView.classList.add('hidden');
+                elements.monthView.classList.add('hidden');
                 renderTimeline();
             } else if (state.calendarSubview === 'week') {
+                elements.daySlider.classList.add('hidden');
+                elements.weekView.classList.remove('hidden');
+                elements.monthView.classList.add('hidden');
                 renderWeekView();
             } else if (state.calendarSubview === 'month') {
+                elements.daySlider.classList.add('hidden');
+                elements.weekView.classList.add('hidden');
+                elements.monthView.classList.remove('hidden');
                 renderMonthView();
             }
             renderHeaderTitle();
         });
 
-        // Floating add button (content area, visible in day/week/todo)
+        // Floating add button (content area, visible in day/todo)
         elements.contentAddBtn.addEventListener('click', () => openEventModal());
         
         // Event modal
