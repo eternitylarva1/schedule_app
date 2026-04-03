@@ -1739,17 +1739,17 @@
                         elements.dayView.scrollTop = scrollTop;
                     }
                 } else if (state.calendarSubview === 'week') {
-                    elements.daySlider.classList.remove('hidden');
-                    elements.weekView.classList.add('hidden');
+                    elements.daySlider.classList.add('hidden');
+                    elements.weekView.classList.remove('hidden');
                     elements.monthView.classList.add('hidden');
-                    renderAgendaList('week');
+                    renderWeekView();
                 } else if (state.calendarSubview === 'month') {
-                    elements.daySlider.classList.remove('hidden');
+                    elements.daySlider.classList.add('hidden');
                     elements.weekView.classList.add('hidden');
-                    elements.monthView.classList.add('hidden');
+                    elements.monthView.classList.remove('hidden');
                     // Keep month alignment: state.currentMonth = first day
                     state.currentMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
-                    renderAgendaList('month');
+                    renderMonthView();
                 }
                 break;
             case 'todo':
@@ -2533,9 +2533,9 @@
                 if (state.calendarSubview === 'day') {
                     renderTimeline();
                 } else if (state.calendarSubview === 'week') {
-                    renderAgendaList('week');
+                    renderWeekView();
                 } else if (state.calendarSubview === 'month') {
-                    renderAgendaList('month');
+                    renderMonthView();
                 }
             } else if (state.currentView === 'stats') {
                 renderStatsView();
@@ -2613,13 +2613,13 @@
                 renderTimeline();
             } else if (state.calendarSubview === 'week') {
                 state.currentDate.setDate(state.currentDate.getDate() + (direction * 7));
-                renderAgendaList('week');
+                renderWeekView();
             } else if (state.calendarSubview === 'month') {
                 // Navigate by month
                 state.currentMonth.setMonth(state.currentMonth.getMonth() + direction);
                 state.currentMonth = new Date(state.currentMonth);
                 state.currentDate = new Date(state.currentMonth.getFullYear(), state.currentMonth.getMonth(), 1);
-                renderAgendaList('month');
+                renderMonthView();
             }
             renderHeaderTitle();
             
