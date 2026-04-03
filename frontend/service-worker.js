@@ -1,9 +1,9 @@
-const CACHE_NAME = 'schedule-app-v1';
+const CACHE_NAME = 'schedule-app-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/static/style.css',
-  '/static/app.js',
+  '/static/style.css?v=20260403-1',
+  '/static/app.js?v=20260403-1',
   '/manifest.json'
 ];
 
@@ -55,7 +55,10 @@ self.addEventListener('fetch', (event) => {
           // Return cache, but also update it in background
           fetch(event.request).then((response) => {
             if (response.ok) {
-              caches.update(CACHE_NAME, event.request);
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
             }
           }).catch(() => {});
           return cachedResponse;

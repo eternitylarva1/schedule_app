@@ -2714,8 +2714,10 @@
         bindEvents();
         renderCategorySelector();
         
-        // Load last view from localStorage (default to 'day' or 'week')
-        const lastView = localStorage.getItem('lastView') || 'week';
+        // Load last view from localStorage (tab bar supports: day/todo/goals/stats)
+        const allowedViews = new Set(['day', 'todo', 'goals', 'stats']);
+        const savedView = localStorage.getItem('lastView') || 'day';
+        const lastView = allowedViews.has(savedView) ? savedView : 'day';
         
         await loadData();
         
