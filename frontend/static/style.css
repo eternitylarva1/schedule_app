@@ -127,6 +127,12 @@ body {
     z-index: 100;
 }
 
+/* Header Calendar Segmented Control */
+.header .calendar-segmented {
+    margin: 0;
+    padding: 2px;
+}
+
 .header-btn {
     width: 44px;
     height: 44px;

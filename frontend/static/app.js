@@ -2661,10 +2661,6 @@
     // Event Listeners
     // ============================================
     function bindEvents() {
-        // Header navigation
-        elements.prevBtn.addEventListener('click', () => navigateDate(-1));
-        elements.nextBtn.addEventListener('click', () => navigateDate(1));
-        
         // Refresh button
         elements.refreshBtn.addEventListener('click', () => {
             elements.refreshBtn.classList.add('rotating');
