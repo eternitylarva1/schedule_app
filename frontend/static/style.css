@@ -2278,6 +2278,196 @@ textarea {
     border-radius: var(--radius-sm);
 }
 
+/* Goals discuss button */
+.goals-discuss-btn {
+    padding: var(--space-sm) var(--space-md);
+    background: linear-gradient(135deg, var(--accent-primary), #2563eb);
+    color: white;
+    font-size: var(--font-size-sm);
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+}
+
+/* Goal children (subtasks container) */
+.goal-children {
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Subtask depth levels */
+.goal-subtasks.depth-1 {
+    margin-left: var(--space-lg);
+}
+
+.goal-subtasks.depth-2 {
+    margin-left: var(--space-lg);
+}
+
+.goal-subtask {
+    background: var(--bg-secondary);
+    margin-bottom: var(--space-sm);
+}
+
+.goal-add-subtask-btn {
+    width: 100%;
+    padding: var(--space-sm);
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    margin-top: var(--space-sm);
+}
+
+.goal-add-subtask-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* Goal discuss modal */
+.goal-discuss-intro {
+    margin-bottom: var(--space-lg);
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.goal-discuss-intro p {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.goal-discuss-input-area {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.goal-discuss-input-area input {
+    flex: 1;
+    padding: var(--space-md);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+}
+
+.goal-discuss-conversation {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.discuss-message {
+    margin-bottom: var(--space-md);
+}
+
+.discuss-role {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.discuss-content {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.discuss-loading {
+    text-align: center;
+    padding: var(--space-lg);
+    color: var(--text-muted);
+}
+
+.discuss-error {
+    text-align: center;
+    padding: var(--space-md);
+    color: var(--accent-danger);
+}
+
+.discuss-input-area {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+.discuss-input-area input {
+    flex: 1;
+    padding: var(--space-sm);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+}
+
+.discuss-results {
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.discuss-results-title {
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+}
+
+.discuss-subtasks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.discuss-subtask {
+    display: flex;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+}
+
+.discuss-subtask-num {
+    width: 24px;
+    height: 24px;
+    background: var(--accent-primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+}
+
+.discuss-subtask-content {
+    flex: 1;
+}
+
+.discuss-subtask-title {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+}
+
+.discuss-subtask-hint {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.discuss-empty {
+    text-align: center;
+    padding: var(--space-lg);
+    color: var(--text-muted);
+}
+
 /* Quick complete button */
 .event-quick-complete {
     position: absolute;

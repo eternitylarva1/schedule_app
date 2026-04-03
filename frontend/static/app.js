@@ -144,6 +144,17 @@
         savedBreakdownsBackdrop: document.getElementById('savedBreakdownsBackdrop'),
         savedBreakdownsClose: document.getElementById('savedBreakdownsClose'),
         savedBreakdownsList: document.getElementById('savedBreakdownsList'),
+        // Goal discuss modal
+        goalDiscussModal: document.getElementById('goalDiscussModal'),
+        goalDiscussBackdrop: document.getElementById('goalDiscussBackdrop'),
+        goalDiscussClose: document.getElementById('goalDiscussClose'),
+        goalDiscussInput: document.getElementById('goalDiscussInput'),
+        goalDiscussStartBtn: document.getElementById('goalDiscussStartBtn'),
+        goalDiscussConversation: document.getElementById('goalDiscussConversation'),
+        goalDiscussResults: document.getElementById('goalDiscussResults'),
+        goalDiscussFooter: document.getElementById('goalDiscussFooter'),
+        goalDiscussCancelBtn: document.getElementById('goalDiscussCancelBtn'),
+        goalDiscussSaveBtn: document.getElementById('goalDiscussSaveBtn'),
         // Settings modal
         settingsModal: document.getElementById('settingsModal'),
         settingsBackdrop: document.getElementById('settingsBackdrop'),
@@ -1430,8 +1441,7 @@
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'semester' ? 'active' : ''}" data-horizon="semester">学期</button>
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'long' ? 'active' : ''}" data-horizon="long">长期</button>
                 </div>
-                <button class="goals-ref-toggle" id="goalsRefToggle">📅 参考</button>
-                <button class="goals-add-btn">+ 添加目标</button>
+                <button class="goals-discuss-btn" id="goalsDiscussBtn">💬 AI规划</button>
             </div>
             <div class="goals-reference hidden" id="goalsReference"></div>
             <div class="goals-list"></div>
@@ -1447,20 +1457,12 @@
             });
         });
         
-        // Bind add button
-        container.querySelector('.goals-add-btn').addEventListener('click', () => {
-            openBreakdownModal({ horizon: state.goalsHorizon, text: '' });
+        // Bind AI discuss button
+        container.querySelector('#goalsDiscussBtn').addEventListener('click', () => {
+            openGoalDiscussModal();
         });
         
-        // Bind reference toggle
-        const refToggle = container.querySelector('#goalsRefToggle');
-        const refContainer = container.querySelector('#goalsReference');
-        refToggle.addEventListener('click', async () => {
-            refContainer.classList.toggle('hidden');
-            if (!refContainer.classList.contains('hidden')) {
-                await renderGoalsReference();
-            }
-        });
+        // Bind reference toggle (removed for simplicity)
     }
     
     async function renderGoalsReference() {
@@ -1527,27 +1529,69 @@
                 <div class="empty-state">
                     <div class="empty-icon">🎯</div>
                     <div class="empty-text">暂无${horizonLabel(state.goalsHorizon)}</div>
+                    <button class="btn btn-primary" onclick="openGoalDiscussModal()">开始规划</button>
                 </div>
             `;
             return;
         }
         
-        listEl.innerHTML = goals.map(goal => `
-            <div class="goal-card" data-goal-id="${goal.id}">
-                <div class="goal-card-head">
-                    <div class="goal-title-wrap">
-                        <div class="goal-title">${escapeHtml(goal.title)}</div>
-                        <div class="goal-meta">${horizonLabel(goal.horizon)} · ${goal.subtask_count || 0}项</div>
+        // Count subtasks recursively
+        function countSubtasks(goal) {
+            if (!goal.subtasks || goal.subtasks.length === 0) return 0;
+            let count = goal.subtasks.length;
+            goal.subtasks.forEach(st => {
+                count += countSubtasks(st);
+            });
+            return count;
+        }
+        
+        // Render subtasks recursively
+        function renderSubtasks(subtasks, depth = 1) {
+            if (!subtasks || subtasks.length === 0 || depth > 2) return '';
+            return `
+                <div class="goal-subtasks depth-${depth}">
+                    ${subtasks.map(st => `
+                        <div class="goal-card goal-subtask" data-goal-id="${st.id}">
+                            <div class="goal-card-head">
+                                <div class="goal-title-wrap">
+                                    <div class="goal-title">${escapeHtml(st.title)}</div>
+                                    <div class="goal-meta">${countSubtasks(st) > 0 ? countSubtasks(st) + '项' : ''}</div>
+                                </div>
+                                <div class="goal-actions">
+                                    <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${st.id}" title="细分">📋</button>
+                                    <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="${st.id}" title="完成">✓</button>
+                                    <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${st.id}" title="删除">🗑️</button>
+                                </div>
+                            </div>
+                            ${renderSubtasks(st.subtasks, depth + 1)}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        listEl.innerHTML = goals.map(goal => {
+            const subtaskCount = countSubtasks(goal);
+            return `
+                <div class="goal-card" data-goal-id="${goal.id}">
+                    <div class="goal-card-head">
+                        <div class="goal-title-wrap">
+                            <div class="goal-title">${escapeHtml(goal.title)}</div>
+                            <div class="goal-meta">${subtaskCount > 0 ? subtaskCount + '项' : ''}</div>
+                        </div>
+                        <div class="goal-actions">
+                            <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
+                            <button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${goal.id}" title="展开">▶</button>
+                            <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${goal.id}" title="删除">🗑️</button>
+                        </div>
                     </div>
-                    <div class="goal-actions">
-                        <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${goal.id}" title="拆解">📋</button>
-                        <button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${goal.id}" title="展开">▶</button>
-                        <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${goal.id}" title="删除">🗑️</button>
+                    <div class="goal-children hidden">
+                        ${renderSubtasks(goal.subtasks)}
+                        <button class="goal-add-subtask-btn" data-parent-id="${goal.id}">+ 添加子任务</button>
                     </div>
                 </div>
-                ${goal.description ? `<div class="goal-desc">${escapeHtml(goal.description)}</div>` : ''}
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
         // Bind goal card events
         listEl.querySelectorAll('.goal-action-btn').forEach(btn => {
@@ -1556,8 +1600,10 @@
                 const action = btn.dataset.action;
                 const goalId = btn.dataset.goalId;
                 
-                if (action === 'decompose') {
-                    openBreakdownModal({ horizon: state.goalsHorizon, text: '' });
+                if (action === 'discuss') {
+                    openGoalDiscussModal(goalId);
+                } else if (action === 'decompose') {
+                    openGoalDiscussModal(goalId);
                 } else if (action === 'delete') {
                     const confirmed = await showConfirm('确定删除这个目标吗？');
                     if (confirmed) {
@@ -1567,8 +1613,31 @@
                     }
                 } else if (action === 'toggle') {
                     const card = btn.closest('.goal-card');
+                    const children = card.querySelector('.goal-children');
                     card.classList.toggle('expanded');
+                    children.classList.toggle('hidden');
                     btn.textContent = card.classList.contains('expanded') ? '▼' : '▶';
+                } else if (action === 'complete') {
+                    // Mark as done
+                    await updateGoal(goalId, { status: 'done' });
+                    showToast('已完成 ✓');
+                    await renderGoalsList();
+                }
+            });
+        });
+        
+        // Bind add subtask buttons
+        listEl.querySelectorAll('.goal-add-subtask-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const parentId = parseInt(btn.dataset.parentId);
+                const title = prompt('输入子任务名称：');
+                if (title && title.trim()) {
+                    await createGoal({
+                        title: title.trim(),
+                        parent_id: parentId,
+                        horizon: state.goalsHorizon
+                    });
+                    await renderGoalsList();
                 }
             });
         });
@@ -2029,6 +2098,225 @@
 
     function closeBreakdownModal() {
         elements.breakdownModal.classList.add('hidden');
+    }
+
+    // ============================================
+    // Goal AI Discuss Modal
+    // ============================================
+    let goalDiscussState = {
+        goalId: null,        // null for new goal, goalId for existing
+        goalContent: '',
+        conversationHistory: [],
+        currentSubtasks: [],
+        isComplete: false
+    };
+
+    function openGoalDiscussModal(goalId = null) {
+        goalDiscussState = {
+            goalId: goalId,
+            goalContent: '',
+            conversationHistory: [],
+            currentSubtasks: [],
+            isComplete: false
+        };
+        
+        // Show intro, hide conversation and results
+        elements.goalDiscussModal.querySelector('.goal-discuss-intro').classList.remove('hidden');
+        elements.goalDiscussModal.querySelector('.goal-discuss-input-area').classList.remove('hidden');
+        elements.goalDiscussConversation.classList.add('hidden');
+        elements.goalDiscussResults.classList.add('hidden');
+        elements.goalDiscussFooter.classList.add('hidden');
+        
+        elements.goalDiscussInput.value = '';
+        elements.goalDiscussConversation.innerHTML = '';
+        elements.goalDiscussResults.innerHTML = '';
+        
+        elements.goalDiscussModal.classList.remove('hidden');
+        elements.goalDiscussInput.focus();
+    }
+
+    function closeGoalDiscussModal() {
+        elements.goalDiscussModal.classList.add('hidden');
+    }
+
+    async function startGoalDiscuss() {
+        const input = elements.goalDiscussInput.value.trim();
+        if (!input) {
+            showToast('请输入你的目标');
+            return;
+        }
+        
+        goalDiscussState.goalContent = input;
+        goalDiscussState.conversationHistory = [];
+        
+        // Hide intro, show conversation
+        elements.goalDiscussModal.querySelector('.goal-discuss-intro').classList.add('hidden');
+        elements.goalDiscussModal.querySelector('.goal-discuss-input-area').classList.add('hidden');
+        elements.goalDiscussConversation.classList.remove('hidden');
+        
+        // Add user message
+        addDiscussMessage('user', input);
+        goalDiscussState.conversationHistory.push({ role: 'user', content: input });
+        
+        // Show loading
+        elements.goalDiscussConversation.innerHTML = '<div class="discuss-loading">🤔 AI思考中...</div>';
+        
+        try {
+            const result = await apiCall('goals/ai/discuss', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    goal_content: input,
+                    user_input: '',
+                    conversation_history: []
+                })
+            });
+            
+            if (result) {
+                if (result.type === 'question') {
+                    // AI asked a question
+                    addDiscussMessage('assistant', result.message);
+                    goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message });
+                    showDiscussInput();
+                } else if (result.type === 'subtasks') {
+                    // AI generated subtasks
+                    goalDiscussState.currentSubtasks = result.subtasks || [];
+                    goalDiscussState.isComplete = true;
+                    showDiscussResults();
+                }
+            } else {
+                elements.goalDiscussConversation.innerHTML = '<div class="discuss-error">AI响应失败，请稍后重试</div>';
+            }
+        } catch (error) {
+            console.error('Discuss error:', error);
+            elements.goalDiscussConversation.innerHTML = '<div class="discuss-error">请求失败: ' + error.message + '</div>';
+        }
+    }
+
+    async function continueGoalDiscuss() {
+        const input = elements.goalDiscussInput.value.trim();
+        if (!input) return;
+        
+        // Add user message
+        addDiscussMessage('user', input);
+        goalDiscussState.conversationHistory.push({ role: 'user', content: input });
+        
+        // Clear input and show loading
+        elements.goalDiscussInput.value = '';
+        showDiscussLoading();
+        
+        try {
+            const result = await apiCall('goals/ai/discuss', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    goal_content: goalDiscussState.goalContent,
+                    user_input: input,
+                    conversation_history: goalDiscussState.conversationHistory.slice(-6)
+                })
+            });
+            
+            if (result) {
+                if (result.type === 'question') {
+                    // AI asked another question
+                    addDiscussMessage('assistant', result.message);
+                    goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message });
+                    showDiscussInput();
+                } else if (result.type === 'subtasks') {
+                    // AI generated subtasks
+                    goalDiscussState.currentSubtasks = result.subtasks || [];
+                    goalDiscussState.isComplete = true;
+                    showDiscussResults();
+                }
+            }
+        } catch (error) {
+            console.error('Continue discuss error:', error);
+            elements.goalDiscussConversation.innerHTML += '<div class="discuss-error">请求失败: ' + error.message + '</div>';
+        }
+    }
+
+    function addDiscussMessage(role, content) {
+        const msgEl = document.createElement('div');
+        msgEl.className = 'discuss-message ' + role;
+        msgEl.innerHTML = `<div class="discuss-role">${role === 'user' ? '我' : 'AI'}:</div><div class="discuss-content">${escapeHtml(content)}</div>`;
+        elements.goalDiscussConversation.appendChild(msgEl);
+        elements.goalDiscussConversation.scrollTop = elements.goalDiscussConversation.scrollHeight;
+    }
+
+    function showDiscussLoading() {
+        elements.goalDiscussConversation.innerHTML += '<div class="discuss-loading">🤔 AI思考中...</div>';
+        elements.goalDiscussConversation.scrollTop = elements.goalDiscussConversation.scrollHeight;
+    }
+
+    function showDiscussInput() {
+        elements.goalDiscussConversation.innerHTML += `
+            <div class="discuss-input-area">
+                <input type="text" id="discussContinueInput" placeholder="回答AI的问题..." />
+                <button class="btn btn-primary" onclick="continueGoalDiscuss()">发送</button>
+            </div>
+        `;
+        document.getElementById('discussContinueInput').focus();
+    }
+
+    function showDiscussResults() {
+        elements.goalDiscussConversation.classList.add('hidden');
+        elements.goalDiscussResults.classList.remove('hidden');
+        elements.goalDiscussFooter.classList.remove('hidden');
+        
+        if (goalDiscussState.currentSubtasks.length === 0) {
+            elements.goalDiscussResults.innerHTML = '<div class="discuss-empty">AI未能生成有效的任务拆解</div>';
+            return;
+        }
+        
+        elements.goalDiscussResults.innerHTML = `
+            <div class="discuss-results-title">💡 建议的任务拆解</div>
+            <div class="discuss-subtasks">
+                ${goalDiscussState.currentSubtasks.map((st, i) => `
+                    <div class="discuss-subtask">
+                        <div class="discuss-subtask-num">${i + 1}</div>
+                        <div class="discuss-subtask-content">
+                            <div class="discuss-subtask-title">${escapeHtml(st.title)}</div>
+                            ${st.duration_hint ? `<div class="discuss-subtask-hint">⏱️ ${escapeHtml(st.duration_hint)}</div>` : ''}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    async function saveGoalDiscuss() {
+        if (!goalDiscussState.goalContent || goalDiscussState.currentSubtasks.length === 0) {
+            showToast('没有可保存的内容');
+            return;
+        }
+        
+        try {
+            // Create main goal
+            const goalResult = await createGoal({
+                title: goalDiscussState.goalContent,
+                horizon: state.goalsHorizon
+            });
+            
+            if (goalResult && goalResult.id) {
+                // Create subtasks
+                for (let i = 0; i < goalDiscussState.currentSubtasks.length; i++) {
+                    const st = goalDiscussState.currentSubtasks[i];
+                    await createGoal({
+                        title: st.title,
+                        parent_id: goalResult.id,
+                        horizon: state.goalsHorizon,
+                        order: i
+                    });
+                }
+                
+                showToast('目标已保存');
+                closeGoalDiscussModal();
+                await renderGoalsList();
+            }
+        } catch (error) {
+            console.error('Save goal error:', error);
+            showToast('保存失败: ' + error.message);
+        }
     }
 
     // ============================================
@@ -2692,6 +2980,13 @@
         // Saved breakdowns modal events
         elements.savedBreakdownsBackdrop.addEventListener('click', closeSavedBreakdownsModal);
         elements.savedBreakdownsClose.addEventListener('click', closeSavedBreakdownsModal);
+        
+        // Goal discuss modal events
+        elements.goalDiscussBackdrop.addEventListener('click', closeGoalDiscussModal);
+        elements.goalDiscussClose.addEventListener('click', closeGoalDiscussModal);
+        elements.goalDiscussStartBtn.addEventListener('click', startGoalDiscuss);
+        elements.goalDiscussCancelBtn.addEventListener('click', closeGoalDiscussModal);
+        elements.goalDiscussSaveBtn.addEventListener('click', saveGoalDiscuss);
         
         // Settings modal events
         elements.settingsBtn.addEventListener('click', openSettingsModal);

@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=20260404-2">
+    <link rel="stylesheet" href="/static/style.css?v=20260405-1">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -205,6 +205,32 @@
             </div>
         </div>
 
+        <!-- Goal AI Discuss Modal -->
+        <div class="modal hidden" id="goalDiscussModal">
+            <div class="modal-backdrop" id="goalDiscussBackdrop"></div>
+            <div class="modal-content modal-lg">
+                <div class="modal-header">
+                    <h2>💬 AI 目标规划</h2>
+                    <button class="modal-close" id="goalDiscussClose">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="goal-discuss-intro">
+                        <p>告诉我你的目标，AI 会通过几个问题帮你理清思路，然后拆解成可执行的小任务。</p>
+                    </div>
+                    <div class="goal-discuss-input-area">
+                        <input type="text" id="goalDiscussInput" placeholder="例如：我想在3个月内找到一份前端实习" />
+                        <button class="btn btn-primary" id="goalDiscussStartBtn">开始</button>
+                    </div>
+                    <div class="goal-discuss-conversation hidden" id="goalDiscussConversation"></div>
+                    <div class="goal-discuss-results hidden" id="goalDiscussResults"></div>
+                </div>
+                <div class="modal-footer hidden" id="goalDiscussFooter">
+                    <button class="btn btn-secondary" id="goalDiscussCancelBtn">取消</button>
+                    <button class="btn btn-primary" id="goalDiscussSaveBtn">保存目标</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Pull-to-refresh indicator -->
         <div class="ptr-indicator" id="ptrIndicator">
             <div class="ptr-arrow"></div>
@@ -291,7 +317,7 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260404-6"></script>
+    <script src="/static/app.js?v=20260405-1"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {
