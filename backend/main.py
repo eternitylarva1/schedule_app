@@ -26,6 +26,18 @@ async def index(request: web.Request) -> web.StreamResponse:
     return web.json_response({"message": "Schedule App API"}, status=200)
 
 
+async def service_worker(request: web.Request) -> web.StreamResponse:
+    """Serve service-worker.js from frontend root with no-cache headers."""
+    sw_path = FRONTEND_DIR / "service-worker.js"
+    if not sw_path.exists():
+        raise web.HTTPNotFound()
+    response = web.FileResponse(sw_path)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 @web.middleware
 async def log_middleware(request, handler):
     """Log all requests."""
@@ -69,6 +81,7 @@ async def init_app() -> web.Application:
         app.router.add_static("/static/", FRONTEND_DIR / "static", show_index=True)
         # Add index for root - but NOT a catch-all to avoid intercepting /api/*
         app.router.add_get("/", index)
+        app.router.add_get("/service-worker.js", service_worker)
 
     # CORS setup
     cors = aiohttp_cors.setup(app, defaults={

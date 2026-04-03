@@ -1678,6 +1678,8 @@
         // Debounce - prevent rapid navigation
         if (state.isNavigating) return;
         state.isNavigating = true;
+        const previousYear = state.currentDate.getFullYear();
+        const previousMonth = state.currentDate.getMonth();
         
         const date = state.currentDate;
         
@@ -1704,7 +1706,10 @@
             
             // Render based on subview
             if (state.calendarSubview === 'day') {
-                if (slider) {
+                const monthChanged = state.currentDate.getFullYear() !== previousYear || state.currentDate.getMonth() !== previousMonth;
+                if (monthChanged) {
+                    loadData();
+                } else if (slider) {
                     slider.classList.remove('animating');
                     slider.style.transform = `translateX(${-direction * 100}%)`;
                     
@@ -1727,8 +1732,7 @@
                     loadData();
                 }
             } else if (state.calendarSubview === 'week') {
-                renderWeekView();
-                renderHeaderTitle();
+                loadData();
             } else if (state.calendarSubview === 'month') {
                 loadData();
             }
@@ -2401,14 +2405,19 @@
     async function loadData() {
         state.isLoading = true;
         
-        // Determine date filter based on current view
-        let dateFilter = 'month'; // Default to current month
+        // Determine date filter based on active tab + calendar subview
+        let dateFilter = 'month';
         
-        if (state.currentView === 'month') {
-            // For month view, fetch the displayed month specifically
-            const year = state.currentMonth.getFullYear();
-            const month = state.currentMonth.getMonth() + 1;
-            dateFilter = `${year}-${String(month).padStart(2, '0')}`;
+        if (state.currentView === 'day') {
+            if (state.calendarSubview === 'month') {
+                const year = state.currentMonth.getFullYear();
+                const month = state.currentMonth.getMonth() + 1;
+                dateFilter = `${year}-${String(month).padStart(2, '0')}`;
+            } else {
+                const year = state.currentDate.getFullYear();
+                const month = state.currentDate.getMonth() + 1;
+                dateFilter = `${year}-${String(month).padStart(2, '0')}`;
+            }
         }
         
         try {
@@ -2422,11 +2431,13 @@
             renderHeaderTitle();
             
             if (state.currentView === 'day') {
-                renderTimeline();
-            } else if (state.currentView === 'week') {
-                renderWeekView();
-            } else if (state.currentView === 'month') {
-                renderMonthView();
+                if (state.calendarSubview === 'day') {
+                    renderTimeline();
+                } else if (state.calendarSubview === 'week') {
+                    renderWeekView();
+                } else if (state.calendarSubview === 'month') {
+                    renderMonthView();
+                }
             } else if (state.currentView === 'stats') {
                 renderStatsView();
             }
@@ -2586,7 +2597,7 @@
         elements.tabStats.addEventListener('click', () => switchView('stats'));
 
         // Calendar segmented control (in day view)
-        document.getElementById('calendarSegmented')?.addEventListener('click', (e) => {
+        document.getElementById('calendarSegmented')?.addEventListener('click', async (e) => {
             const seg = e.target.closest('.cal-segment');
             if (!seg) return;
             state.calendarSubview = seg.dataset.subview;
@@ -2599,21 +2610,18 @@
                 elements.daySlider.classList.remove('hidden');
                 elements.weekView.classList.add('hidden');
                 elements.monthView.classList.add('hidden');
-                renderTimeline();
             } else if (state.calendarSubview === 'week') {
                 elements.daySlider.classList.add('hidden');
                 elements.weekView.classList.remove('hidden');
                 elements.monthView.classList.add('hidden');
-                renderWeekView();
             } else if (state.calendarSubview === 'month') {
                 elements.daySlider.classList.add('hidden');
                 elements.weekView.classList.add('hidden');
                 // Keep month panel aligned with currently selected date
                 state.currentMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
                 elements.monthView.classList.remove('hidden');
-                renderMonthView();
             }
-            renderHeaderTitle();
+            await loadData();
         });
 
         // Floating add button (content area, visible in day/todo)

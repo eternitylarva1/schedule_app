@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=20260403-1">
+    <link rel="stylesheet" href="/static/style.css?v=20260403-5">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -43,6 +43,7 @@
 
         <!-- Floating Add Button (above tab bar, visible in day/week/todo) -->
         <button class="content-fab hidden" id="contentAddBtn" title="新建日程">+</button>
+
 
         <!-- Main Content Area -->
         <main class="main-content" id="mainContent">
@@ -295,41 +296,33 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260403-1"></script>
+    <script src="/static/app.js?v=20260403-5"></script>
     <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js?v=20260403-1')
-                    .then((reg) => {
-                        console.log('SW registered:', reg.scope);
+        // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
+        window.addEventListener('load', async () => {
+            try {
+                if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map((reg) => reg.unregister()));
+                }
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(
+                        cacheNames
+                            .filter((name) => name.startsWith('schedule-app-'))
+                            .map((name) => caches.delete(name))
+                    );
+                }
 
-                        // Trigger update check proactively
-                        reg.update();
-
-                        // If a waiting worker exists, activate it immediately
-                        if (reg.waiting) {
-                            reg.waiting.postMessage('skipWaiting');
-                        }
-
-                        // If a new worker is installing, activate on install complete
-                        reg.addEventListener('updatefound', () => {
-                            const newWorker = reg.installing;
-                            if (!newWorker) return;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    newWorker.postMessage('skipWaiting');
-                                }
-                            });
-                        });
-                    })
-                    .catch((err) => console.log('SW registration failed:', err));
-            });
-
-            // Reload once when the new SW takes control
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                window.location.reload();
-            });
-        }
+                const mark = 'sw-reset-done';
+                if (!sessionStorage.getItem(mark)) {
+                    sessionStorage.setItem(mark, '1');
+                    window.location.reload();
+                }
+            } catch (err) {
+                console.log('SW/cache cleanup failed:', err);
+            }
+        });
     </script>
 </body>
 </html>
