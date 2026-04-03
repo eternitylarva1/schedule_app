@@ -942,6 +942,26 @@
             
             weekGrid.appendChild(cell);
         });
+
+        // Ensure users can see current-time events (e.g. evening tasks) on first entry
+        scrollWeekViewToCurrentTime(weekDates);
+    }
+
+    function scrollWeekViewToCurrentTime(weekDates) {
+        const weekBody = document.querySelector('.week-body');
+        if (!weekBody) return;
+
+        const now = new Date();
+        const isCurrentWeek = weekDates.some(d => isSameDay(d, now));
+        if (!isCurrentWeek) {
+            weekBody.scrollTop = 0;
+            return;
+        }
+
+        // Keep current-time area visible (renderer uses ~120px for 24h in each cell)
+        const totalMinutes = now.getHours() * 60 + now.getMinutes();
+        const targetTop = Math.max(0, Math.floor((totalMinutes / (24 * 60)) * 120) - 40);
+        weekBody.scrollTop = targetTop;
     }
 
     function renderMonthView() {
@@ -1627,6 +1647,8 @@
                     elements.weekView.classList.remove('hidden');
                     renderWeekView();
                 } else if (state.calendarSubview === 'month') {
+                    // Keep month panel aligned with currently selected date
+                    state.currentMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
                     elements.monthView.classList.remove('hidden');
                     renderMonthView();
                 }
@@ -2586,6 +2608,8 @@
             } else if (state.calendarSubview === 'month') {
                 elements.daySlider.classList.add('hidden');
                 elements.weekView.classList.add('hidden');
+                // Keep month panel aligned with currently selected date
+                state.currentMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
                 elements.monthView.classList.remove('hidden');
                 renderMonthView();
             }

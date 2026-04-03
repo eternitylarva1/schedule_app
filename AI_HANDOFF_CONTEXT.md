@@ -1,0 +1,92 @@
+# AI 接手上下文（无历史对话可直接上手）
+
+本文件用于让新的 AI 在**没有历史聊天记录**时，快速理解项目目标、强约束与执行流程。
+
+---
+
+## 1) 项目目标（当前产品形态）
+
+- 移动端优先日程管理 Web App
+- 主要能力：
+  - 日历（单一 tab 内切换：日 / 周 / 月）
+  - 待办
+  - 规划（短期 / 学期 / 长期）
+  - 统计
+  - AI 创建日程、任务拆解
+  - QQ 提醒（任务前 1 分钟）
+
+---
+
+## 2) 强制执行规范（必须）
+
+1. 每次改动完成后：
+   - 提交代码
+   - 推送代码
+   - 重启后端
+   - 发送 QQ 更新通知
+
+2. 调试必须遵循：
+   - `DEBUG_WORKFLOW.md`
+   - 使用 `@different-ai/opencode-browser` 做交互与可视化验证
+
+3. 新增功能后必须：
+   - 同步更新调试规范（新增检查项）
+   - 做回归，确认旧功能未被破坏
+
+---
+
+## 3) 近期关键改造（理解现状必读）
+
+1. 底部 tab 从 6 个精简为 4 个：
+   - 日历 / 待办 / 规划 / 统计
+2. 日历内使用分段控制：`日/周/月`
+3. 解决过的典型问题：
+   - API 被 catch-all 路由拦截导致返回 HTML
+   - 日历分段切换时元素映射缺失（`daySlider`）
+   - Service Worker 缓存旧前端，导致“修了但用户看不到”
+
+---
+
+## 4) 当前高风险点（改动前先检查）
+
+1. **Service Worker 缓存**
+   - 若用户反馈“刷新后仍旧版”，优先排查 SW 控制与缓存命中
+
+2. **日历三视图可见性**
+   - 周视图事件可能在非首屏时段（例如晚间），需确认滚动位置
+
+3. **主视图与子视图状态一致性**
+   - `currentView` 与 `calendarSubview` 必须同步考虑
+
+---
+
+## 5) 标准排障顺序（必须按序）
+
+1. 后端验活：`/api/events?date=today`
+2. API 数据校验：today/week/month
+3. 前端状态校验：currentView/calendarSubview/currentDate/currentMonth
+4. 浏览器交互验证（OpenCode Browser）
+5. 回归矩阵（DEBUG_WORKFLOW 第 6 节）
+
+---
+
+## 6) 提交说明模板（建议）
+
+```text
+type: fix/feat/refactor
+scope: calendar|todo|goals|stats|llm|reminder|sw
+summary: 一句话说明“为什么修”
+```
+
+---
+
+## 7) 通知模板（QQ）
+
+```text
+[计划助手更新通知]
+- 修复点1
+- 修复点2
+- 验证结果
+
+仓库: https://github.com/eternitylarva1/schedule_app
+```
