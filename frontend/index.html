@@ -299,9 +299,35 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then((reg) => console.log('SW registered:', reg.scope))
+                navigator.serviceWorker.register('/service-worker.js?v=20260403-1')
+                    .then((reg) => {
+                        console.log('SW registered:', reg.scope);
+
+                        // Trigger update check proactively
+                        reg.update();
+
+                        // If a waiting worker exists, activate it immediately
+                        if (reg.waiting) {
+                            reg.waiting.postMessage('skipWaiting');
+                        }
+
+                        // If a new worker is installing, activate on install complete
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            if (!newWorker) return;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    newWorker.postMessage('skipWaiting');
+                                }
+                            });
+                        });
+                    })
                     .catch((err) => console.log('SW registration failed:', err));
+            });
+
+            // Reload once when the new SW takes control
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                window.location.reload();
             });
         }
     </script>
