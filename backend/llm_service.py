@@ -158,6 +158,7 @@ class LLMService:
     "subtasks": [
         {{
             "title": "子任务1名称",
+            "date": "YYYY-MM-DD 格式的日期，如2026-04-03",
             "start_time": "HH:MM 格式的开始时间",
             "duration_minutes": 预估分钟数,
             "category_id": "work/life/study/health"
@@ -167,14 +168,17 @@ class LLMService:
 }}
 
 规则：
-- 根据任务复杂度分解为2-5个步骤
+- 根据任务复杂度分解为2-8个步骤
+- 如果任务横跨多天（如"准备旅行需要3天"），应将步骤分散到不同日期
 - 若是短期目标：步骤要具体到可直接执行
 - 若是学期目标：步骤按阶段推进，强调里程碑
 - 若是长期目标：步骤先给阶段方向，再给近期可执行动作
-- 每个步骤有明确的开始时间和时长
+- 每个步骤有明确的日期、开始时间和时长
+- 日期用YYYY-MM-DD格式（如"2026-04-03"）
 - 时间用HH:MM格式（如"09:00"、"14:30"）
 - 如果没明确时间，根据任务逻辑推断合理时间
-- category推断：工作→work，生活→life，学习→study，休息→health
+- 注意日期不应全部相同，应根据任务自然分布到不同天
+- category推断：工作→work，生活→life，学习→study，运动健康→health
 """
         
         response = await self.chat([

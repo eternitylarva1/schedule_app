@@ -807,6 +807,122 @@
         });
     }
 
+    function renderAgendaList(mode) {
+        const timeline = elements.timeline;
+        timeline.innerHTML = '';
+        
+        let dates = [];
+        if (mode === 'week') {
+            dates = getWeekDates(state.currentDate);
+        } else if (mode === 'month') {
+            const month = state.currentMonth;
+            const year = month.getFullYear();
+            const monthIndex = month.getMonth();
+            const firstDay = new Date(year, monthIndex, 1);
+            const lastDay = new Date(year, monthIndex + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            
+            for (let i = 1; i <= daysInMonth; i++) {
+                dates.push(new Date(year, monthIndex, i));
+            }
+        }
+        
+        // Group events by day
+        const groupedEvents = {};
+        dates.forEach(date => {
+            const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+            groupedEvents[dateKey] = [];
+        });
+        
+        state.events.forEach(event => {
+            if (!event.start_time) return;
+            const eventDate = new Date(event.start_time);
+            const dateKey = `${eventDate.getFullYear()}-${eventDate.getMonth()}-${eventDate.getDate()}`;
+            if (groupedEvents[dateKey]) {
+                groupedEvents[dateKey].push(event);
+            }
+        });
+        
+        // Sort events within each day by start time
+        Object.keys(groupedEvents).forEach(key => {
+            groupedEvents[key].sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+        });
+        
+        const listEl = document.createElement('div');
+        listEl.className = 'agenda-list';
+        
+        let hasAnyEvents = false;
+        
+        dates.forEach(date => {
+            const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+            const dayEvents = groupedEvents[dateKey] || [];
+            
+            if (dayEvents.length > 0) {
+                hasAnyEvents = true;
+            }
+            
+            const sectionEl = document.createElement('div');
+            sectionEl.className = 'agenda-day-section';
+            
+            // Day header
+            const headerEl = document.createElement('div');
+            headerEl.className = 'agenda-day-header';
+            
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            let dateLabel;
+            if (isSameDay(date, today)) {
+                dateLabel = '今天';
+            } else if (isSameDay(date, tomorrow)) {
+                dateLabel = '明天';
+            } else {
+                dateLabel = formatDate(date, 'month-day');
+            }
+            
+            headerEl.textContent = dateLabel;
+            sectionEl.appendChild(headerEl);
+            
+            // Day items
+            const itemsEl = document.createElement('div');
+            itemsEl.className = 'agenda-day-items';
+            
+            if (dayEvents.length === 0) {
+                const emptyEl = document.createElement('div');
+                emptyEl.className = 'agenda-empty';
+                emptyEl.textContent = '暂无日程';
+                itemsEl.appendChild(emptyEl);
+            } else {
+                dayEvents.forEach(event => {
+                    const eventEl = document.createElement('div');
+                    eventEl.className = 'agenda-event';
+                    eventEl.style.setProperty('--event-color', getCategoryColor(event.category_id));
+                    
+                    if (event.status === 'done') {
+                        eventEl.classList.add('completed');
+                    }
+                    
+                    eventEl.innerHTML = `
+                        <div class="agenda-event-title">${escapeHtml(event.title)}</div>
+                        <div class="agenda-event-time">${formatTimeRange(event)}</div>
+                    `;
+                    
+                    eventEl.addEventListener('click', () => {
+                        showEventDetail(event);
+                    });
+                    
+                    itemsEl.appendChild(eventEl);
+                });
+            }
+            
+            sectionEl.appendChild(itemsEl);
+            listEl.appendChild(sectionEl);
+        });
+        
+        timeline.appendChild(listEl);
+    }
+
     function renderWeekView() {
         const weekDates = getWeekDates(state.currentDate);
         
@@ -1623,13 +1739,17 @@
                         elements.dayView.scrollTop = scrollTop;
                     }
                 } else if (state.calendarSubview === 'week') {
-                    elements.weekView.classList.remove('hidden');
-                    renderWeekView();
+                    elements.daySlider.classList.remove('hidden');
+                    elements.weekView.classList.add('hidden');
+                    elements.monthView.classList.add('hidden');
+                    renderAgendaList('week');
                 } else if (state.calendarSubview === 'month') {
-                    // Keep month panel aligned with currently selected date
+                    elements.daySlider.classList.remove('hidden');
+                    elements.weekView.classList.add('hidden');
+                    elements.monthView.classList.add('hidden');
+                    // Keep month alignment: state.currentMonth = first day
                     state.currentMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
-                    elements.monthView.classList.remove('hidden');
-                    renderMonthView();
+                    renderAgendaList('month');
                 }
                 break;
             case 'todo':
@@ -2413,9 +2533,9 @@
                 if (state.calendarSubview === 'day') {
                     renderTimeline();
                 } else if (state.calendarSubview === 'week') {
-                    renderWeekView();
+                    renderAgendaList('week');
                 } else if (state.calendarSubview === 'month') {
-                    renderMonthView();
+                    renderAgendaList('month');
                 }
             } else if (state.currentView === 'stats') {
                 renderStatsView();
@@ -2590,15 +2710,17 @@
                 elements.weekView.classList.add('hidden');
                 elements.monthView.classList.add('hidden');
             } else if (state.calendarSubview === 'week') {
-                elements.daySlider.classList.add('hidden');
-                elements.weekView.classList.remove('hidden');
-                elements.monthView.classList.add('hidden');
-            } else if (state.calendarSubview === 'month') {
-                elements.daySlider.classList.add('hidden');
+                elements.daySlider.classList.remove('hidden');
                 elements.weekView.classList.add('hidden');
-                // Keep month panel aligned with currently selected date
+                elements.monthView.classList.add('hidden');
+                renderAgendaList('week');
+            } else if (state.calendarSubview === 'month') {
+                elements.daySlider.classList.remove('hidden');
+                elements.weekView.classList.add('hidden');
+                elements.monthView.classList.add('hidden');
+                // Keep month alignment: state.currentMonth = first day
                 state.currentMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
-                elements.monthView.classList.remove('hidden');
+                renderAgendaList('month');
             }
             await loadData();
         });

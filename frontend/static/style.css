@@ -818,6 +818,90 @@ body {
 }
 
 /* ============================================
+   Agenda List (Shared by Week/Month Views)
+   ============================================ */
+.agenda-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-md);
+}
+
+.agenda-day-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.agenda-day-header {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: var(--space-xs) 0;
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    background: var(--bg-primary);
+    z-index: 5;
+}
+
+.agenda-day-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.agenda-empty {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--text-muted);
+    font-size: var(--font-size-md);
+}
+
+.agenda-event {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--event-color, var(--color-work));
+    cursor: pointer;
+    transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.agenda-event:active {
+    background: var(--bg-hover);
+    transform: scale(0.98);
+}
+
+.agenda-event.completed {
+    opacity: 0.5;
+}
+
+.agenda-event.completed .agenda-event-title {
+    text-decoration: line-through;
+}
+
+.agenda-event-title {
+    flex: 1;
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.agenda-event-time {
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* ============================================
    Todo View
    ============================================ */
 .todo-view {
