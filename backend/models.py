@@ -51,7 +51,7 @@ class Event:
 
 @dataclass
 class Goal:
-    """Goal model for multi-horizon planning."""
+    """Goal model for multi-horizon planning with hierarchical subtasks."""
     id: int | None = None
     title: str = ""
     description: str = ""
@@ -59,6 +59,12 @@ class Goal:
     status: str = "active"  # active/done/cancelled
     start_date: datetime | None = None
     end_date: datetime | None = None
+    # Hierarchy support (3 levels: goal -> subtask -> sub-subtask)
+    parent_id: int | None = None  # NULL for top-level goals
+    root_goal_id: int | None = None  # Reference to root goal for easy tree queries
+    order: int = 0  # Sort order within same parent
+    # AI conversation context
+    ai_context: str = ""  # Stored conversation history
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -76,6 +82,31 @@ class Goal:
         for key in ["start_date", "end_date", "created_at", "updated_at"]:
             if d.get(key) and isinstance(d[key], str):
                 d[key] = datetime.fromisoformat(d[key])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)
+
+
+@dataclass
+class GoalConversation:
+    """Conversation message for goal AI discussion."""
+    id: int | None = None
+    goal_id: int | None = None
+    role: str = "user"  # user/assistant
+    content: str = ""
+    created_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        if d.get("created_at") and isinstance(d["created_at"], datetime):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "GoalConversation":
+        """Create GoalConversation from dictionary."""
+        if d.get("created_at") and isinstance(d["created_at"], str):
+            d["created_at"] = datetime.fromisoformat(d["created_at"])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
 

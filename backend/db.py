@@ -49,7 +49,7 @@ async def init_db() -> None:
             )
         """)
 
-        # Goals table for multi-horizon planning
+        # Goals table for multi-horizon planning with hierarchical subtasks
         await db.execute("""
             CREATE TABLE IF NOT EXISTS goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,14 +59,50 @@ async def init_db() -> None:
                 status TEXT DEFAULT 'active',
                 start_date TEXT,
                 end_date TEXT,
+                parent_id INTEGER,
+                root_goal_id INTEGER,
+                goal_order INTEGER DEFAULT 0,
+                ai_context TEXT DEFAULT '',
                 created_at TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                FOREIGN KEY (parent_id) REFERENCES goals(id) ON DELETE CASCADE,
+                FOREIGN KEY (root_goal_id) REFERENCES goals(id) ON DELETE SET NULL
+            )
+        """)
+
+        # Goal conversations table for storing AI dialogue history
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS goal_conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                goal_id INTEGER NOT NULL,
+                role TEXT DEFAULT 'user',
+                content TEXT DEFAULT '',
+                created_at TEXT,
+                FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE
             )
         """)
 
         # Link events to goals (optional)
         try:
             await db.execute("ALTER TABLE events ADD COLUMN goal_id INTEGER")
+        except Exception:
+            pass
+        
+        # Migrate goals table - add new columns if they don't exist
+        try:
+            await db.execute("ALTER TABLE goals ADD COLUMN parent_id INTEGER")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE goals ADD COLUMN root_goal_id INTEGER")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE goals ADD COLUMN goal_order INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE goals ADD COLUMN ai_context TEXT DEFAULT ''")
         except Exception:
             pass
         
@@ -350,13 +386,22 @@ async def set_setting(key: str, value: str) -> None:
 
 
 async def create_goal(goal: Goal) -> Goal:
-    """Create a new goal."""
+    """Create a new goal with hierarchy support."""
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
+        # Calculate root_goal_id for hierarchy
+        root_goal_id = goal.root_goal_id
+        if goal.parent_id is not None and root_goal_id is None:
+            # If this is a subtask and no root is set, find the root
+            parent = await get_goal(goal.parent_id)
+            if parent:
+                root_goal_id = parent.root_goal_id or parent.id
+        
         cursor = await db.execute(
             """INSERT INTO goals
-               (title, description, horizon, status, start_date, end_date, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (title, description, horizon, status, start_date, end_date, 
+                parent_id, root_goal_id, goal_order, ai_context, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 goal.title,
                 goal.description,
@@ -364,6 +409,10 @@ async def create_goal(goal: Goal) -> Goal:
                 goal.status,
                 goal.start_date.isoformat() if goal.start_date else None,
                 goal.end_date.isoformat() if goal.end_date else None,
+                goal.parent_id,
+                root_goal_id,
+                goal.order,
+                goal.ai_context,
                 now,
                 now,
             ),
@@ -375,14 +424,29 @@ async def create_goal(goal: Goal) -> Goal:
     return goal
 
 
-async def get_goals(horizon: str | None = None) -> List[Goal]:
-    """Get goals, optionally filtered by horizon."""
+async def get_goals(horizon: str | None = None, include_subtasks: bool = True) -> List[Goal]:
+    """Get goals, optionally filtered by horizon.
+    
+    Args:
+        horizon: Filter by short/semester/long. None means all.
+        include_subtasks: If True, return all goals including subtasks.
+                        If False, return only top-level goals.
+    """
     query = "SELECT * FROM goals"
+    conditions = []
     params: tuple = ()
+    
     if horizon in {"short", "semester", "long"}:
-        query += " WHERE horizon = ?"
+        conditions.append("horizon = ?")
         params = (horizon,)
-    query += " ORDER BY created_at DESC"
+    
+    if not include_subtasks:
+        conditions.append("parent_id IS NULL")
+    
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    
+    query += " ORDER BY goal_order ASC, created_at DESC"
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -398,6 +462,10 @@ async def get_goals(horizon: str | None = None) -> List[Goal]:
                     status=row["status"] or "active",
                     start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
                     end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                    parent_id=row["parent_id"],
+                    root_goal_id=row["root_goal_id"],
+                    order=row["goal_order"] or 0,
+                    ai_context=row["ai_context"] or "",
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                 ))
@@ -420,9 +488,68 @@ async def get_goal(goal_id: int) -> Optional[Goal]:
                 status=row["status"] or "active",
                 start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
                 end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                parent_id=row["parent_id"],
+                root_goal_id=row["root_goal_id"],
+                order=row["goal_order"] or 0,
+                ai_context=row["ai_context"] or "",
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
             )
+
+
+async def get_goal_subtasks(goal_id: int) -> List[Goal]:
+    """Get direct subtasks of a goal."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM goals WHERE parent_id = ? ORDER BY goal_order ASC, created_at ASC",
+            (goal_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            subtasks: List[Goal] = []
+            for row in rows:
+                subtasks.append(Goal(
+                    id=row["id"],
+                    title=row["title"],
+                    description=row["description"] or "",
+                    horizon=row["horizon"] or "short",
+                    status=row["status"] or "active",
+                    start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
+                    end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                    parent_id=row["parent_id"],
+                    root_goal_id=row["root_goal_id"],
+                    order=row["goal_order"] or 0,
+                    ai_context=row["ai_context"] or "",
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                    updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                ))
+    return subtasks
+
+
+async def get_goal_tree(goal_id: int, max_depth: int = 3) -> dict:
+    """Get a goal with its full subtask tree.
+    
+    Args:
+        goal_id: The root goal ID
+        max_depth: Maximum depth to traverse (3 levels = goal -> subtask -> sub-subtask)
+    
+    Returns:
+        dict with goal and nested subtasks
+    """
+    goal = await get_goal(goal_id)
+    if not goal:
+        return None
+    
+    async def build_tree(g: Goal, current_depth: int) -> dict:
+        result = g.to_dict()
+        if current_depth < max_depth:
+            subtasks = await get_goal_subtasks(g.id)
+            result["subtasks"] = [await build_tree(s, current_depth + 1) for s in subtasks]
+        else:
+            result["subtasks"] = []
+        return result
+    
+    return await build_tree(goal, 0)
 
 
 async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
@@ -432,7 +559,8 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
         await db.execute(
             """UPDATE goals SET
                title = ?, description = ?, horizon = ?, status = ?,
-               start_date = ?, end_date = ?, updated_at = ?
+               start_date = ?, end_date = ?, parent_id = ?, root_goal_id = ?,
+               goal_order = ?, ai_context = ?, updated_at = ?
                WHERE id = ?""",
             (
                 goal.title,
@@ -441,6 +569,10 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
                 goal.status,
                 goal.start_date.isoformat() if goal.start_date else None,
                 goal.end_date.isoformat() if goal.end_date else None,
+                goal.parent_id,
+                goal.root_goal_id,
+                goal.order,
+                goal.ai_context,
                 now,
                 goal_id,
             ),
@@ -450,9 +582,87 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
 
 
 async def delete_goal(goal_id: int) -> bool:
-    """Delete a goal and unlink its events."""
+    """Delete a goal, its subtasks, and unlink its events."""
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE events SET goal_id = NULL WHERE goal_id = ?", (goal_id,))
-        cursor = await db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+        # First get all descendant goal IDs (recursive delete)
+        async def get_descendant_ids(parent_id: int) -> List[int]:
+            ids = []
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT id FROM goals WHERE parent_id = ?", (parent_id,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+                for row in rows:
+                    child_id = row["id"]
+                    ids.append(child_id)
+                    # Recursively get children
+                    child_descendants = await get_descendant_ids(child_id)
+                    ids.extend(child_descendants)
+            return ids
+        
+        # Get all descendant IDs
+        all_ids = [goal_id] + await get_descendant_ids(goal_id)
+        
+        # Unlink events
+        placeholders = ",".join("?" * len(all_ids))
+        await db.execute(f"UPDATE events SET goal_id = NULL WHERE goal_id IN ({placeholders})", all_ids)
+        
+        # Delete conversations first
+        await db.execute(f"DELETE FROM goal_conversations WHERE goal_id IN ({placeholders})", all_ids)
+        
+        # Delete goals
+        await db.execute(f"DELETE FROM goals WHERE id IN ({placeholders})", all_ids)
         await db.commit()
-        return cursor.rowcount > 0
+        return True
+
+
+# ============ Goal Conversation Functions ============
+
+async def create_goal_conversation(conversation: GoalConversation) -> GoalConversation:
+    """Create a new goal conversation message."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO goal_conversations
+               (goal_id, role, content, created_at)
+               VALUES (?, ?, ?, ?)""",
+            (
+                conversation.goal_id,
+                conversation.role,
+                conversation.content,
+                now,
+            ),
+        )
+        await db.commit()
+        conversation.id = cursor.lastrowid
+        conversation.created_at = datetime.now()
+    return conversation
+
+
+async def get_goal_conversations(goal_id: int) -> List[GoalConversation]:
+    """Get all conversation messages for a goal."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM goal_conversations WHERE goal_id = ? ORDER BY created_at ASC",
+            (goal_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            conversations: List[GoalConversation] = []
+            for row in rows:
+                conversations.append(GoalConversation(
+                    id=row["id"],
+                    goal_id=row["goal_id"],
+                    role=row["role"],
+                    content=row["content"],
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                ))
+    return conversations
+
+
+async def delete_goal_conversations(goal_id: int) -> bool:
+    """Delete all conversation messages for a goal."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM goal_conversations WHERE goal_id = ?", (goal_id,))
+        await db.commit()
+        return True

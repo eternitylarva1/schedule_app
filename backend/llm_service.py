@@ -200,6 +200,135 @@ class LLMService:
         
         return None
 
+    async def discuss_goal(
+        self,
+        goal_content: str,
+        user_input: str,
+        history_context: str,
+        self_description: str,
+        week_events: str,
+        todo_items: str
+    ) -> Optional[Dict[str, Any]]:
+        """Conversational goal breakdown - asks questions and generates subtasks.
+        
+        Returns dict with:
+        - type: "question" or "subtasks"
+        - message: AI's question or summary
+        - subtasks: list of subtasks (if type is "subtasks")
+        """
+        from datetime import datetime
+        now = datetime.now()
+        current_date = now.strftime("%Y年%m月%d日")
+        current_time = now.strftime("%H:%M")
+        
+        # Build context
+        context = f"""
+## 用户背景
+{self_description if self_description else "用户未提供背景介绍"}
+
+## 本周日程
+{week_events if week_events else "本周暂无安排"}
+
+## 当前待办
+{todo_items if todo_items else "暂无待办"}
+
+## 对话历史
+{history_context if history_context else "（暂无对话历史）"}
+"""
+        
+        # Build user message
+        if goal_content and not user_input:
+            # First message - user just shared their goal
+            user_message = f"""用户的初步目标：{goal_content}
+
+请分析这个目标，判断信息是否足够拆解。
+如果需要更多信息（比如目的、时间范围、投入时间等），请提出1-2个最关键的问题。
+如果信息已经足够，直接返回子任务拆解方案。
+
+回复格式：
+- 如果需要提问：直接问问题，不要其他内容
+- 如果直接拆解：返回JSON格式的子任务列表"""
+        else:
+            # User is responding to a question
+            user_message = f"""用户的初步目标：{goal_content}
+
+用户回答：{user_input}
+
+请根据用户的回答：
+1. 判断信息是否足够
+2. 如果还需要更多细节，再问1个问题
+3. 如果信息足够，返回子任务拆解方案
+
+回复格式：
+- 如果继续提问：直接问问题
+- 如果信息足够：返回JSON格式的子任务列表
+
+子任务JSON格式：
+{{
+    "subtasks": [
+        {{
+            "title": "子任务名称",
+            "duration_hint": "预计时长提示，如'2-3小时'或'1天'"
+        }},
+        ...
+    ],
+    "summary": "整体计划总结"
+}}
+"""
+        
+        system_prompt = """你是一个任务规划助手，通过友好对话帮助用户拆解目标。
+
+你的工作方式：
+1. 先通过1-2个关键问题了解用户的目标背景
+2. 根据回答继续提问或生成拆解方案
+3. 拆解时要考虑用户的时间安排，避免与已有日程冲突
+
+提问原则：
+- 只问最关键的问题，不要一次性问太多
+- 问题要具体、有意义
+- 用户背景和日程会作为参考，但要针对性提问
+
+拆解原则：
+- 子任务要具体可执行
+- 标注每个任务的预计时长
+- 3层结构：目标 -> 子任务 -> 子子任务（最多3层）
+- 子任务数量控制在3-8个"""
+
+        response = await self.chat([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": context},
+            {"role": "user", "content": user_message}
+        ], temperature=0.7)
+        
+        if not response:
+            return None
+        
+        # Check if response is a question or subtasks
+        response = response.strip()
+        
+        # If response contains JSON, it's subtasks
+        if '{' in response and 'subtasks' in response.lower():
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    json_str = response[json_start:json_end]
+                    result = json.loads(json_str)
+                    return {
+                        "type": "subtasks",
+                        "message": result.get("summary", "任务拆解完成"),
+                        "subtasks": result.get("subtasks", [])
+                    }
+            except json.JSONDecodeError:
+                pass
+        
+        # Otherwise it's a question
+        return {
+            "type": "question",
+            "message": response,
+            "subtasks": []
+        }
+
 
 # Global instance
 llm_service = LLMService()

@@ -5,7 +5,7 @@ from aiohttp import web
 from typing import Any
 
 from . import db
-from .models import Event, Goal, CATEGORIES
+from .models import Event, Goal, GoalConversation, CATEGORIES
 
 
 def json_response(data: Any, code: int = 0) -> web.Response:
@@ -331,30 +331,84 @@ async def llm_breakdown(request: web.Request) -> web.Response:
 
 
 async def get_goals(request: web.Request) -> web.Response:
-    """GET /api/goals?horizon=short|semester|long - list goals."""
+    """GET /api/goals?horizon=short|semester|long - list top-level goals with subtasks."""
     horizon = request.query.get("horizon")
     try:
-        goals = await db.get_goals(horizon)
-        return json_response([g.to_dict() for g in goals])
+        goals = await db.get_goals(horizon, include_subtasks=False)
+        # For each goal, get its subtasks
+        result = []
+        for goal in goals:
+            goal_dict = goal.to_dict()
+            goal_dict["subtasks"] = []
+            # Get direct subtasks (only if goal.id is not None)
+            if goal.id is not None:
+                subtasks = await db.get_goal_subtasks(goal.id)
+                for subtask in subtasks:
+                    subtask_dict = subtask.to_dict()
+                    # Get sub-subtasks (depth = 2)
+                    if subtask.id is not None:
+                        sub_subtasks = await db.get_goal_subtasks(subtask.id)
+                        subtask_dict["subtasks"] = [s.to_dict() for s in sub_subtasks]
+                    else:
+                        subtask_dict["subtasks"] = []
+                    goal_dict["subtasks"].append(subtask_dict)
+        return json_response(result)
     except Exception as e:
         return error_response(f"获取目标失败: {str(e)}")
 
 
+async def get_goal_tree(request: web.Request) -> web.Response:
+    """GET /api/goals/{id}/tree - get goal with full subtask tree."""
+    goal_id = int(request.match_info["id"])
+    try:
+        tree = await db.get_goal_tree(goal_id, max_depth=3)
+        if not tree:
+            return error_response("目标不存在", code=404)
+        return json_response(tree)
+    except Exception as e:
+        return error_response(f"获取目标树失败: {str(e)}")
+
+
+async def get_goal_subtasks(request: web.Request) -> web.Response:
+    """GET /api/goals/{id}/subtasks - get direct subtasks of a goal."""
+    goal_id = int(request.match_info["id"])
+    try:
+        subtasks = await db.get_goal_subtasks(goal_id)
+        return json_response([s.to_dict() for s in subtasks])
+    except Exception as e:
+        return error_response(f"获取子任务失败: {str(e)}")
+
+
 async def create_goal(request: web.Request) -> web.Response:
-    """POST /api/goals - create goal."""
+    """POST /api/goals - create goal (top-level or subtask)."""
     try:
         data = await request.json()
     except json.JSONDecodeError:
         return error_response("无效的JSON数据")
 
     try:
+        parent_id = data.get("parent_id")
+        horizon = data.get("horizon", "short")
+        
+        # Validate parent exists if parent_id provided
+        if parent_id:
+            parent = await db.get_goal(parent_id)
+            if not parent:
+                return error_response("父目标不存在", code=404)
+            # Inherit horizon from parent if creating subtask
+            horizon = parent.horizon
+        
         goal = Goal(
             title=data.get("title", "").strip(),
             description=data.get("description", "").strip(),
-            horizon=data.get("horizon", "short"),
+            horizon=horizon,
             status=data.get("status", "active"),
             start_date=_parse_datetime(data.get("start_date")),
             end_date=_parse_datetime(data.get("end_date")),
+            parent_id=parent_id,
+            root_goal_id=data.get("root_goal_id"),
+            order=data.get("order", 0),
+            ai_context=data.get("ai_context", ""),
         )
         if not goal.title:
             return error_response("目标标题不能为空")
@@ -387,6 +441,10 @@ async def update_goal(request: web.Request) -> web.Response:
             status=data.get("status", existing.status),
             start_date=_parse_datetime(data.get("start_date")) or existing.start_date,
             end_date=_parse_datetime(data.get("end_date")) or existing.end_date,
+            parent_id=data.get("parent_id", existing.parent_id),
+            root_goal_id=data.get("root_goal_id", existing.root_goal_id),
+            order=data.get("order", existing.order),
+            ai_context=data.get("ai_context", existing.ai_context),
         )
         if not updated_goal.title:
             return error_response("目标标题不能为空")
@@ -402,7 +460,7 @@ async def update_goal(request: web.Request) -> web.Response:
 
 
 async def delete_goal(request: web.Request) -> web.Response:
-    """DELETE /api/goals/{id} - delete goal."""
+    """DELETE /api/goals/{id} - delete goal and all subtasks."""
     goal_id = int(request.match_info["id"])
     try:
         success = await db.delete_goal(goal_id)
@@ -411,6 +469,122 @@ async def delete_goal(request: web.Request) -> web.Response:
         return error_response("目标不存在", code=404)
     except Exception as e:
         return error_response(f"删除目标失败: {str(e)}")
+
+
+# ============ Goal Conversations ============
+
+async def get_goal_conversations(request: web.Request) -> web.Response:
+    """GET /api/goals/{id}/conversations - get conversation history."""
+    goal_id = int(request.match_info["id"])
+    try:
+        conversations = await db.get_goal_conversations(goal_id)
+        return json_response([c.to_dict() for c in conversations])
+    except Exception as e:
+        return error_response(f"获取对话历史失败: {str(e)}")
+
+
+async def create_goal_conversation(request: web.Request) -> web.Response:
+    """POST /api/goals/{id}/conversations - add conversation message."""
+    goal_id = int(request.match_info["id"])
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+
+    try:
+        # Verify goal exists
+        goal = await db.get_goal(goal_id)
+        if not goal:
+            return error_response("目标不存在", code=404)
+
+        conversation = GoalConversation(
+            goal_id=goal_id,
+            role=data.get("role", "user"),
+            content=data.get("content", "").strip(),
+        )
+        if not conversation.content:
+            return error_response("对话内容不能为空")
+
+        created = await db.create_goal_conversation(conversation)
+        return json_response(created.to_dict())
+    except Exception as e:
+        return error_response(f"创建对话失败: {str(e)}")
+
+
+# ============ AI Conversational Breakdown ============
+
+async def ai_discuss_goal(request: web.Request) -> web.Response:
+    """POST /api/goals/ai/discuss - AI conversational goal breakdown.
+    
+    This endpoint maintains a conversation with the user to understand their goal
+    better through questions, then generates a subtask breakdown.
+    """
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        goal_content = data.get("goal_content", "").strip()
+        user_input = data.get("user_input", "").strip()
+        conversation_history = data.get("conversation_history", [])
+        
+        if not goal_content and not user_input:
+            return error_response("目标内容或用户输入不能为空")
+        
+        # Get user's self description from settings
+        self_description = await db.get_setting("user_self_description") or ""
+        
+        # Get this week's events for context
+        from datetime import timedelta
+        now = datetime.now()
+        week_start = now - timedelta(days=now.weekday())
+        week_end = week_start + timedelta(days=7)
+        events = await db.get_events("week")
+        week_events_str = ""
+        if events:
+            for e in events[:10]:  # Limit to 10 events
+                week_events_str += f"- {e.title}: {e.start_time.strftime('%m/%d %H:%M') if e.start_time else 'TBD'}\n"
+        else:
+            week_events_str = "本周暂无日程安排"
+        
+        # Get todo items for context
+        todo_items = await db.get_events("today")
+        todo_str = ""
+        if todo_items:
+            for t in todo_items[:5]:
+                todo_str += f"- {t.title}\n"
+        else:
+            todo_str = "今日暂无待办"
+        
+        # Import LLM service
+        from .llm_service import llm_service
+        
+        # Build conversation context
+        history_context = ""
+        for msg in conversation_history[-6:]:  # Last 6 messages
+            role = "用户" if msg.get("role") == "user" else "AI"
+            history_context += f"{role}: {msg.get('content', '')}\n"
+        
+        # Call LLM for conversational breakdown
+        result = await llm_service.discuss_goal(
+            goal_content=goal_content,
+            user_input=user_input,
+            history_context=history_context,
+            self_description=self_description,
+            week_events=week_events_str,
+            todo_items=todo_str,
+        )
+        
+        if not result:
+            return error_response("AI 响应失败，请稍后重试")
+        
+        return json_response(result)
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return error_response(f"AI 讨论失败: {str(e)}")
 
 
 async def get_settings(request: web.Request) -> web.Response:
@@ -479,6 +653,12 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/goals", create_goal)
     app.router.add_put("/api/goals/{id}", update_goal)
     app.router.add_delete("/api/goals/{id}", delete_goal)
+    app.router.add_get("/api/goals/{id}/tree", get_goal_tree)
+    app.router.add_get("/api/goals/{id}/subtasks", get_goal_subtasks)
+    app.router.add_get("/api/goals/{id}/conversations", get_goal_conversations)
+    app.router.add_post("/api/goals/{id}/conversations", create_goal_conversation)
+    # AI conversational breakdown endpoint
+    app.router.add_post("/api/goals/ai/discuss", ai_discuss_goal)
     # Settings endpoints
     app.router.add_get("/api/settings", get_settings)
     app.router.add_put("/api/settings/{key}", update_setting)
