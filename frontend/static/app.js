@@ -869,32 +869,10 @@
             const eventsDiv = document.createElement('div');
             eventsDiv.className = 'week-cell-events';
             
-            // Position each event by time (assuming each cell is ~120px for 24 hours = 5px per hour)
-            const CELL_HEIGHT_PER_HOUR = 5; // pixels
-            const CELL_HEIGHT = 120; // total cell height for 24 hours
-            
             dayEvents.forEach(event => {
-                const eventStart = new Date(event.start_time);
-                const startHour = eventStart.getHours();
-                const startMinute = eventStart.getMinutes();
-                const topPercent = ((startHour * 60 + startMinute) / (24 * 60)) * 100;
-                
-                let endHour = startHour + 1; // default 1 hour
-                let endMinute = startMinute;
-                if (event.end_time) {
-                    const eventEnd = new Date(event.end_time);
-                    endHour = eventEnd.getHours();
-                    endMinute = eventEnd.getMinutes();
-                }
-                const durationMinutes = (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
-                const heightPercent = Math.max((durationMinutes / (24 * 60)) * 100, 3); // minimum 3%
-                
                 const eventEl = document.createElement('div');
                 eventEl.className = 'week-event';
-                eventEl.style.background = getCategoryColor(event.category_id);
-                eventEl.style.top = `${topPercent}%`;
-                eventEl.style.height = `${heightPercent}%`;
-                eventEl.style.minHeight = '12px';
+                eventEl.style.setProperty('--event-color', getCategoryColor(event.category_id));
                 
                 const titleEl = document.createElement('div');
                 titleEl.className = 'week-event-title';
@@ -905,9 +883,7 @@
                 timeEl.textContent = formatTimeRange(event);
                 
                 eventEl.appendChild(titleEl);
-                if (heightPercent > 4) {
-                    eventEl.appendChild(timeEl);
-                }
+                eventEl.appendChild(timeEl);
                 
                 // Add quick complete button for pending events
                 if (event.status !== 'done') {
@@ -1058,8 +1034,11 @@
             dayEvents.slice(0, MAX_EVENTS).forEach(event => {
                 const eventEl = document.createElement('div');
                 eventEl.className = 'month-event';
-                eventEl.style.background = getCategoryColor(event.category_id);
-                eventEl.textContent = event.title;
+                eventEl.style.setProperty('--event-color', getCategoryColor(event.category_id));
+                eventEl.innerHTML = `
+                    <div class="month-event-title">${escapeHtml(event.title)}</div>
+                    <div class="month-event-time">${escapeHtml(formatTimeRange(event))}</div>
+                `;
                 
                 // Click on event to show detail
                 eventEl.addEventListener('click', (e) => {

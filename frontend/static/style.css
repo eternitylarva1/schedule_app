@@ -740,13 +740,20 @@ body {
     position: relative;
     flex: 1;
     padding: 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
 }
 
 .week-event {
-    position: absolute;
-    left: 2px;
-    right: 2px;
-    padding: 1px 4px;
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    height: auto;
+    min-height: 16px;
+    padding: 2px 4px;
     background: var(--event-color, var(--color-work));
     border-radius: 2px;
     font-size: 10px;
@@ -765,6 +772,9 @@ body {
 .week-event-time {
     font-size: 9px;
     opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .week-cell:active {
@@ -2306,14 +2316,30 @@ textarea {
 }
 
 .month-event {
-    padding: 1px 4px;
+    padding: 2px 4px;
     border-radius: 2px;
     font-size: 10px;
     color: white;
+    background: var(--event-color, var(--color-work));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     cursor: pointer;
+}
+
+.month-event-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+
+.month-event-time {
+    font-size: 9px;
+    opacity: 0.92;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .month-event-dot {
