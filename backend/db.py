@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from .models import Event, Goal
+from .models import Event, Goal, GoalConversation
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
