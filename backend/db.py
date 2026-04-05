@@ -195,12 +195,22 @@ async def get_events(date_filter: str = "today") -> List[Event]:
         start = today_start
         end = today_start + timedelta(days=1)
 
+    # Include no-time items in month-style queries (used by todo list)
+    include_no_time = (date_filter == "month") or bool(re.match(r'^\d{4}-\d{2}$', date_filter))
+
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        if include_no_time:
+            query = """SELECT * FROM events
+                       WHERE (start_time >= ? AND start_time < ?) OR start_time IS NULL
+                       ORDER BY CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time"""
+        else:
+            query = """SELECT * FROM events
+                       WHERE start_time >= ? AND start_time < ?
+                       ORDER BY start_time"""
+
         async with db.execute(
-            """SELECT * FROM events 
-               WHERE start_time >= ? AND start_time < ?
-               ORDER BY start_time""",
+            query,
             (start.isoformat(), end.isoformat()),
         ) as cursor:
             rows = await cursor.fetchall()

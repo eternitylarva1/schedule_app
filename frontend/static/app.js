@@ -1225,10 +1225,16 @@
         
         container.innerHTML = '';
         
-        // Get all events (pending AND completed) sorted by date and time
+        // Get all events (pending AND completed), including items without explicit time
         const allEvents = data
-            .filter(e => e.status !== 'hidden' && e.start_time)
-            .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+            .filter(e => e.status !== 'hidden')
+            .sort((a, b) => {
+                // Timed events first, no-time items later
+                if (!a.start_time && !b.start_time) return 0;
+                if (!a.start_time) return 1;
+                if (!b.start_time) return -1;
+                return new Date(a.start_time) - new Date(b.start_time);
+            });
         
         if (allEvents.length === 0) {
             container.innerHTML = `
@@ -1240,11 +1246,17 @@
             return;
         }
         
-        // Group by date
+        // Group by date (+ one special group for no-time tasks)
+        const NO_TIME_KEY = '__no_time__';
         const grouped = {};
         allEvents.forEach(event => {
-            const date = new Date(event.start_time);
-            const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+            let dateKey;
+            if (!event.start_time) {
+                dateKey = NO_TIME_KEY;
+            } else {
+                const date = new Date(event.start_time);
+                dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+            }
             if (!grouped[dateKey]) {
                 grouped[dateKey] = [];
             }
@@ -1252,16 +1264,25 @@
         });
         
         // Render groups
-        Object.keys(grouped).sort().forEach(dateKey => {
+        Object.keys(grouped)
+            .sort((a, b) => {
+                if (a === NO_TIME_KEY) return 1;
+                if (b === NO_TIME_KEY) return -1;
+                return a.localeCompare(b);
+            })
+            .forEach(dateKey => {
             const events = grouped[dateKey];
             const firstEvent = events[0];
-            const date = new Date(firstEvent.start_time);
+            const isNoTimeGroup = dateKey === NO_TIME_KEY;
+            const date = !isNoTimeGroup ? new Date(firstEvent.start_time) : null;
             const today = new Date();
             const tomorrow = new Date(today);
             tomorrow.setDate(tomorrow.getDate() + 1);
             
             let dateLabel;
-            if (isSameDay(date, today)) {
+            if (isNoTimeGroup) {
+                dateLabel = '无明确时间';
+            } else if (isSameDay(date, today)) {
                 dateLabel = '今天';
             } else if (isSameDay(date, tomorrow)) {
                 dateLabel = '明天';
@@ -1278,9 +1299,12 @@
                 eventEl.className = 'todo-item' + (event.status === 'done' ? ' done' : '');
                 eventEl.dataset.eventId = event.id;
                 
-                const startTime = formatTime(event.start_time);
-                const endTime = event.end_time ? formatTime(event.end_time) : '';
-                const timeStr = endTime ? `${startTime} - ${endTime}` : startTime;
+                let timeStr = '无明确时间';
+                if (event.start_time) {
+                    const startTime = formatTime(event.start_time);
+                    const endTime = event.end_time ? formatTime(event.end_time) : '';
+                    timeStr = endTime ? `${startTime} - ${endTime}` : startTime;
+                }
                 
                 // Swipe action buttons
                 eventEl.innerHTML = `
