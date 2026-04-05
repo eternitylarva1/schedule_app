@@ -1565,9 +1565,14 @@
                 <div class="empty-state">
                     <div class="empty-icon">🎯</div>
                     <div class="empty-text">暂无${horizonLabel(state.goalsHorizon)}</div>
-                    <button class="btn btn-primary" onclick="openGoalDiscussModal()">开始规划</button>
+                    <button class="btn btn-primary" id="goalsEmptyDiscussBtn">开始规划</button>
                 </div>
             `;
+            // Bind event after innerHTML to avoid inline onclick scope issue
+            setTimeout(() => {
+                const btn = listEl.querySelector('#goalsEmptyDiscussBtn');
+                if (btn) btn.addEventListener('click', () => openGoalDiscussModal());
+            }, 0);
             return;
         }
         
