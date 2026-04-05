@@ -15,7 +15,7 @@ class LLMService:
         self.api_key = os.getenv("LLM_API_KEY", "sk-nzCBqwmTVmDj137YyfMVKp1xAAVv0Pc2YrXHpHqwILKpDEEw")
         self.model = os.getenv("LLM_MODEL", "minimax/minimax-m2.5-highspeed")
     
-    async def chat(self, messages: list, temperature: float = 0.7) -> Optional[str]:
+    async def chat(self, messages: list[dict[str, Any]], temperature: float = 0.7) -> Optional[str]:
         """Send chat request to LLM API."""
         if not self.api_key:
             return None

@@ -1,6 +1,7 @@
 """REST API routes for schedule management."""
 import json
 import aiosqlite
+from datetime import datetime
 from aiohttp import web
 from typing import Any
 
@@ -533,7 +534,7 @@ async def ai_discuss_goal(request: web.Request) -> web.Response:
             return error_response("目标内容或用户输入不能为空")
         
         # Get user's self description from settings
-        self_description = await db.get_setting("user_self_description") or ""
+        self_description = await db.get_setting("self_description") or await db.get_setting("user_self_description") or ""
         
         # Get this week's events for context
         from datetime import timedelta

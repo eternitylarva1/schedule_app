@@ -577,6 +577,17 @@
         });
     }
 
+    async function fetchGoalConversations(goalId) {
+        return await apiCall(`goals/${goalId}/conversations`);
+    }
+
+    async function createGoalConversation(goalId, payload) {
+        return await apiCall(`goals/${goalId}/conversations`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+    }
+
     async function fetchSettings() {
         const data = await apiCall('settings');
         if (data) {
@@ -1581,6 +1592,7 @@
                         </div>
                         <div class="goal-actions">
                             <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
+                            <button class="goal-action-btn history-btn" data-action="history" data-goal-id="${goal.id}" title="历史">🕘</button>
                             <button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${goal.id}" title="展开">▶</button>
                             <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${goal.id}" title="删除">🗑️</button>
                         </div>
@@ -1602,6 +1614,8 @@
                 
                 if (action === 'discuss') {
                     openGoalDiscussModal(goalId);
+                } else if (action === 'history') {
+                    await openGoalHistoryModal(goalId);
                 } else if (action === 'decompose') {
                     openGoalDiscussModal(goalId);
                 } else if (action === 'delete') {
@@ -2108,7 +2122,8 @@
         goalContent: '',
         conversationHistory: [],
         currentSubtasks: [],
-        isComplete: false
+        isComplete: false,
+        mode: 'discuss'
     };
 
     function openGoalDiscussModal(goalId = null) {
@@ -2117,7 +2132,8 @@
             goalContent: '',
             conversationHistory: [],
             currentSubtasks: [],
-            isComplete: false
+            isComplete: false,
+            mode: 'discuss'
         };
         
         // Show intro, hide conversation and results
@@ -2130,13 +2146,66 @@
         elements.goalDiscussInput.value = '';
         elements.goalDiscussConversation.innerHTML = '';
         elements.goalDiscussResults.innerHTML = '';
+        const titleEl = elements.goalDiscussModal.querySelector('.modal-header h2');
+        if (titleEl) titleEl.textContent = '💬 AI 目标规划';
         
         elements.goalDiscussModal.classList.remove('hidden');
         elements.goalDiscussInput.focus();
     }
 
+    async function openGoalHistoryModal(goalId) {
+        goalDiscussState = {
+            goalId,
+            goalContent: '',
+            conversationHistory: [],
+            currentSubtasks: [],
+            isComplete: false,
+            mode: 'history'
+        };
+
+        const titleEl = elements.goalDiscussModal.querySelector('.modal-header h2');
+        if (titleEl) titleEl.textContent = '🕘 目标对话历史';
+
+        elements.goalDiscussModal.querySelector('.goal-discuss-intro').classList.add('hidden');
+        elements.goalDiscussModal.querySelector('.goal-discuss-input-area').classList.add('hidden');
+        elements.goalDiscussResults.classList.add('hidden');
+        elements.goalDiscussFooter.classList.add('hidden');
+        elements.goalDiscussConversation.classList.remove('hidden');
+        elements.goalDiscussConversation.innerHTML = '<div class="discuss-loading">加载历史中...</div>';
+
+        try {
+            const conversations = await fetchGoalConversations(goalId);
+            elements.goalDiscussConversation.innerHTML = '';
+            if (!conversations || conversations.length === 0) {
+                elements.goalDiscussConversation.innerHTML = '<div class="discuss-empty">暂无对话历史</div>';
+            } else {
+                conversations.forEach((msg) => {
+                    addDiscussMessage(msg.role, msg.content);
+                });
+            }
+        } catch (error) {
+            console.error('Load conversations error:', error);
+            elements.goalDiscussConversation.innerHTML = '<div class="discuss-error">加载失败</div>';
+        }
+
+        elements.goalDiscussModal.classList.remove('hidden');
+    }
+
     function closeGoalDiscussModal() {
         elements.goalDiscussModal.classList.add('hidden');
+    }
+
+    async function persistDiscussMessage(role, content) {
+        if (!goalDiscussState.goalId) return;
+        if (!content || !String(content).trim()) return;
+        try {
+            await createGoalConversation(goalDiscussState.goalId, {
+                role,
+                content: String(content).trim()
+            });
+        } catch (error) {
+            console.error('Persist conversation failed:', error);
+        }
     }
 
     async function startGoalDiscuss() {
@@ -2157,9 +2226,10 @@
         // Add user message
         addDiscussMessage('user', input);
         goalDiscussState.conversationHistory.push({ role: 'user', content: input });
+        await persistDiscussMessage('user', input);
         
         // Show loading
-        elements.goalDiscussConversation.innerHTML = '<div class="discuss-loading">🤔 AI思考中...</div>';
+        showDiscussLoading();
         
         try {
             const result = await apiCall('goals/ai/discuss', {
@@ -2173,10 +2243,14 @@
             });
             
             if (result) {
+                elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+                    el.remove();
+                });
                 if (result.type === 'question') {
                     // AI asked a question
                     addDiscussMessage('assistant', result.message);
                     goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message });
+                    await persistDiscussMessage('assistant', result.message);
                     showDiscussInput();
                 } else if (result.type === 'subtasks') {
                     // AI generated subtasks
@@ -2194,15 +2268,17 @@
     }
 
     async function continueGoalDiscuss() {
-        const input = elements.goalDiscussInput.value.trim();
+        const continueInputEl = document.getElementById('discussContinueInput');
+        const input = continueInputEl ? continueInputEl.value.trim() : '';
         if (!input) return;
         
         // Add user message
         addDiscussMessage('user', input);
         goalDiscussState.conversationHistory.push({ role: 'user', content: input });
+        await persistDiscussMessage('user', input);
         
         // Clear input and show loading
-        elements.goalDiscussInput.value = '';
+        if (continueInputEl) continueInputEl.value = '';
         showDiscussLoading();
         
         try {
@@ -2217,10 +2293,14 @@
             });
             
             if (result) {
+                elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+                    el.remove();
+                });
                 if (result.type === 'question') {
                     // AI asked another question
                     addDiscussMessage('assistant', result.message);
                     goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message });
+                    await persistDiscussMessage('assistant', result.message);
                     showDiscussInput();
                 } else if (result.type === 'subtasks') {
                     // AI generated subtasks
@@ -2249,13 +2329,22 @@
     }
 
     function showDiscussInput() {
-        elements.goalDiscussConversation.innerHTML += `
-            <div class="discuss-input-area">
-                <input type="text" id="discussContinueInput" placeholder="回答AI的问题..." />
-                <button class="btn btn-primary" onclick="continueGoalDiscuss()">发送</button>
-            </div>
+        const wrapper = document.createElement('div');
+        wrapper.className = 'discuss-input-area';
+        wrapper.innerHTML = `
+            <input type="text" id="discussContinueInput" placeholder="回答AI的问题..." />
+            <button class="btn btn-primary" id="discussContinueBtn">发送</button>
         `;
-        document.getElementById('discussContinueInput').focus();
+        elements.goalDiscussConversation.appendChild(wrapper);
+        const inputEl = document.getElementById('discussContinueInput');
+        const btnEl = document.getElementById('discussContinueBtn');
+        if (btnEl) btnEl.addEventListener('click', continueGoalDiscuss);
+        if (inputEl) {
+            inputEl.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') continueGoalDiscuss();
+            });
+            inputEl.focus();
+        }
     }
 
     function showDiscussResults() {
@@ -2307,6 +2396,16 @@
                         horizon: state.goalsHorizon,
                         order: i
                     });
+                }
+
+                // Save conversation history
+                if (goalDiscussState.conversationHistory.length > 0) {
+                    for (const msg of goalDiscussState.conversationHistory) {
+                        await createGoalConversation(goalResult.id, {
+                            role: msg.role,
+                            content: msg.content
+                        });
+                    }
                 }
                 
                 showToast('目标已保存');
@@ -2985,6 +3084,12 @@
         elements.goalDiscussBackdrop.addEventListener('click', closeGoalDiscussModal);
         elements.goalDiscussClose.addEventListener('click', closeGoalDiscussModal);
         elements.goalDiscussStartBtn.addEventListener('click', startGoalDiscuss);
+        elements.goalDiscussInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                startGoalDiscuss();
+            }
+        });
         elements.goalDiscussCancelBtn.addEventListener('click', closeGoalDiscussModal);
         elements.goalDiscussSaveBtn.addEventListener('click', saveGoalDiscuss);
         

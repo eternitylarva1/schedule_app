@@ -2,7 +2,7 @@
 import aiosqlite
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from .models import Event, Goal, GoalConversation
 
@@ -434,7 +434,7 @@ async def get_goals(horizon: str | None = None, include_subtasks: bool = True) -
     """
     query = "SELECT * FROM goals"
     conditions = []
-    params: tuple = ()
+    params: tuple[Any, ...] = ()
     
     if horizon in {"short", "semester", "long"}:
         conditions.append("horizon = ?")
@@ -526,7 +526,7 @@ async def get_goal_subtasks(goal_id: int) -> List[Goal]:
     return subtasks
 
 
-async def get_goal_tree(goal_id: int, max_depth: int = 3) -> dict:
+async def get_goal_tree(goal_id: int, max_depth: int = 3) -> dict[str, Any] | None:
     """Get a goal with its full subtask tree.
     
     Args:
@@ -540,11 +540,14 @@ async def get_goal_tree(goal_id: int, max_depth: int = 3) -> dict:
     if not goal:
         return None
     
-    async def build_tree(g: Goal, current_depth: int) -> dict:
+    async def build_tree(g: Goal, current_depth: int) -> dict[str, Any]:
         result = g.to_dict()
         if current_depth < max_depth:
-            subtasks = await get_goal_subtasks(g.id)
-            result["subtasks"] = [await build_tree(s, current_depth + 1) for s in subtasks]
+            if g.id is None:
+                result["subtasks"] = []
+            else:
+                subtasks = await get_goal_subtasks(g.id)
+                result["subtasks"] = [await build_tree(s, current_depth + 1) for s in subtasks]
         else:
             result["subtasks"] = []
         return result
