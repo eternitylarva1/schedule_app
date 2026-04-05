@@ -2,8 +2,8 @@ const CACHE_NAME = 'schedule-app-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/static/style.css?v=20260403-5',
-  '/static/app.js?v=20260403-5',
+  '/static/style.css?v=20260405-2',
+  '/static/app.js?v=20260405-2',
   '/manifest.json'
 ];
 
