@@ -167,6 +167,7 @@
         appVersion: document.getElementById('appVersion'),
         // Event modal - reminder fields
         reminderEnabled: document.getElementById('reminderEnabled'),
+        pendingTimeCheck: document.getElementById('pendingTimeCheck'),
         saveDetailBtn: document.getElementById('saveDetailBtn'),
     };
 
@@ -259,7 +260,7 @@
     }
 
     function formatTimeRange(event) {
-        if (!event.start_time) return '';
+        if (!event.start_time) return '待定';
         const start = new Date(event.start_time);
         const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
         
@@ -1968,6 +1969,7 @@
         elements.eventTitle.value = event ? event.title : '';
         elements.startTime.value = event && event.start_time ? toLocalDatetime(event.start_time) : '';
         elements.endTime.value = event && event.end_time ? toLocalDatetime(event.end_time) : '';
+        elements.pendingTimeCheck.checked = event ? !event.start_time : false;
         elements.allDayCheck.checked = event ? event.all_day : false;
         
         // Reset reminder fields
@@ -1976,7 +1978,8 @@
             : state.defaultTaskReminderEnabled;
         
         renderCategorySelector();
-        
+        syncPendingTimeState();
+
         elements.eventModal.classList.remove('hidden');
         
         // Focus title input
@@ -1988,6 +1991,16 @@
         state.selectedEvent = null;
     }
 
+    function syncPendingTimeState() {
+        const pending = !!elements.pendingTimeCheck.checked;
+        elements.startTime.disabled = pending;
+        elements.endTime.disabled = pending;
+        if (pending) {
+            elements.startTime.value = '';
+            elements.endTime.value = '';
+        }
+    }
+
     async function saveEvent() {
         const title = elements.eventTitle.value.trim();
         if (!title) {
@@ -1996,8 +2009,9 @@
         }
         
         // Validate end time >= start time
-        const startTime = elements.startTime.value;
-        const endTime = elements.endTime.value;
+        const isPendingTime = !!elements.pendingTimeCheck.checked;
+        const startTime = isPendingTime ? '' : elements.startTime.value;
+        const endTime = isPendingTime ? '' : elements.endTime.value;
         if (startTime && endTime && new Date(endTime) < new Date(startTime)) {
             showToast('结束时间不能早于开始时间');
             return;
@@ -3173,6 +3187,7 @@
         elements.modalClose.addEventListener('click', closeEventModal);
         elements.cancelEventBtn.addEventListener('click', closeEventModal);
         elements.saveEventBtn.addEventListener('click', saveEvent);
+        elements.pendingTimeCheck.addEventListener('change', syncPendingTimeState);
         
         // Detail modal
         elements.detailBackdrop.addEventListener('click', closeDetailModal);
@@ -3326,6 +3341,7 @@
         registerGlobalErrorHandlers();
         bindEvents();
         renderCategorySelector();
+        syncPendingTimeState();
         
         // Load last view from localStorage (tab bar supports: day/todo/goals/stats)
         const allowedViews = new Set(['day', 'todo', 'goals', 'stats']);
