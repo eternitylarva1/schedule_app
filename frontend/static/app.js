@@ -68,6 +68,18 @@
         defaultTaskReminderEnabled: true,
         userSelfDescription: '',  // User's current status for task breakdown
         statsClockTimer: null,
+        // Notepad state
+        notepadSubview: 'notes',  // 'notes' | 'expense'
+        notes: [],
+        expenses: [],
+        expenseCategories: [
+            { id: 'food', name: '餐饮', color: '#F97316' },
+            { id: 'transport', name: '交通', color: '#3B82F6' },
+            { id: 'shopping', name: '购物', color: '#EC4899' },
+            { id: 'other', name: '其他', color: '#6B7280' }
+        ],
+        expenseStats: { total: 0, by_category: {} },
+        selectedNote: null,
     };
 
     // ============================================
@@ -94,8 +106,12 @@
         todoContainer: document.getElementById('todoContainer'),
         goalsView: document.getElementById('goalsView'),
         goalsContainer: document.getElementById('goalsContainer'),
-        statsView: document.getElementById('statsView'),
-        statsContainer: document.getElementById('statsContainer'),
+        notepadView: document.getElementById('notepadView'),
+        notepadTabs: document.getElementById('notepadTabs'),
+        notepadInputArea: document.getElementById('notepadInputArea'),
+        notepadContainer: document.getElementById('notepadContainer'),
+        notepadInput: document.getElementById('notepadInput'),
+        notepadAddBtn: document.getElementById('notepadAddBtn'),
         timeline: document.getElementById('timeline'),
         daySlider: document.getElementById('daySlider'),
         weekTimeAxis: document.getElementById('weekTimeAxis'),
@@ -630,6 +646,86 @@
 
     async function createEventWithLLM(text) {
         return await apiCall('llm/create', {
+            method: 'POST',
+            body: JSON.stringify({ text: text })
+        });
+    }
+
+    // ============================================
+    // Notes API Functions
+    // ============================================
+    async function fetchNotes() {
+        const data = await apiCall('notes');
+        if (data) {
+            state.notes = data;
+            return data;
+        }
+        return [];
+    }
+
+    async function createNote(content) {
+        return await apiCall('notes', {
+            method: 'POST',
+            body: JSON.stringify({ content: content })
+        });
+    }
+
+    async function updateNote(noteId, content) {
+        return await apiCall(`notes/${noteId}`, {
+            method: 'PUT',
+            body: JSON.stringify({ content: content })
+        });
+    }
+
+    async function deleteNote(noteId) {
+        return await apiCall(`notes/${noteId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // ============================================
+    // Expenses API Functions
+    // ============================================
+    async function fetchExpenses(dateFilter = 'month') {
+        const data = await apiCall(`expenses?date=${dateFilter}`);
+        if (data) {
+            state.expenses = data;
+            return data;
+        }
+        return [];
+    }
+
+    async function createExpense(expenseData) {
+        return await apiCall('expenses', {
+            method: 'POST',
+            body: JSON.stringify(expenseData)
+        });
+    }
+
+    async function updateExpense(expenseId, expenseData) {
+        return await apiCall(`expenses/${expenseId}`, {
+            method: 'PUT',
+            body: JSON.stringify(expenseData)
+        });
+    }
+
+    async function deleteExpense(expenseId) {
+        return await apiCall(`expenses/${expenseId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    async function fetchExpenseStats(dateFilter = 'month') {
+        const data = await apiCall(`expenses/stats?date=${dateFilter}`);
+        if (data) {
+            state.expenseStats = data;
+            return data;
+        }
+        return { total: 0, by_category: {} };
+    }
+
+    async function parseExpenseWithLLM(text) {
+        return await apiCall('llm/parse_expense', {
             method: 'POST',
             body: JSON.stringify({ text: text })
         });
@@ -1692,6 +1788,355 @@
         await renderGoalsList();
     }
 
+    // ============================================
+    // Notepad View (Notes + Expense)
+    // ============================================
+    async function renderNotepadView() {
+        // Bind tab switching
+        const tabs = elements.notepadTabs.querySelectorAll('.notepad-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', async () => {
+                const subtype = tab.dataset.subtype;
+                state.notepadSubview = subtype;
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                await renderNotepadContent();
+            });
+        });
+        
+        // Bind input area
+        if (elements.notepadInput && elements.notepadAddBtn) {
+            elements.notepadAddBtn.addEventListener('click', handleNotepadAdd);
+            elements.notepadInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    await handleNotepadAdd();
+                }
+            });
+        }
+        
+        // Render content based on subview
+        await renderNotepadContent();
+    }
+
+    async function renderNotepadContent() {
+        const container = elements.notepadContainer;
+        const subtype = state.notepadSubview;
+        
+        // Update header title
+        elements.headerTitle.textContent = subtype === 'notes' ? '笔记' : '记账';
+        
+        // Update input placeholder
+        if (elements.notepadInput) {
+            if (subtype === 'notes') {
+                elements.notepadInput.placeholder = '输入内容，AI帮你整理...';
+            } else {
+                elements.notepadInput.placeholder = '输入如：中午吃面15块...';
+            }
+        }
+        
+        if (subtype === 'notes') {
+            await renderNotesList();
+        } else {
+            await renderExpenseList();
+        }
+    }
+
+    async function handleNotepadAdd() {
+        const input = elements.notepadInput;
+        if (!input || !input.value.trim()) return;
+        
+        const text = input.value.trim();
+        input.value = '';
+        
+        if (state.notepadSubview === 'notes') {
+            // Create note directly
+            const result = await createNote(text);
+            if (result) {
+                showToast('笔记已保存');
+                await renderNotesList();
+            }
+        } else {
+            // Parse expense with AI
+            state.isLlmProcessing = true;
+            showToast('AI解析中...');
+            
+            const parsed = await parseExpenseWithLLM(text);
+            if (parsed) {
+                const result = await createExpense({
+                    amount: parsed.amount,
+                    category: parsed.category,
+                    note: parsed.note || text
+                });
+                if (result) {
+                    showToast(`已记录：${parsed.amount}元`);
+                    await renderExpenseList();
+                }
+            } else {
+                showToast('AI解析失败，请重试');
+            }
+            
+            state.isLlmProcessing = false;
+        }
+    }
+
+    async function renderNotesList() {
+        const container = elements.notepadContainer;
+        const notes = await fetchNotes();
+        
+        if (!notes || notes.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">📝</div>
+                    <div class="empty-text">暂无笔记</div>
+                    <div class="empty-hint">在上方输入内容添加笔记</div>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = notes.map(note => `
+            <div class="note-item" data-note-id="${note.id}">
+                <div class="note-content">${escapeHtml(note.content)}</div>
+                <div class="note-meta">
+                    <span class="note-time">${formatNoteTime(note.created_at)}</span>
+                    <div class="note-actions">
+                        <button class="note-action-btn edit-btn" data-action="edit" data-note-id="${note.id}">✏️</button>
+                        <button class="note-action-btn delete-btn" data-action="delete" data-note-id="${note.id}">🗑️</button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Bind note item events
+        container.querySelectorAll('.note-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('.note-action-btn')) return;
+                const noteId = parseInt(item.dataset.noteId);
+                const note = state.notes.find(n => n.id === noteId);
+                if (note) showNoteDetail(note);
+            });
+        });
+        
+        container.querySelectorAll('.note-action-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const noteId = parseInt(btn.dataset.noteId);
+                
+                if (action === 'edit') {
+                    const note = state.notes.find(n => n.id === noteId);
+                    if (note) showNoteEdit(note);
+                } else if (action === 'delete') {
+                    const confirmed = await showConfirm('确定删除这条笔记吗？');
+                    if (confirmed) {
+                        await deleteNote(noteId);
+                        showToast('已删除');
+                        await renderNotesList();
+                    }
+                }
+            });
+        });
+    }
+
+    function formatNoteTime(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        const now = new Date();
+        const isToday = isSameDay(date, now);
+        const isYesterday = isSameDay(date, new Date(now.getTime() - 86400000));
+        
+        if (isToday) {
+            return `今天 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        } else if (isYesterday) {
+            return `昨天 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        } else {
+            return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        }
+    }
+
+    async function showNoteDetail(note) {
+        state.selectedNote = note;
+        const content = `
+            <div class="note-detail-content">${escapeHtml(note.content)}</div>
+            <div class="note-detail-time">${formatNoteTime(note.created_at)}</div>
+        `;
+        
+        const detailHtml = `
+            <div class="modal" id="noteDetailModal">
+                <div class="modal-backdrop" id="noteDetailBackdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>笔记详情</h2>
+                        <button class="modal-close" id="noteDetailClose">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="note-detail-content">${escapeHtml(note.content)}</div>
+                        <div class="note-detail-time">${formatNoteTime(note.created_at)}</div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" id="noteDetailEditBtn">编辑</button>
+                        <button class="btn btn-danger" id="noteDetailDeleteBtn">删除</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remove existing modal if any
+        const existingModal = document.getElementById('noteDetailModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', detailHtml);
+        
+        const modal = document.getElementById('noteDetailModal');
+        const backdrop = document.getElementById('noteDetailBackdrop');
+        const closeBtn = document.getElementById('noteDetailClose');
+        const editBtn = document.getElementById('noteDetailEditBtn');
+        const deleteBtn = document.getElementById('noteDetailDeleteBtn');
+        
+        const closeModal = () => {
+            modal.remove();
+            state.selectedNote = null;
+        };
+        
+        backdrop.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+        
+        editBtn.addEventListener('click', () => {
+            closeModal();
+            showNoteEdit(note);
+        });
+        
+        deleteBtn.addEventListener('click', async () => {
+            const confirmed = await showConfirm('确定删除这条笔记吗？');
+            if (confirmed) {
+                await deleteNote(note.id);
+                showToast('已删除');
+                closeModal();
+                await renderNotesList();
+            }
+        });
+        
+        // Show modal
+        requestAnimationFrame(() => {
+            modal.classList.remove('hidden');
+        });
+    }
+
+    async function showNoteEdit(note) {
+        const newContent = prompt('编辑笔记内容：', note.content);
+        if (newContent !== null && newContent.trim() !== note.content) {
+            const result = await updateNote(note.id, newContent.trim());
+            if (result) {
+                showToast('笔记已更新');
+                await renderNotesList();
+            }
+        }
+    }
+
+    async function renderExpenseList() {
+        const container = elements.notepadContainer;
+        
+        // Fetch expenses and stats
+        const [expenses, stats] = await Promise.all([
+            fetchExpenses('month'),
+            fetchExpenseStats('month')
+        ]);
+        
+        // Render stats summary
+        const statsHtml = `
+            <div class="expense-stats-card">
+                <div class="expense-total">
+                    <span class="expense-total-label">本月支出</span>
+                    <span class="expense-total-value">¥${stats.total.toFixed(1)}</span>
+                </div>
+                <div class="expense-category-summary">
+                    ${state.expenseCategories.map(cat => {
+                        const amount = stats.by_category[cat.id] || 0;
+                        return amount > 0 ? `
+                            <div class="expense-cat-item">
+                                <span class="expense-cat-dot" style="background: ${cat.color}"></span>
+                                <span class="expense-cat-name">${cat.name}</span>
+                                <span class="expense-cat-amount">¥${amount.toFixed(1)}</span>
+                            </div>
+                        ` : '';
+                    }).join('')}
+                </div>
+            </div>
+        `;
+        
+        if (!expenses || expenses.length === 0) {
+            container.innerHTML = statsHtml + `
+                <div class="empty-state">
+                    <div class="empty-icon">💰</div>
+                    <div class="empty-text">暂无记账记录</div>
+                    <div class="empty-hint">输入如：中午吃面15块</div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Group expenses by date
+        const grouped = {};
+        expenses.forEach(exp => {
+            const dateKey = exp.created_at ? exp.created_at.split('T')[0] : 'unknown';
+            if (!grouped[dateKey]) grouped[dateKey] = [];
+            grouped[dateKey].push(exp);
+        });
+        
+        let listHtml = statsHtml + '<div class="expense-list">';
+        
+        Object.keys(grouped).sort((a, b) => b.localeCompare(a)).forEach(dateKey => {
+            const dayExpenses = grouped[dateKey];
+            const date = new Date(dateKey);
+            const now = new Date();
+            const isToday = isSameDay(date, now);
+            const isYesterday = isSameDay(date, new Date(now.getTime() - 86400000));
+            
+            let dateLabel;
+            if (isToday) dateLabel = '今天';
+            else if (isYesterday) dateLabel = '昨天';
+            else dateLabel = `${date.getMonth() + 1}月${date.getDate()}日`;
+            
+            listHtml += `
+                <div class="expense-day-group">
+                    <div class="expense-day-header">${dateLabel}</div>
+                    ${dayExpenses.map(exp => {
+                        const cat = state.expenseCategories.find(c => c.id === exp.category) || { name: '其他', color: '#6B7280' };
+                        return `
+                            <div class="expense-item" data-expense-id="${exp.id}">
+                                <div class="expense-item-left">
+                                    <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
+                                    <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
+                                </div>
+                                <div class="expense-item-right">
+                                    <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
+                                    <button class="expense-action-btn delete" data-action="delete" data-expense-id="${exp.id}">×</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        });
+        
+        listHtml += '</div>';
+        container.innerHTML = listHtml;
+        
+        // Bind delete events
+        container.querySelectorAll('.expense-action-btn.delete').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const expenseId = parseInt(btn.dataset.expenseId);
+                const confirmed = await showConfirm('确定删除这条记账记录吗？');
+                if (confirmed) {
+                    await deleteExpense(expenseId);
+                    showToast('已删除');
+                    await renderExpenseList();
+                }
+            });
+        });
+    }
+
     function renderStatsView() {
         const stats = state.stats;
         const container = elements.statsContainer;
@@ -1816,7 +2261,8 @@
         elements.monthView.classList.add('hidden');
         elements.todoView.classList.add('hidden');
         elements.goalsView.classList.add('hidden');
-        elements.statsView.classList.add('hidden');
+        elements.statsView && elements.statsView.classList.add('hidden');
+        elements.notepadView.classList.add('hidden');
         
         stopStatsClock();
 
@@ -1874,10 +2320,9 @@
                 elements.todoView.classList.remove('hidden');
                 await renderTodoView();
                 break;
-            case 'stats':
-                elements.statsView.classList.remove('hidden');
-                renderStatsView();
-                startStatsClock();
+            case 'notepad':
+                elements.notepadView.classList.remove('hidden');
+                await renderNotepadView();
                 break;
             case 'goals':
                 elements.goalsView.classList.remove('hidden');

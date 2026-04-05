@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
 
-from .models import Event, Goal, GoalConversation
+from .models import Event, Goal, GoalConversation, Note, Expense
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
@@ -109,6 +109,27 @@ async def init_db() -> None:
         # Insert default settings
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('qq_reminder_enabled', 'true')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('default_task_reminder_enabled', 'true')")
+        
+        # Notes table for memo/notepad functionality
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT NOT NULL DEFAULT '',
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        
+        # Expenses table for expense tracking
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                amount REAL NOT NULL DEFAULT 0,
+                category TEXT DEFAULT 'other',
+                note TEXT DEFAULT '',
+                created_at TEXT
+            )
+        """)
         
         await db.commit()
 
@@ -679,3 +700,250 @@ async def delete_goal_conversations(goal_id: int) -> bool:
         await db.execute("DELETE FROM goal_conversations WHERE goal_id = ?", (goal_id,))
         await db.commit()
         return True
+
+
+# ============ Notes Functions ============
+
+async def create_note(note: Note) -> Note:
+    """Create a new note."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO notes (content, created_at, updated_at)
+               VALUES (?, ?, ?)""",
+            (note.content, now, now),
+        )
+        await db.commit()
+        note.id = cursor.lastrowid
+        note.created_at = datetime.now()
+        note.updated_at = datetime.now()
+    return note
+
+
+async def get_notes() -> List[Note]:
+    """Get all notes, ordered by most recent first."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM notes ORDER BY created_at DESC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            notes = []
+            for row in rows:
+                notes.append(Note(
+                    id=row["id"],
+                    content=row["content"] or "",
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                    updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                ))
+    return notes
+
+
+async def get_note(note_id: int) -> Optional[Note]:
+    """Get a single note by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return Note(
+                id=row["id"],
+                content=row["content"] or "",
+                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+            )
+
+
+async def update_note(note_id: int, note: Note) -> Optional[Note]:
+    """Update an existing note."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE notes SET content = ?, updated_at = ? WHERE id = ?",
+            (note.content, now, note_id),
+        )
+        await db.commit()
+    return await get_note(note_id)
+
+
+async def delete_note(note_id: int) -> bool:
+    """Delete a note."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+# ============ Expenses Functions ============
+
+async def create_expense(expense: Expense) -> Expense:
+    """Create a new expense."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO expenses (amount, category, note, created_at)
+               VALUES (?, ?, ?, ?)""",
+            (expense.amount, expense.category, expense.note, now),
+        )
+        await db.commit()
+        expense.id = cursor.lastrowid
+        expense.created_at = datetime.now()
+    return expense
+
+
+async def get_expenses(date_filter: str = "month") -> List[Expense]:
+    """Get expenses, optionally filtered by month (YYYY-MM format)."""
+    from datetime import timedelta
+    
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Parse date filter
+    import re
+    if re.match(r'^\d{4}-\d{2}$', date_filter):
+        try:
+            year = int(date_filter[:4])
+            month = int(date_filter[5:7])
+            start = datetime(year, month, 1, 0, 0, 0, 0)
+            if month == 12:
+                end = datetime(year + 1, 1, 1, 0, 0, 0, 0)
+            else:
+                end = datetime(year, month + 1, 1, 0, 0, 0, 0)
+        except ValueError:
+            start = today_start.replace(day=1)
+            if start.month == 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start.month + 1)
+    elif date_filter == "today":
+        start = today_start
+        end = today_start + timedelta(days=1)
+    elif date_filter == "week":
+        start = today_start - timedelta(days=now.weekday())
+        end = start + timedelta(days=7)
+    else:  # default to month
+        start = today_start.replace(day=1)
+        if start.month == 12:
+            end = start.replace(year=start.year + 1, month=1)
+        else:
+            end = start.replace(month=start.month + 1)
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM expenses 
+               WHERE created_at >= ? AND created_at < ?
+               ORDER BY created_at DESC""",
+            (start.isoformat(), end.isoformat()),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            expenses = []
+            for row in rows:
+                expenses.append(Expense(
+                    id=row["id"],
+                    amount=float(row["amount"]) if row["amount"] else 0.0,
+                    category=row["category"] or "other",
+                    note=row["note"] or "",
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                ))
+    return expenses
+
+
+async def get_expense(expense_id: int) -> Optional[Expense]:
+    """Get a single expense by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM expenses WHERE id = ?", (expense_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return Expense(
+                id=row["id"],
+                amount=float(row["amount"]) if row["amount"] else 0.0,
+                category=row["category"] or "other",
+                note=row["note"] or "",
+                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+            )
+
+
+async def update_expense(expense_id: int, expense: Expense) -> Optional[Expense]:
+    """Update an existing expense."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE expenses SET amount = ?, category = ?, note = ? WHERE id = ?",
+            (expense.amount, expense.category, expense.note, expense_id),
+        )
+        await db.commit()
+    return await get_expense(expense_id)
+
+
+async def delete_expense(expense_id: int) -> bool:
+    """Delete an expense."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def get_expense_stats(date_filter: str = "month") -> dict[str, Any]:
+    """Get expense statistics by category."""
+    from datetime import timedelta
+    
+    now = datetime.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Parse date filter
+    import re
+    if re.match(r'^\d{4}-\d{2}$', date_filter):
+        try:
+            year = int(date_filter[:4])
+            month = int(date_filter[5:7])
+            start = datetime(year, month, 1, 0, 0, 0, 0)
+            if month == 12:
+                end = datetime(year + 1, 1, 1, 0, 0, 0, 0)
+            else:
+                end = datetime(year, month + 1, 1, 0, 0, 0, 0)
+        except ValueError:
+            start = today_start.replace(day=1)
+            if start.month == 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start.month + 1)
+    elif date_filter == "today":
+        start = today_start
+        end = today_start + timedelta(days=1)
+    elif date_filter == "week":
+        start = today_start - timedelta(days=now.weekday())
+        end = start + timedelta(days=7)
+    else:  # default to month
+        start = today_start.replace(day=1)
+        if start.month == 12:
+            end = start.replace(year=start.year + 1, month=1)
+        else:
+            end = start.replace(month=start.month + 1)
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Total amount
+        async with db.execute(
+            """SELECT COALESCE(SUM(amount), 0) as total 
+               FROM expenses WHERE created_at >= ? AND created_at < ?""",
+            (start.isoformat(), end.isoformat()),
+        ) as cursor:
+            total_row = await cursor.fetchone()
+            total = float(total_row[0]) if total_row else 0.0
+        
+        # By category
+        async with db.execute(
+            """SELECT category, COALESCE(SUM(amount), 0) as total 
+               FROM expenses WHERE created_at >= ? AND created_at < ?
+               GROUP BY category""",
+            (start.isoformat(), end.isoformat()),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            by_category = {row[0]: float(row[1]) for row in rows}
+    
+    return {
+        "total": total,
+        "by_category": by_category,
+    }

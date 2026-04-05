@@ -81,9 +81,17 @@
                 <div class="goals-container" id="goalsContainer"></div>
             </div>
 
-            <!-- Stats View -->
-            <div class="view stats-view hidden" id="statsView">
-                <div class="stats-container" id="statsContainer"></div>
+            <!-- Notepad View -->
+            <div class="view notepad-view hidden" id="notepadView">
+                <div class="notepad-tabs" id="notepadTabs">
+                    <button class="notepad-tab active" data-subtype="notes">笔记</button>
+                    <button class="notepad-tab" data-subtype="expense">记账</button>
+                </div>
+                <div class="notepad-input-area" id="notepadInputArea">
+                    <input type="text" id="notepadInput" placeholder="输入内容，AI帮你整理..." autocomplete="off">
+                    <button class="notepad-add-btn" id="notepadAddBtn">+</button>
+                </div>
+                <div class="notepad-container" id="notepadContainer"></div>
             </div>
         </main>
 
@@ -258,9 +266,9 @@
                 <span class="tab-icon">🎯</span>
                 <span class="tab-label">规划</span>
             </button>
-            <button class="tab-item" data-view="stats" id="tabStats">
-                <span class="tab-icon">📊</span>
-                <span class="tab-label">统计</span>
+            <button class="tab-item" data-view="notepad" id="tabNotepad">
+                <span class="tab-icon">📓</span>
+                <span class="tab-label">记事本</span>
             </button>
         </nav>
 

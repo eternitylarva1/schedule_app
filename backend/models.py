@@ -118,3 +118,65 @@ CATEGORIES = [
     {"id": "study", "name": "学习", "color": "#FBBC04"},
     {"id": "health", "name": "健康", "color": "#EA4335"},
 ]
+
+
+# Expense categories
+EXPENSE_CATEGORIES = [
+    {"id": "food", "name": "餐饮", "color": "#F97316"},
+    {"id": "transport", "name": "交通", "color": "#3B82F6"},
+    {"id": "shopping", "name": "购物", "color": "#EC4899"},
+    {"id": "other", "name": "其他", "color": "#6B7280"},
+]
+
+
+@dataclass
+class Note:
+    """Note model for memo/notepad functionality."""
+    id: int | None = None
+    content: str = ""
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        for key in ["created_at", "updated_at"]:
+            if d.get(key) and isinstance(d[key], datetime):
+                d[key] = d[key].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Note":
+        """Create Note from dictionary."""
+        for key in ["created_at", "updated_at"]:
+            if d.get(key) and isinstance(d[key], str):
+                d[key] = datetime.fromisoformat(d[key])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)
+
+
+@dataclass
+class Expense:
+    """Expense model for expense tracking."""
+    id: int | None = None
+    amount: float = 0.0
+    category: str = "other"
+    note: str = ""
+    created_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        if d.get("created_at") and isinstance(d["created_at"], datetime):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Expense":
+        """Create Expense from dictionary."""
+        if d.get("created_at") and isinstance(d.get("created_at"), str):
+            d["created_at"] = datetime.fromisoformat(d["created_at"])
+        if "amount" in d and d["amount"] is not None:
+            d["amount"] = float(d["amount"])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)

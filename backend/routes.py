@@ -6,7 +6,7 @@ from aiohttp import web
 from typing import Any
 
 from . import db
-from .models import Event, Goal, GoalConversation, CATEGORIES
+from .models import Event, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES
 
 
 def json_response(data: Any, code: int = 0) -> web.Response:
@@ -624,6 +624,184 @@ async def update_setting(request: web.Request) -> web.Response:
         return error_response(f"更新设置失败: {str(e)}")
 
 
+# ============ Notes Endpoints ============
+
+async def get_notes(request: web.Request) -> web.Response:
+    """GET /api/notes - list all notes."""
+    try:
+        notes = await db.get_notes()
+        return json_response([n.to_dict() for n in notes])
+    except Exception as e:
+        return error_response(f"获取笔记失败: {str(e)}")
+
+
+async def create_note(request: web.Request) -> web.Response:
+    """POST /api/notes - create a note."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+
+    try:
+        note = Note(content=data.get("content", "").strip())
+        if not note.content:
+            return error_response("笔记内容不能为空")
+        created = await db.create_note(note)
+        return json_response(created.to_dict())
+    except Exception as e:
+        return error_response(f"创建笔记失败: {str(e)}")
+
+
+async def update_note(request: web.Request) -> web.Response:
+    """PUT /api/notes/{id} - update a note."""
+    note_id = int(request.match_info["id"])
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+
+    try:
+        existing = await db.get_note(note_id)
+        if not existing:
+            return error_response("笔记不存在", code=404)
+        note = Note(content=data.get("content", existing.content).strip())
+        updated = await db.update_note(note_id, note)
+        if not updated:
+            return error_response("笔记不存在", code=404)
+        return json_response(updated.to_dict())
+    except Exception as e:
+        return error_response(f"更新笔记失败: {str(e)}")
+
+
+async def delete_note(request: web.Request) -> web.Response:
+    """DELETE /api/notes/{id} - delete a note."""
+    note_id = int(request.match_info["id"])
+    try:
+        success = await db.delete_note(note_id)
+        if success:
+            return json_response({"deleted": True})
+        return error_response("笔记不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除笔记失败: {str(e)}")
+
+
+# ============ Expenses Endpoints ============
+
+async def get_expenses(request: web.Request) -> web.Response:
+    """GET /api/expenses?date=month - list expenses."""
+    date_filter = request.query.get("date", "month")
+    try:
+        expenses = await db.get_expenses(date_filter)
+        return json_response([e.to_dict() for e in expenses])
+    except Exception as e:
+        return error_response(f"获取支出记录失败: {str(e)}")
+
+
+async def create_expense(request: web.Request) -> web.Response:
+    """POST /api/expenses - create an expense."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+
+    try:
+        expense = Expense(
+            amount=float(data.get("amount", 0)),
+            category=data.get("category", "other"),
+            note=data.get("note", "").strip(),
+        )
+        if expense.amount <= 0:
+            return error_response("金额必须大于0")
+        created = await db.create_expense(expense)
+        return json_response(created.to_dict())
+    except Exception as e:
+        return error_response(f"创建支出记录失败: {str(e)}")
+
+
+async def update_expense(request: web.Request) -> web.Response:
+    """PUT /api/expenses/{id} - update an expense."""
+    expense_id = int(request.match_info["id"])
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+
+    try:
+        existing = await db.get_expense(expense_id)
+        if not existing:
+            return error_response("支出记录不存在", code=404)
+        expense = Expense(
+            amount=float(data.get("amount", existing.amount)),
+            category=data.get("category", existing.category),
+            note=data.get("note", existing.note).strip(),
+        )
+        updated = await db.update_expense(expense_id, expense)
+        if not updated:
+            return error_response("支出记录不存在", code=404)
+        return json_response(updated.to_dict())
+    except Exception as e:
+        return error_response(f"更新支出记录失败: {str(e)}")
+
+
+async def delete_expense(request: web.Request) -> web.Response:
+    """DELETE /api/expenses/{id} - delete an expense."""
+    expense_id = int(request.match_info["id"])
+    try:
+        success = await db.delete_expense(expense_id)
+        if success:
+            return json_response({"deleted": True})
+        return error_response("支出记录不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除支出记录失败: {str(e)}")
+
+
+async def get_expense_stats(request: web.Request) -> web.Response:
+    """GET /api/expenses/stats?date=month - get expense statistics."""
+    date_filter = request.query.get("date", "month")
+    try:
+        stats = await db.get_expense_stats(date_filter)
+        return json_response(stats)
+    except Exception as e:
+        return error_response(f"获取支出统计失败: {str(e)}")
+
+
+async def get_expense_categories(request: web.Request) -> web.Response:
+    """GET /api/expenses/categories - list expense categories."""
+    return json_response(EXPENSE_CATEGORIES)
+
+
+async def llm_parse_expense(request: web.Request) -> web.Response:
+    """POST /api/llm/parse_expense - parse natural language expense into structured data.
+    
+    Body: {"text": "中午吃面15块"}
+    Returns: {"amount": 15, "category": "food", "note": "吃面"}
+    """
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                body_str = body_bytes.decode('gbk')
+            except UnicodeDecodeError:
+                body_str = body_bytes.decode('latin-1')
+        data = json.loads(body_str)
+    except Exception as e:
+        return error_response("无效的请求")
+    
+    user_text = data.get("text", "").strip()
+    if not user_text:
+        return error_response("输入不能为空")
+    
+    from .llm_service import llm_service
+    
+    result = await llm_service.parse_expense(user_text)
+    if result:
+        return json_response(result)
+    else:
+        return error_response("AI解析失败，请检查网络连接或稍后重试")
+
+
 def _parse_datetime(value: Any):
     """Parse datetime from string."""
     from datetime import datetime
@@ -667,3 +845,16 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/llm/chat", llm_chat)
     app.router.add_post("/api/llm/create", llm_create)
     app.router.add_post("/api/llm/breakdown", llm_breakdown)
+    app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
+    # Notes endpoints
+    app.router.add_get("/api/notes", get_notes)
+    app.router.add_post("/api/notes", create_note)
+    app.router.add_put("/api/notes/{id}", update_note)
+    app.router.add_delete("/api/notes/{id}", delete_note)
+    # Expenses endpoints
+    app.router.add_get("/api/expenses", get_expenses)
+    app.router.add_post("/api/expenses", create_expense)
+    app.router.add_put("/api/expenses/{id}", update_expense)
+    app.router.add_delete("/api/expenses/{id}", delete_expense)
+    app.router.add_get("/api/expenses/stats", get_expense_stats)
+    app.router.add_get("/api/expenses/categories", get_expense_categories)

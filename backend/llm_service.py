@@ -329,6 +329,62 @@ class LLMService:
             "subtasks": []
         }
 
+    async def parse_expense(self, user_text: str) -> Optional[Dict[str, Any]]:
+        """Parse natural language expense into structured data.
+        
+        Returns dict with:
+        - amount: float (金额)
+        - category: str (分类：food/transport/shopping/other)
+        - note: str (备注说明)
+        """
+        from datetime import datetime
+        now = datetime.now()
+        current_date = now.strftime("%Y年%m月%d日")
+        current_time = now.strftime("%H:%M")
+        
+        prompt = f"""用户想要记录一笔支出，请解析并返回JSON格式。
+
+当前日期：{current_date} {current_time}
+用户输入：{user_text}
+
+请从用户输入中提取：
+1. 金额（数字，单位元）
+2. 消费分类（只能选以下之一：food餐饮、transport交通、shopping购物、other其他）
+3. 备注说明（简短描述这笔支出是什么，去掉金额信息）
+
+返回JSON格式（只返回JSON，不要其他内容）：
+{{
+    "amount": 金额数字，如15.5,
+    "category": "food/transport/shopping/other之一",
+    "note": "简短备注，如'吃面'、'打车'"
+}}
+
+规则：
+- 金额必须提取或根据描述合理推断（如"吃了碗面"可以推断10-30元）
+- 分类推断：吃饭→food，打车/公交/地铁→transport，买东西/网购→shopping，其他→other
+- 备注只保留核心内容，去掉金额
+- 如果用户没明确金额，给一个合理推断值"""
+        
+        response = await self.chat([
+            {"role": "system", "content": "你是一个记账助手，帮助用户将口语化的消费描述转换为结构化的记账数据。"},
+            {"role": "user", "content": prompt}
+        ], temperature=0.3)
+        
+        if not response:
+            return None
+        
+        # Extract JSON from response
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                json_str = response[json_start:json_end]
+                return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+        
+        return None
+
 
 # Global instance
 llm_service = LLMService()
