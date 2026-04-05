@@ -3119,6 +3119,45 @@
         };
     }
 
+    function showFatalDebugBanner(message) {
+        const id = 'fatalDebugBanner';
+        let banner = document.getElementById(id);
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = id;
+            banner.style.position = 'fixed';
+            banner.style.top = '0';
+            banner.style.left = '0';
+            banner.style.right = '0';
+            banner.style.zIndex = '99999';
+            banner.style.padding = '10px 12px';
+            banner.style.background = '#b91c1c';
+            banner.style.color = '#fff';
+            banner.style.fontSize = '12px';
+            banner.style.lineHeight = '1.4';
+            banner.style.whiteSpace = 'pre-wrap';
+            document.body.appendChild(banner);
+        }
+        banner.textContent = `前端错误: ${message}`;
+    }
+
+    function registerGlobalErrorHandlers() {
+        window.addEventListener('error', (event) => {
+            const msg = event?.error?.message || event?.message || 'Unknown Error';
+            console.error('[GlobalError]', event.error || event);
+            showToast(`页面错误: ${msg}`);
+            showFatalDebugBanner(msg);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            const reason = event?.reason;
+            const msg = typeof reason === 'string' ? reason : (reason?.message || 'Unhandled Promise Rejection');
+            console.error('[UnhandledRejection]', reason);
+            showToast(`异步错误: ${msg}`);
+            showFatalDebugBanner(msg);
+        });
+    }
+
     // ============================================
     // Toast CSS
     // ============================================
@@ -3155,6 +3194,7 @@
         console.log('Initializing Schedule App...');
         
         injectToastStyles();
+        registerGlobalErrorHandlers();
         bindEvents();
         renderCategorySelector();
         
