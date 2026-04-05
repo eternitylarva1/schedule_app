@@ -638,8 +638,13 @@ async def get_notes(request: web.Request) -> web.Response:
 async def create_note(request: web.Request) -> web.Response:
     """POST /api/notes - create a note."""
     try:
-        data = await request.json()
-    except json.JSONDecodeError:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception as e:
         return error_response("无效的JSON数据")
 
     try:
@@ -656,8 +661,13 @@ async def update_note(request: web.Request) -> web.Response:
     """PUT /api/notes/{id} - update a note."""
     note_id = int(request.match_info["id"])
     try:
-        data = await request.json()
-    except json.JSONDecodeError:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception as e:
         return error_response("无效的JSON数据")
 
     try:
@@ -700,8 +710,13 @@ async def get_expenses(request: web.Request) -> web.Response:
 async def create_expense(request: web.Request) -> web.Response:
     """POST /api/expenses - create an expense."""
     try:
-        data = await request.json()
-    except json.JSONDecodeError:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception as e:
         return error_response("无效的JSON数据")
 
     try:
@@ -722,8 +737,13 @@ async def update_expense(request: web.Request) -> web.Response:
     """PUT /api/expenses/{id} - update an expense."""
     expense_id = int(request.match_info["id"])
     try:
-        data = await request.json()
-    except json.JSONDecodeError:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception as e:
         return error_response("无效的JSON数据")
 
     try:
