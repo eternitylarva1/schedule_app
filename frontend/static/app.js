@@ -1792,30 +1792,48 @@
     // Notepad View (Notes + Expense)
     // ============================================
     async function renderNotepadView() {
-        // Bind tab switching
-        const tabs = elements.notepadTabs.querySelectorAll('.notepad-tab');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', async () => {
-                const subtype = tab.dataset.subtype;
-                state.notepadSubview = subtype;
-                tabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                await renderNotepadContent();
+        try {
+            // Guard against null elements
+            if (!elements.notepadTabs || !elements.notepadContainer) {
+                console.error('Notepad elements not found:', {
+                    notepadTabs: elements.notepadTabs,
+                    notepadContainer: elements.notepadContainer,
+                    notepadView: elements.notepadView
+                });
+                elements.notepadContainer.innerHTML = '<div class="empty-state"><div class="empty-text">页面加载中...</div></div>';
+                return;
+            }
+            
+            // Bind tab switching
+            const tabs = elements.notepadTabs.querySelectorAll('.notepad-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', async () => {
+                    const subtype = tab.dataset.subtype;
+                    state.notepadSubview = subtype;
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    await renderNotepadContent();
+                });
             });
-        });
-        
-        // Bind input area
-        if (elements.notepadInput && elements.notepadAddBtn) {
-            elements.notepadAddBtn.addEventListener('click', handleNotepadAdd);
-            elements.notepadInput.addEventListener('keypress', async (e) => {
-                if (e.key === 'Enter') {
-                    await handleNotepadAdd();
-                }
-            });
+            
+            // Bind input area
+            if (elements.notepadInput && elements.notepadAddBtn) {
+                elements.notepadAddBtn.addEventListener('click', handleNotepadAdd);
+                elements.notepadInput.addEventListener('keypress', async (e) => {
+                    if (e.key === 'Enter') {
+                        await handleNotepadAdd();
+                    }
+                });
+            }
+            
+            // Render content based on subview
+            await renderNotepadContent();
+        } catch (err) {
+            console.error('renderNotepadView error:', err);
+            if (elements.notepadContainer) {
+                elements.notepadContainer.innerHTML = '<div class="empty-state"><div class="empty-text">加载出错: ' + err.message + '</div></div>';
+            }
         }
-        
-        // Render content based on subview
-        await renderNotepadContent();
     }
 
     async function renderNotepadContent() {
@@ -2321,8 +2339,10 @@
                 await renderTodoView();
                 break;
             case 'notepad':
-                elements.notepadView.classList.remove('hidden');
-                await renderNotepadView();
+                if (elements.notepadView) {
+                    elements.notepadView.classList.remove('hidden');
+                    await renderNotepadView();
+                }
                 break;
             case 'goals':
                 elements.goalsView.classList.remove('hidden');
