@@ -122,7 +122,7 @@
         tabTodo: document.getElementById('tabTodo'),
         tabGoals: document.getElementById('tabGoals'),
         tabAdd: document.getElementById('tabAdd'),
-        tabStats: document.getElementById('tabStats'),
+        tabNotepad: document.getElementById('tabNotepad'),
         mainContent: document.getElementById('mainContent'),
         contentAddBtn: document.getElementById('contentAddBtn'),
         // Event modal
