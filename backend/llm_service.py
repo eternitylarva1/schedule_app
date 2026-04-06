@@ -78,7 +78,7 @@ class LLMService:
     "events": [
 {{
     "title": "日程标题（提取核心任务，去除时间描述）",
-    "start_time": "ISO格式开始时间，如2026-04-01T15:00:00",
+    "start_time": "ISO格式开始时间，如2026-04-01T15:00:00；如果时间不明确可返回null",
     "duration_minutes": 预估分钟数,
     "category_id": "work/life/study/health之一"
 }},
@@ -90,6 +90,9 @@ class LLMService:
 - "今天"就是{current_date}
 - "先去A，30分钟后去B" → 第一个日程从当前时间开始，第二个从第一个结束后开始
 - "上午...下午..." → 上午日程在9:00-12:00，下午在14:00-18:00
+- "X月X号前/之前/以前" 本质是deadline，除非用户给了明确时刻，否则start_time返回null
+- 如果用户没有给出明确时间（如"找时间"、"尽快"、"这两天安排"），start_time返回null，不要编造具体时间
+- 绝对日期约束（如"4月17号前"）绝对不能返回今天时间
 - 只提取任务名称，不要时间描述在标题里
 - category推断：工作→work，生活→life，学习→study，运动健康→health
 """
@@ -383,6 +386,90 @@ class LLMService:
         except json.JSONDecodeError:
             pass
         
+        return None
+
+    async def process_unified_command(self, user_text: str) -> Optional[Dict[str, Any]]:
+        """Parse unified natural-language commands for schedule/todo operations.
+
+        Returns:
+        {
+          "operations": [
+            {"action":"create","title":"...","start_time":"...|null","duration_minutes":30,"category_id":"work"},
+            {"action":"delete","scope":"all|date","date":"YYYY-MM-DD|null"},
+            {"action":"complete","scope":"all|date","date":"YYYY-MM-DD|null"},
+            {"action":"uncomplete","scope":"all|date","date":"YYYY-MM-DD|null"}
+          ],
+          "summary": "..."
+        }
+        """
+        from datetime import datetime
+        now = datetime.now()
+        current_date = now.strftime("%Y年%m月%d日")
+        current_time = now.strftime("%H:%M")
+
+        prompt = f"""用户输入了一条自然语言指令，请解析为可执行操作列表并返回JSON。
+
+当前日期：{current_date} {current_time}
+用户输入：{user_text}
+
+你必须在以下 action 中选择：
+- create: 创建日程/待办
+- delete: 删除日程/待办（批量或按日期）
+- complete: 完成日程/待办（批量或按日期）
+- uncomplete: 撤销完成（批量或按日期）
+
+返回格式（只返回JSON，不要任何解释文字）：
+{{
+  "operations": [
+    {{
+      "action": "create|delete|complete|uncomplete",
+      "title": "当action=create时必填，否则为null",
+      "start_time": "ISO时间或null（仅create使用）",
+      "duration_minutes": 30,
+      "category_id": "work/life/study/health（仅create使用）",
+      "scope": "all|date（delete/complete/uncomplete使用）",
+      "date": "YYYY-MM-DD或null（scope=date时必填）"
+    }}
+  ],
+  "summary": "一句话总结"
+}}
+
+规则：
+1) 支持一条输入中的多操作（按输入顺序输出）。
+2) 对“删除所有4月5号的代办”这类，输出 action=delete, scope=date, date=对应日期。
+3) 对“完成所有代办”这类，输出 action=complete, scope=all。
+4) 对“撤销所有完成”这类，输出 action=uncomplete, scope=all。
+5) create时：
+   - 若用户给出明确时间则填 start_time
+   - 若无明确时间则 start_time = null
+   - “X月X号前/之前/以前” 视为截止约束，不给明确时刻时 start_time = null
+6) 不能确定时，宁可返回 start_time=null，也不要编造今天时间。
+"""
+
+        response = await self.chat([
+            {"role": "system", "content": "你是一个任务执行解析器，只返回严格JSON。"},
+            {"role": "user", "content": prompt}
+        ], temperature=0.2)
+
+        if not response:
+            return None
+
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                json_str = response[json_start:json_end]
+                parsed = json.loads(json_str)
+                operations = parsed.get("operations", []) if isinstance(parsed, dict) else []
+                if not isinstance(operations, list):
+                    operations = []
+                return {
+                    "operations": operations,
+                    "summary": parsed.get("summary", "") if isinstance(parsed, dict) else "",
+                }
+        except json.JSONDecodeError:
+            pass
+
         return None
 
 

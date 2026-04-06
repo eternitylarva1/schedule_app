@@ -114,11 +114,17 @@ async def init_db() -> None:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL DEFAULT '',
                 content TEXT NOT NULL DEFAULT '',
                 created_at TEXT,
                 updated_at TEXT
             )
         """)
+
+        try:
+            await db.execute("ALTER TABLE notes ADD COLUMN title TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass
         
         # Expenses table for expense tracking
         await db.execute("""
@@ -333,6 +339,62 @@ async def uncomplete_event(event_id: int) -> Optional[Event]:
         return None
     event.status = "pending"
     return await update_event(event_id, event)
+
+
+async def batch_complete_events(start: datetime | None = None, end: datetime | None = None) -> int:
+    """Batch mark events as done. Returns affected row count."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        if start and end:
+            cursor = await db.execute(
+                """UPDATE events
+                   SET status = 'done', updated_at = ?
+                   WHERE start_time >= ? AND start_time < ? AND status != 'done'""",
+                (datetime.now().isoformat(), start.isoformat(), end.isoformat()),
+            )
+        else:
+            cursor = await db.execute(
+                """UPDATE events
+                   SET status = 'done', updated_at = ?
+                   WHERE status != 'done'""",
+                (datetime.now().isoformat(),),
+            )
+        await db.commit()
+        return cursor.rowcount or 0
+
+
+async def batch_uncomplete_events(start: datetime | None = None, end: datetime | None = None) -> int:
+    """Batch mark done events back to pending. Returns affected row count."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        if start and end:
+            cursor = await db.execute(
+                """UPDATE events
+                   SET status = 'pending', updated_at = ?
+                   WHERE start_time >= ? AND start_time < ? AND status = 'done'""",
+                (datetime.now().isoformat(), start.isoformat(), end.isoformat()),
+            )
+        else:
+            cursor = await db.execute(
+                """UPDATE events
+                   SET status = 'pending', updated_at = ?
+                   WHERE status = 'done'""",
+                (datetime.now().isoformat(),),
+            )
+        await db.commit()
+        return cursor.rowcount or 0
+
+
+async def batch_delete_events(start: datetime | None = None, end: datetime | None = None) -> int:
+    """Batch delete events. Returns affected row count."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        if start and end:
+            cursor = await db.execute(
+                "DELETE FROM events WHERE start_time >= ? AND start_time < ?",
+                (start.isoformat(), end.isoformat()),
+            )
+        else:
+            cursor = await db.execute("DELETE FROM events")
+        await db.commit()
+        return cursor.rowcount or 0
 
 
 async def get_stats(date_filter: str = "today") -> dict[str, int | dict[str, int]]:
@@ -709,9 +771,9 @@ async def create_note(note: Note) -> Note:
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            """INSERT INTO notes (content, created_at, updated_at)
-               VALUES (?, ?, ?)""",
-            (note.content, now, now),
+            """INSERT INTO notes (title, content, created_at, updated_at)
+               VALUES (?, ?, ?, ?)""",
+            (note.title, note.content, now, now),
         )
         await db.commit()
         note.id = cursor.lastrowid
@@ -732,6 +794,7 @@ async def get_notes() -> List[Note]:
             for row in rows:
                 notes.append(Note(
                     id=row["id"],
+                    title=row["title"] or "",
                     content=row["content"] or "",
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
@@ -749,6 +812,7 @@ async def get_note(note_id: int) -> Optional[Note]:
                 return None
             return Note(
                 id=row["id"],
+                title=row["title"] or "",
                 content=row["content"] or "",
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
@@ -760,8 +824,8 @@ async def update_note(note_id: int, note: Note) -> Optional[Note]:
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE notes SET content = ?, updated_at = ? WHERE id = ?",
-            (note.content, now, note_id),
+            "UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?",
+            (note.title, note.content, now, note_id),
         )
         await db.commit()
     return await get_note(note_id)
@@ -946,4 +1010,42 @@ async def get_expense_stats(date_filter: str = "month") -> dict[str, Any]:
     return {
         "total": total,
         "by_category": by_category,
+    }
+
+
+async def cleanup_test_entries() -> dict[str, int]:
+    """Delete test/demo/debug entries across events, notes and expenses."""
+    patterns = [
+        "%测试%", "%test%", "%debug%", "%demo%", "%样例%", "%示例%", "%tmp%", "%临时%"
+    ]
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Events by title
+        event_where = " OR ".join(["LOWER(title) LIKE LOWER(?)" for _ in patterns])
+        event_result = await db.execute(
+            f"DELETE FROM events WHERE {event_where}",
+            patterns,
+        )
+
+        # Notes by title/content
+        note_title_where = " OR ".join(["LOWER(title) LIKE LOWER(?)" for _ in patterns])
+        note_content_where = " OR ".join(["LOWER(content) LIKE LOWER(?)" for _ in patterns])
+        note_result = await db.execute(
+            f"DELETE FROM notes WHERE ({note_title_where}) OR ({note_content_where})",
+            patterns + patterns,
+        )
+
+        # Expenses by note
+        expense_where = " OR ".join(["LOWER(note) LIKE LOWER(?)" for _ in patterns])
+        expense_result = await db.execute(
+            f"DELETE FROM expenses WHERE {expense_where}",
+            patterns,
+        )
+
+        await db.commit()
+
+    return {
+        "events_deleted": event_result.rowcount or 0,
+        "notes_deleted": note_result.rowcount or 0,
+        "expenses_deleted": expense_result.rowcount or 0,
     }

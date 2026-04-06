@@ -1,7 +1,8 @@
 """REST API routes for schedule management."""
 import json
+import re
 import aiosqlite
-from datetime import datetime
+from datetime import datetime, timedelta
 from aiohttp import web
 from typing import Any
 
@@ -233,7 +234,6 @@ async def llm_create(request: web.Request) -> web.Response:
         return error_response("输入不能为空")
     
     from .llm_service import llm_service
-    from datetime import datetime, timedelta
     
     print(f"LLM create request: {user_text}")
     result = await llm_service.process_schedule_command(user_text)
@@ -253,9 +253,10 @@ async def llm_create(request: web.Request) -> web.Response:
     if isinstance(events_data, dict):
         events_data = [events_data]
     
-    # Calculate start time for sequential events
-    base_time = datetime.now().replace(second=0, microsecond=0)
-    
+    deadline_dt = _extract_deadline_from_text(user_text)
+    deadline_label = _extract_deadline_label_from_text(user_text)
+    has_explicit_clock_time = _has_explicit_clock_time_in_text(user_text)
+
     for i, event_data in enumerate(events_data):
         title = event_data.get("title", user_text)
         start_time_str = event_data.get("start_time")
@@ -266,18 +267,20 @@ async def llm_create(request: web.Request) -> web.Response:
         start_time = None
         if start_time_str:
             start_time = _parse_datetime(start_time_str)
+
+        # Deterministic deadline guard:
+        # For "X月X号前/之前/以前" without explicit clock time, treat as deadline-type todo
+        # (no concrete timeslot) and preserve warning semantics in title.
+        if deadline_dt and not has_explicit_clock_time:
+            start_time = None
+            if deadline_label:
+                title = _append_deadline_label(title, deadline_label)
         
-        # If no start_time or it's a sequential event after the previous one
-        if not start_time and i > 0 and events_list:
-            # Start after the previous event
-            prev_end = events_list[-1].get("end_time")
-            if prev_end:
-                start_time = prev_end
-        
-        if not start_time:
-            start_time = base_time
-        
-        end_time = start_time + timedelta(minutes=duration_minutes)
+        # Keep no-time/ambiguous-time events as pending-time items.
+        # Only compute end_time when start_time is explicit.
+        end_time = None
+        if start_time:
+            end_time = start_time + timedelta(minutes=duration_minutes)
         
         event = Event(
             title=title,
@@ -299,6 +302,152 @@ async def llm_create(request: web.Request) -> web.Response:
         return error_response(f"创建事件失败")
     
     return json_response([e.to_dict() for e in events_list])
+
+
+async def llm_command(request: web.Request) -> web.Response:
+    """POST /api/llm/command - unified natural language command executor.
+
+    Body: {"text": "删除所有4月5号的代办", "dry_run": true|false}
+    """
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                body_str = body_bytes.decode('gbk')
+            except UnicodeDecodeError:
+                body_str = body_bytes.decode('latin-1')
+        data = json.loads(body_str)
+    except Exception:
+        return error_response("无效的JSON数据")
+
+    user_text = (data.get("text", "") or "").strip()
+    if not user_text:
+        return error_response("输入不能为空")
+
+    dry_run = bool(data.get("dry_run", False))
+
+    from .llm_service import llm_service
+    plan = await llm_service.process_unified_command(user_text)
+    if not plan:
+        return error_response("LLM命令解析失败，请稍后重试")
+
+    operations = plan.get("operations", [])
+    if not isinstance(operations, list) or not operations:
+        return error_response("未解析到可执行操作")
+
+    preview_ops = []
+    created_events = []
+    stats = {
+        "created": 0,
+        "deleted": 0,
+        "completed": 0,
+        "uncompleted": 0,
+    }
+
+    for op in operations:
+        if not isinstance(op, dict):
+            continue
+
+        action = str(op.get("action", "")).strip().lower()
+        if action not in {"create", "delete", "complete", "uncomplete"}:
+            continue
+
+        if action == "create":
+            title = (op.get("title") or user_text).strip()
+            category_id = str(op.get("category_id") or "work")
+            if category_id not in {"work", "life", "study", "health"}:
+                category_id = "work"
+
+            start_time = _parse_datetime(op.get("start_time"))
+            if not start_time:
+                deadline_dt = _extract_deadline_from_text(user_text)
+                if deadline_dt and not _has_explicit_clock_time_in_text(user_text):
+                    start_time = None
+
+            if not start_time:
+                deadline_label = _extract_deadline_label_from_text(user_text)
+                if deadline_label and not _has_explicit_clock_time_in_text(user_text):
+                    title = _append_deadline_label(title, deadline_label)
+
+            try:
+                duration_minutes = int(op.get("duration_minutes", 30))
+            except Exception:
+                duration_minutes = 30
+            duration_minutes = max(5, min(24 * 60, duration_minutes))
+
+            end_time = start_time + timedelta(minutes=duration_minutes) if start_time else None
+
+            preview_item = {
+                "action": "create",
+                "title": title,
+                "start_time": start_time.isoformat() if start_time else None,
+                "duration_minutes": duration_minutes,
+                "category_id": category_id,
+            }
+
+            if not dry_run:
+                event = Event(
+                    title=title,
+                    start_time=start_time,
+                    end_time=end_time,
+                    category_id=category_id,
+                    all_day=False,
+                    recurrence="none",
+                    status="pending",
+                )
+                created = await db.create_event(event)
+                created_events.append(created.to_dict())
+                stats["created"] += 1
+                preview_item["id"] = created.id
+
+            preview_ops.append(preview_item)
+            continue
+
+        scope = str(op.get("scope") or "all").strip().lower()
+        date_str = (op.get("date") or "").strip() if scope == "date" else ""
+
+        start = None
+        end = None
+        if scope == "date":
+            start, end = _parse_date_range(date_str)
+            if not start or not end:
+                preview_ops.append({
+                    "action": action,
+                    "scope": "date",
+                    "date": date_str,
+                    "error": "日期格式无效，应为YYYY-MM-DD",
+                })
+                continue
+
+        preview_item = {
+            "action": action,
+            "scope": scope,
+            "date": date_str if scope == "date" else None,
+        }
+
+        if not dry_run:
+            if action == "delete":
+                affected = await db.batch_delete_events(start, end)
+                stats["deleted"] += affected
+            elif action == "complete":
+                affected = await db.batch_complete_events(start, end)
+                stats["completed"] += affected
+            else:  # uncomplete
+                affected = await db.batch_uncomplete_events(start, end)
+                stats["uncompleted"] += affected
+            preview_item["affected"] = affected
+
+        preview_ops.append(preview_item)
+
+    return json_response({
+        "dry_run": dry_run,
+        "summary": plan.get("summary", ""),
+        "operations": preview_ops,
+        "stats": stats,
+        "created_events": created_events,
+    })
 
 
 async def llm_breakdown(request: web.Request) -> web.Response:
@@ -648,7 +797,10 @@ async def create_note(request: web.Request) -> web.Response:
         return error_response("无效的JSON数据")
 
     try:
-        note = Note(content=data.get("content", "").strip())
+        note = Note(
+            title=(data.get("title", "") or "").strip(),
+            content=(data.get("content", "") or "").strip(),
+        )
         if not note.content:
             return error_response("笔记内容不能为空")
         created = await db.create_note(note)
@@ -674,7 +826,10 @@ async def update_note(request: web.Request) -> web.Response:
         existing = await db.get_note(note_id)
         if not existing:
             return error_response("笔记不存在", code=404)
-        note = Note(content=data.get("content", existing.content).strip())
+        note = Note(
+            title=(data.get("title", existing.title) or "").strip(),
+            content=(data.get("content", existing.content) or "").strip(),
+        )
         updated = await db.update_note(note_id, note)
         if not updated:
             return error_response("笔记不存在", code=404)
@@ -790,6 +945,15 @@ async def get_expense_categories(request: web.Request) -> web.Response:
     return json_response(EXPENSE_CATEGORIES)
 
 
+async def cleanup_test_entries(request: web.Request) -> web.Response:
+    """POST /api/settings/cleanup_test_entries - cleanup test/demo/debug data."""
+    try:
+        result = await db.cleanup_test_entries()
+        return json_response(result)
+    except Exception as e:
+        return error_response(f"清理测试条目失败: {str(e)}")
+
+
 async def llm_parse_expense(request: web.Request) -> web.Response:
     """POST /api/llm/parse_expense - parse natural language expense into structured data.
     
@@ -837,6 +1001,93 @@ def _parse_datetime(value: Any):
     return None
 
 
+def _extract_deadline_from_text(text: str):
+    """Extract absolute deadline datetime for Chinese 'X月X日前/之前' phrases.
+
+    Semantics:
+    - "前" (without "之前") => inclusive end-of-day of the target date (23:59)
+    - "之前" => exclusive of target date, mapped to previous day 23:59
+    """
+    if not text:
+        return None
+
+    now = datetime.now()
+    # Optional year: 2026年4月17号前 / 4月17日前 / 4月17日之前
+    pattern = re.compile(
+        r"(?:(\d{4})\s*年\s*)?(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?\s*(之前|以前|前)"
+    )
+    m = pattern.search(text)
+    if not m:
+        return None
+
+    year_str, month_str, day_str, qualifier = m.groups()
+    year = int(year_str) if year_str else now.year
+    month = int(month_str)
+    day = int(day_str)
+
+    try:
+        base = datetime(year, month, day, 23, 59, 0)
+    except ValueError:
+        return None
+
+    # If year omitted and parsed date already passed this year, roll to next year.
+    if not year_str and base < now - timedelta(days=1):
+        try:
+            base = datetime(year + 1, month, day, 23, 59, 0)
+        except ValueError:
+            return None
+
+    if qualifier in {"之前", "以前"}:
+        return base - timedelta(days=1)
+    return base
+
+
+def _extract_deadline_label_from_text(text: str) -> str:
+    """Return a user-facing deadline label like '截止4月17日'."""
+    dt = _extract_deadline_from_text(text)
+    if not dt:
+        return ""
+
+    now = datetime.now()
+    if dt.year == now.year:
+        return f"截止{dt.month}月{dt.day}日"
+    return f"截止{dt.year}年{dt.month}月{dt.day}日"
+
+
+def _append_deadline_label(title: str, deadline_label: str) -> str:
+    """Append deadline label to title once."""
+    safe_title = (title or "").strip() or "待办"
+    if not deadline_label:
+        return safe_title
+    if deadline_label in safe_title:
+        return safe_title
+    return f"{safe_title}（{deadline_label}）"
+
+
+def _has_explicit_clock_time_in_text(text: str) -> bool:
+    """Whether input includes explicit clock time (e.g. 15:30, 下午3点)."""
+    if not text:
+        return False
+
+    return bool(re.search(
+        r"(\d{1,2}:\d{2})|((?:上午|下午|早上|晚上|中午)?\s*\d{1,2}\s*点(?:半|\d{1,2}\s*分?)?)",
+        text,
+    ))
+
+
+def _parse_date_range(date_str: str):
+    """Parse YYYY-MM-DD into [start_of_day, next_day_start)."""
+    if not date_str:
+        return None, None
+    try:
+        day = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return None, None
+    start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    return start, end
+
+
 def setup_routes(app: web.Application) -> None:
     """Setup all routes."""
     app.router.add_get("/api/events", get_events)
@@ -861,9 +1112,11 @@ def setup_routes(app: web.Application) -> None:
     # Settings endpoints
     app.router.add_get("/api/settings", get_settings)
     app.router.add_put("/api/settings/{key}", update_setting)
+    app.router.add_post("/api/settings/cleanup_test_entries", cleanup_test_entries)
     # LLM endpoints
     app.router.add_post("/api/llm/chat", llm_chat)
     app.router.add_post("/api/llm/create", llm_create)
+    app.router.add_post("/api/llm/command", llm_command)
     app.router.add_post("/api/llm/breakdown", llm_breakdown)
     app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
     # Notes endpoints

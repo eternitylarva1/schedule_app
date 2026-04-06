@@ -133,6 +133,7 @@ EXPENSE_CATEGORIES = [
 class Note:
     """Note model for memo/notepad functionality."""
     id: int | None = None
+    title: str = ""
     content: str = ""
     created_at: datetime | None = None
     updated_at: datetime | None = None
