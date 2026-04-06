@@ -2723,6 +2723,74 @@ textarea {
     transition: all var(--transition-fast);
 }
 
+.note-actions-hint {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.note-edit-textarea {
+    width: 100%;
+    min-height: 180px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    line-height: 1.6;
+    resize: vertical;
+}
+
+/* Swipe common */
+.swipe-item {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-sm);
+}
+
+.swipe-action {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: #fff;
+    z-index: 1;
+    user-select: none;
+}
+
+.swipe-action-left {
+    left: 0;
+    background: #2563eb;
+}
+
+.swipe-action-right {
+    right: 0;
+    background: #dc2626;
+}
+
+.swipe-content {
+    position: relative;
+    z-index: 2;
+    transition: transform 160ms ease;
+    will-change: transform;
+}
+
+.swipe-content.dragging {
+    transition: none;
+}
+
+.note-swipe .note-item,
+.expense-swipe .expense-item {
+    margin-bottom: 0;
+    border-radius: var(--radius-md);
+}
+
 .note-item:active {
     transform: scale(0.98);
 }

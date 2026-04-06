@@ -1810,7 +1810,9 @@
                 tab.addEventListener('click', async () => {
                     const subtype = tab.dataset.subtype;
                     state.notepadSubview = subtype;
-                    tabs.forEach(t => t.classList.remove('active'));
+                    tabs.forEach((t) => {
+                        t.classList.remove('active');
+                    });
                     tab.classList.add('active');
                     await renderNotepadContent();
                 });
@@ -1913,13 +1915,16 @@
         }
         
         container.innerHTML = notes.map(note => `
-            <div class="note-item" data-note-id="${note.id}">
-                <div class="note-content">${escapeHtml(note.content)}</div>
-                <div class="note-meta">
-                    <span class="note-time">${formatNoteTime(note.created_at)}</span>
-                    <div class="note-actions">
-                        <button class="note-action-btn edit-btn" data-action="edit" data-note-id="${note.id}">✏️</button>
-                        <button class="note-action-btn delete-btn" data-action="delete" data-note-id="${note.id}">🗑️</button>
+            <div class="swipe-item note-swipe" data-note-id="${note.id}">
+                <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">编辑</div>
+                <div class="swipe-action swipe-action-right" data-action="delete" data-note-id="${note.id}">删除</div>
+                <div class="swipe-content">
+                    <div class="note-item" data-note-id="${note.id}">
+                        <div class="note-content">${escapeHtml(note.content)}</div>
+                        <div class="note-meta">
+                            <span class="note-time">${formatNoteTime(note.created_at)}</span>
+                            <div class="note-actions-hint">↔ 左右滑快捷操作</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1928,14 +1933,16 @@
         // Bind note item events
         container.querySelectorAll('.note-item').forEach(item => {
             item.addEventListener('click', (e) => {
-                if (e.target.closest('.note-action-btn')) return;
+                if (e.target.closest('.swipe-action')) return;
                 const noteId = parseInt(item.dataset.noteId);
                 const note = state.notes.find(n => n.id === noteId);
                 if (note) showNoteDetail(note);
             });
         });
-        
-        container.querySelectorAll('.note-action-btn').forEach(btn => {
+
+        // Swipe actions
+        container.querySelectorAll('.note-swipe').forEach(bindSwipeItem);
+        container.querySelectorAll('.note-swipe .swipe-action').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const action = btn.dataset.action;
@@ -2041,14 +2048,65 @@
     }
 
     async function showNoteEdit(note) {
-        const newContent = prompt('编辑笔记内容：', note.content);
-        if (newContent !== null && newContent.trim() !== note.content) {
-            const result = await updateNote(note.id, newContent.trim());
+        const existingModal = document.getElementById('noteEditModal');
+        if (existingModal) existingModal.remove();
+
+        const editHtml = `
+            <div class="modal" id="noteEditModal">
+                <div class="modal-backdrop" id="noteEditBackdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>编辑笔记</h2>
+                        <button class="modal-close" id="noteEditClose">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <textarea id="noteEditTextarea" class="note-edit-textarea">${escapeHtml(note.content)}</textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn" id="noteEditCancel">取消</button>
+                        <button class="btn btn-primary" id="noteEditSave">保存</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', editHtml);
+
+        const modal = document.getElementById('noteEditModal');
+        const backdrop = document.getElementById('noteEditBackdrop');
+        const closeBtn = document.getElementById('noteEditClose');
+        const cancelBtn = document.getElementById('noteEditCancel');
+        const saveBtn = document.getElementById('noteEditSave');
+        const textarea = document.getElementById('noteEditTextarea');
+
+        const closeModal = () => modal.remove();
+        backdrop.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+
+        saveBtn.addEventListener('click', async () => {
+            const newContent = textarea.value.trim();
+            if (!newContent) {
+                showToast('内容不能为空');
+                return;
+            }
+            if (newContent === note.content) {
+                closeModal();
+                return;
+            }
+            const result = await updateNote(note.id, newContent);
             if (result) {
                 showToast('笔记已更新');
+                closeModal();
                 await renderNotesList();
             }
-        }
+        });
+
+        requestAnimationFrame(() => {
+            modal.classList.remove('hidden');
+            textarea.focus();
+            textarea.selectionStart = textarea.value.length;
+        });
     }
 
     async function renderExpenseList() {
@@ -2121,14 +2179,19 @@
                     ${dayExpenses.map(exp => {
                         const cat = state.expenseCategories.find(c => c.id === exp.category) || { name: '其他', color: '#6B7280' };
                         return `
-                            <div class="expense-item" data-expense-id="${exp.id}">
-                                <div class="expense-item-left">
-                                    <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
-                                    <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
-                                </div>
-                                <div class="expense-item-right">
-                                    <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
-                                    <button class="expense-action-btn delete" data-action="delete" data-expense-id="${exp.id}">×</button>
+                            <div class="swipe-item expense-swipe" data-expense-id="${exp.id}">
+                                <div class="swipe-action swipe-action-left" data-action="reuse" data-expense-id="${exp.id}">复用</div>
+                                <div class="swipe-action swipe-action-right" data-action="delete" data-expense-id="${exp.id}">删除</div>
+                                <div class="swipe-content">
+                                    <div class="expense-item" data-expense-id="${exp.id}">
+                                        <div class="expense-item-left">
+                                            <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
+                                            <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
+                                        </div>
+                                        <div class="expense-item-right">
+                                            <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         `;
@@ -2140,17 +2203,85 @@
         listHtml += '</div>';
         container.innerHTML = listHtml;
         
-        // Bind delete events
-        container.querySelectorAll('.expense-action-btn.delete').forEach(btn => {
+        // Swipe actions
+        container.querySelectorAll('.expense-swipe').forEach(bindSwipeItem);
+        container.querySelectorAll('.expense-swipe .swipe-action').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                const action = btn.dataset.action;
                 const expenseId = parseInt(btn.dataset.expenseId);
-                const confirmed = await showConfirm('确定删除这条记账记录吗？');
-                if (confirmed) {
-                    await deleteExpense(expenseId);
-                    showToast('已删除');
-                    await renderExpenseList();
+                const exp = state.expenses.find(x => x.id === expenseId);
+                if (!exp) return;
+
+                if (action === 'reuse') {
+                    if (elements.notepadInput) {
+                        elements.notepadInput.value = `${exp.note || ''}${exp.amount ? ` ${exp.amount}块` : ''}`.trim();
+                        elements.notepadInput.focus();
+                    }
+                    showToast('已填入输入框，可直接调整后添加');
+                } else if (action === 'delete') {
+                    const confirmed = await showConfirm('确定删除这条记账记录吗？');
+                    if (confirmed) {
+                        await deleteExpense(expenseId);
+                        showToast('已删除');
+                        await renderExpenseList();
+                    }
                 }
+            });
+        });
+    }
+
+    function bindSwipeItem(itemEl) {
+        const contentEl = itemEl.querySelector('.swipe-content');
+        if (!contentEl) return;
+
+        let startX = 0;
+        let currentX = 0;
+        let dragging = false;
+
+        const setTranslate = (x) => {
+            contentEl.style.transform = `translateX(${x}px)`;
+        };
+
+        const onStart = (clientX) => {
+            dragging = true;
+            startX = clientX;
+            currentX = 0;
+            contentEl.classList.add('dragging');
+        };
+
+        const onMove = (clientX) => {
+            if (!dragging) return;
+            const delta = clientX - startX;
+            currentX = Math.max(-88, Math.min(88, delta));
+            setTranslate(currentX);
+        };
+
+        const onEnd = () => {
+            if (!dragging) return;
+            dragging = false;
+            contentEl.classList.remove('dragging');
+            if (currentX > 42) {
+                setTranslate(72);
+            } else if (currentX < -42) {
+                setTranslate(-72);
+            } else {
+                setTranslate(0);
+            }
+        };
+
+        contentEl.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX), { passive: true });
+        contentEl.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX), { passive: true });
+        contentEl.addEventListener('touchend', onEnd, { passive: true });
+
+        contentEl.addEventListener('mousedown', (e) => onStart(e.clientX));
+        contentEl.addEventListener('mousemove', (e) => onMove(e.clientX));
+        contentEl.addEventListener('mouseup', onEnd);
+        contentEl.addEventListener('mouseleave', onEnd);
+
+        itemEl.querySelectorAll('.swipe-action').forEach(action => {
+            action.addEventListener('click', () => {
+                setTranslate(0);
             });
         });
     }
