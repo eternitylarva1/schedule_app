@@ -80,6 +80,7 @@
         ],
         expenseStats: { total: 0, by_category: {} },
         selectedNote: null,
+        notepadSwipeGlobalBound: false,
     };
 
     // ============================================
@@ -87,6 +88,7 @@
     // ============================================
     const elements = {
         app: document.getElementById('app'),
+        header: document.querySelector('.header'),
         headerTitle: document.getElementById('headerTitle'),
         prevBtn: document.getElementById('prevBtn'),
         nextBtn: document.getElementById('nextBtn'),
@@ -245,6 +247,13 @@
             dates.push(date);
         }
         return dates;
+    }
+
+    function getCompactTitle(title, maxChars = 8) {
+        const text = String(title || '').trim();
+        if (!text) return '';
+        if (text.length <= maxChars) return text;
+        return `${text.slice(0, maxChars)}…`;
     }
 
     function getEventTop(event) {
@@ -626,6 +635,13 @@
         });
     }
 
+    async function cleanupTestEntries() {
+        return await apiCall('settings/cleanup_test_entries', {
+            method: 'POST',
+            body: JSON.stringify({})
+        });
+    }
+
     async function deleteEvent(eventId) {
         return await apiCall(`events/${eventId}`, {
             method: 'DELETE'
@@ -651,6 +667,13 @@
         });
     }
 
+    async function executeUnifiedLlmCommand(text, dryRun = false) {
+        return await apiCall('llm/command', {
+            method: 'POST',
+            body: JSON.stringify({ text: text, dry_run: !!dryRun })
+        });
+    }
+
     // ============================================
     // Notes API Functions
     // ============================================
@@ -663,17 +686,29 @@
         return [];
     }
 
-    async function createNote(content) {
+    async function createNote(noteInput) {
+        const payload = typeof noteInput === 'string'
+            ? { title: '', content: noteInput }
+            : {
+                title: (noteInput?.title || '').trim(),
+                content: (noteInput?.content || '').trim(),
+            };
         return await apiCall('notes', {
             method: 'POST',
-            body: JSON.stringify({ content: content })
+            body: JSON.stringify(payload)
         });
     }
 
-    async function updateNote(noteId, content) {
+    async function updateNote(noteId, noteInput) {
+        const payload = typeof noteInput === 'string'
+            ? { title: '', content: noteInput }
+            : {
+                title: (noteInput?.title || '').trim(),
+                content: (noteInput?.content || '').trim(),
+            };
         return await apiCall(`notes/${noteId}`, {
             method: 'PUT',
-            body: JSON.stringify({ content: content })
+            body: JSON.stringify(payload)
         });
     }
 
@@ -835,6 +870,8 @@
             elements.headerTitle.textContent = '规划';
         } else if (state.currentView === 'stats') {
             elements.headerTitle.textContent = '统计';
+        } else if (state.currentView === 'notepad') {
+            elements.headerTitle.textContent = state.notepadSubview === 'expense' ? '记账' : '笔记';
         }
     }
 
@@ -1044,20 +1081,30 @@
 
     function renderWeekView() {
         const weekDates = getWeekDates(state.currentDate);
+        const weekHourHeight = 48;
+        const clampMinutes = (minutes) => Math.max(0, Math.min(24 * 60, minutes));
+        const weekBody = document.querySelector('.week-body');
         
         // Render time axis on the left
         const weekTimeAxis = elements.weekTimeAxis;
         weekTimeAxis.innerHTML = '';
+
+        // Keep time axis inside the same scroll container as week grid
+        if (weekBody && weekTimeAxis.parentElement !== weekBody) {
+            weekBody.prepend(weekTimeAxis);
+        }
         
-        // Show hours: 0, 6, 12, 18 (every 6 hours)
-        [0, 6, 12, 18, 24].forEach(hour => {
+        // Show hours every 2h to keep temporal relation clear
+        for (let hour = 0; hour <= 24; hour += 2) {
             const label = document.createElement('div');
             label.className = 'week-time-label';
-            const topPercent = (hour / 24) * 100;
-            label.style.top = `${topPercent}%`;
+            label.style.top = `${hour * weekHourHeight}px`;
+            if (hour === 24) {
+                label.classList.add('is-end');
+            }
             label.textContent = `${String(hour).padStart(2, '0')}:00`;
             weekTimeAxis.appendChild(label);
-        });
+        }
         
         // Render week header
         const weekHeader = elements.weekHeader;
@@ -1094,24 +1141,39 @@
                 cell.classList.add('today');
             }
             
-            // Get events for this day (all events, not just 3)
+            // Get events for this day
             const dayEvents = state.events.filter(event => {
                 if (!event.start_time) return false;
                 return isSameDay(event.start_time, date);
-            });
+            }).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
             
             // Create events container
             const eventsDiv = document.createElement('div');
             eventsDiv.className = 'week-cell-events';
             
             dayEvents.forEach(event => {
+                const start = new Date(event.start_time);
+                const fallbackEnd = new Date(start.getTime() + 30 * 60 * 1000);
+                const end = event.end_time ? new Date(event.end_time) : fallbackEnd;
+
+                const startMinutes = clampMinutes(start.getHours() * 60 + start.getMinutes());
+                let endMinutes = clampMinutes(end.getHours() * 60 + end.getMinutes());
+                if (endMinutes <= startMinutes) {
+                    endMinutes = clampMinutes(startMinutes + 30);
+                }
+
+                const topPx = (startMinutes / 60) * weekHourHeight;
+                const heightPx = Math.max(20, ((endMinutes - startMinutes) / 60) * weekHourHeight);
+
                 const eventEl = document.createElement('div');
                 eventEl.className = 'week-event';
                 eventEl.style.setProperty('--event-color', getCategoryColor(event.category_id));
+                eventEl.style.top = `${topPx}px`;
+                eventEl.style.height = `${heightPx}px`;
                 
                 const titleEl = document.createElement('div');
                 titleEl.className = 'week-event-title';
-                titleEl.textContent = event.title;
+                titleEl.textContent = getCompactTitle(event.title, 8);
                 
                 const timeEl = document.createElement('div');
                 timeEl.className = 'week-event-time';
@@ -1154,6 +1216,30 @@
             weekGrid.appendChild(cell);
         });
 
+        // Current time marker in week view (today's column)
+        const oldNowLine = weekBody?.querySelector('.week-now-line');
+        if (oldNowLine) oldNowLine.remove();
+
+        const now = new Date();
+        const todayIndex = weekDates.findIndex(d => isSameDay(d, now));
+        if (weekBody && todayIndex >= 0) {
+            const nowMinutes = clampMinutes(now.getHours() * 60 + now.getMinutes());
+            const nowTopPx = (nowMinutes / 60) * weekHourHeight;
+
+            const nowLine = document.createElement('div');
+            nowLine.className = 'week-now-line';
+            nowLine.style.top = `${nowTopPx}px`;
+            nowLine.style.left = `calc(52px + (${todayIndex} * (100% - 52px) / 7))`;
+            nowLine.style.width = `calc((100% - 52px) / 7)`;
+
+            const nowLabel = document.createElement('span');
+            nowLabel.className = 'week-now-label';
+            nowLabel.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            nowLine.appendChild(nowLabel);
+            weekBody.appendChild(nowLine);
+        }
+
         // Ensure users can see current-time events (e.g. evening tasks) on first entry
         scrollWeekViewToCurrentTime(weekDates);
     }
@@ -1162,6 +1248,8 @@
         const weekBody = document.querySelector('.week-body');
         if (!weekBody) return;
 
+        const weekHourHeight = 48;
+
         const now = new Date();
         const isCurrentWeek = weekDates.some(d => isSameDay(d, now));
         if (!isCurrentWeek) {
@@ -1169,9 +1257,9 @@
             return;
         }
 
-        // Keep current-time area visible (renderer uses ~120px for 24h in each cell)
+        // Keep current-time area visible in the 24h timeline
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
-        const targetTop = Math.max(0, Math.floor((totalMinutes / (24 * 60)) * 120) - 40);
+        const targetTop = Math.max(0, Math.floor((totalMinutes / 60) * weekHourHeight) - weekHourHeight * 2);
         weekBody.scrollTop = targetTop;
     }
 
@@ -1271,7 +1359,7 @@
                 eventEl.className = 'month-event';
                 eventEl.style.setProperty('--event-color', getCategoryColor(event.category_id));
                 eventEl.innerHTML = `
-                    <div class="month-event-title">${escapeHtml(event.title)}</div>
+                    <div class="month-event-title">${escapeHtml(getCompactTitle(event.title, 6))}</div>
                     <div class="month-event-time">${escapeHtml(formatTimeRange(event))}</div>
                 `;
                 
@@ -1363,8 +1451,9 @@
         // Render groups
         Object.keys(grouped)
             .sort((a, b) => {
-                if (a === NO_TIME_KEY) return 1;
-                if (b === NO_TIME_KEY) return -1;
+                // Keep no-time/deadline warnings pinned at the top for daily visibility
+                if (a === NO_TIME_KEY) return -1;
+                if (b === NO_TIME_KEY) return 1;
                 return a.localeCompare(b);
             })
             .forEach(dateKey => {
@@ -1378,13 +1467,23 @@
             
             let dateLabel;
             if (isNoTimeGroup) {
-                dateLabel = '无明确时间';
+                dateLabel = '截止提醒 / 无明确时间';
             } else if (isSameDay(date, today)) {
                 dateLabel = '今天';
             } else if (isSameDay(date, tomorrow)) {
                 dateLabel = '明天';
             } else {
                 dateLabel = formatDate(date, 'month-day');
+            }
+
+            if (isNoTimeGroup) {
+                // Put explicit deadline items first within no-time group
+                events.sort((a, b) => {
+                    const aDeadline = /截止\d{1,2}月\d{1,2}日/.test(String(a.title || ''));
+                    const bDeadline = /截止\d{1,2}月\d{1,2}日/.test(String(b.title || ''));
+                    if (aDeadline === bDeadline) return 0;
+                    return aDeadline ? -1 : 1;
+                });
             }
             
             const groupEl = document.createElement('div');
@@ -1830,6 +1929,12 @@
             
             // Render content based on subview
             await renderNotepadContent();
+
+            // Update FAB style for notepad mode
+            if (elements.contentAddBtn) {
+                elements.contentAddBtn.textContent = '+';
+                elements.contentAddBtn.title = state.notepadSubview === 'expense' ? '快速记账' : '新建笔记';
+            }
         } catch (err) {
             console.error('renderNotepadView error:', err);
             if (elements.notepadContainer) {
@@ -1916,14 +2021,15 @@
         
         container.innerHTML = notes.map(note => `
             <div class="swipe-item note-swipe" data-note-id="${note.id}">
-                <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">编辑</div>
-                <div class="swipe-action swipe-action-right" data-action="delete" data-note-id="${note.id}">删除</div>
+                <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">✏️ 编辑</div>
+                <div class="swipe-action swipe-action-right" data-action="delete" data-note-id="${note.id}">🗑️ 删除</div>
                 <div class="swipe-content">
                     <div class="note-item" data-note-id="${note.id}">
+                        ${note.title ? `<div class="note-title">${escapeHtml(note.title)}</div>` : ''}
                         <div class="note-content">${escapeHtml(note.content)}</div>
                         <div class="note-meta">
                             <span class="note-time">${formatNoteTime(note.created_at)}</span>
-                            <div class="note-actions-hint">↔ 左右滑快捷操作</div>
+                            <div class="note-actions-hint">↔ 右滑编辑 / 左滑删除</div>
                         </div>
                     </div>
                 </div>
@@ -1934,6 +2040,11 @@
         container.querySelectorAll('.note-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 if (e.target.closest('.swipe-action')) return;
+                const parentSwipe = item.closest('.swipe-item');
+                if (parentSwipe && parentSwipe.classList.contains('swipe-open')) {
+                    closeAllOpenSwipeItems();
+                    return;
+                }
                 const noteId = parseInt(item.dataset.noteId);
                 const note = state.notes.find(n => n.id === noteId);
                 if (note) showNoteDetail(note);
@@ -1995,6 +2106,7 @@
                         <button class="modal-close" id="noteDetailClose">×</button>
                     </div>
                     <div class="modal-body">
+                        ${note.title ? `<div class="note-detail-title">${escapeHtml(note.title)}</div>` : ''}
                         <div class="note-detail-content">${escapeHtml(note.content)}</div>
                         <div class="note-detail-time">${formatNoteTime(note.created_at)}</div>
                     </div>
@@ -2060,6 +2172,7 @@
                         <button class="modal-close" id="noteEditClose">×</button>
                     </div>
                     <div class="modal-body">
+                        <input type="text" id="noteEditTitle" class="note-edit-title-input" placeholder="标题（可选）" value="${escapeHtml(note.title || '')}">
                         <textarea id="noteEditTextarea" class="note-edit-textarea">${escapeHtml(note.content)}</textarea>
                     </div>
                     <div class="modal-footer">
@@ -2077,6 +2190,7 @@
         const closeBtn = document.getElementById('noteEditClose');
         const cancelBtn = document.getElementById('noteEditCancel');
         const saveBtn = document.getElementById('noteEditSave');
+        const titleInput = document.getElementById('noteEditTitle');
         const textarea = document.getElementById('noteEditTextarea');
 
         const closeModal = () => modal.remove();
@@ -2086,15 +2200,19 @@
 
         saveBtn.addEventListener('click', async () => {
             const newContent = textarea.value.trim();
+            const newTitle = (titleInput?.value || '').trim();
             if (!newContent) {
                 showToast('内容不能为空');
                 return;
             }
-            if (newContent === note.content) {
+            if (newContent === note.content && newTitle === (note.title || '')) {
                 closeModal();
                 return;
             }
-            const result = await updateNote(note.id, newContent);
+            const result = await updateNote(note.id, {
+                title: newTitle,
+                content: newContent,
+            });
             if (result) {
                 showToast('笔记已更新');
                 closeModal();
@@ -2180,8 +2298,8 @@
                         const cat = state.expenseCategories.find(c => c.id === exp.category) || { name: '其他', color: '#6B7280' };
                         return `
                             <div class="swipe-item expense-swipe" data-expense-id="${exp.id}">
-                                <div class="swipe-action swipe-action-left" data-action="reuse" data-expense-id="${exp.id}">复用</div>
-                                <div class="swipe-action swipe-action-right" data-action="delete" data-expense-id="${exp.id}">删除</div>
+                                <div class="swipe-action swipe-action-left" data-action="reuse" data-expense-id="${exp.id}">↺ 复用</div>
+                                <div class="swipe-action swipe-action-right" data-action="delete" data-expense-id="${exp.id}">🗑️ 删除</div>
                                 <div class="swipe-content">
                                     <div class="expense-item" data-expense-id="${exp.id}">
                                         <div class="expense-item-left">
@@ -2231,29 +2349,86 @@
         });
     }
 
+    function closeAllOpenSwipeItems(exceptEl = null) {
+        document.querySelectorAll('.swipe-item.swipe-open').forEach((openEl) => {
+            if (exceptEl && openEl === exceptEl) return;
+            const openContent = openEl.querySelector('.swipe-content');
+            if (openContent) {
+                openContent.style.transform = 'translateX(0px)';
+            }
+            openEl.classList.remove('swipe-open', 'swipe-open-left', 'swipe-open-right');
+        });
+    }
+
     function bindSwipeItem(itemEl) {
+        if (!itemEl || itemEl.dataset.swipeBound === '1') return;
+        itemEl.dataset.swipeBound = '1';
+
         const contentEl = itemEl.querySelector('.swipe-content');
         if (!contentEl) return;
 
+        const actionWidth = 82;
+        const openThreshold = 50;
+        const axisLockThreshold = 8;
+
         let startX = 0;
+        let startY = 0;
         let currentX = 0;
+        let baseX = 0;
         let dragging = false;
+        let axisLocked = false;
+        let horizontalDrag = false;
 
         const setTranslate = (x) => {
             contentEl.style.transform = `translateX(${x}px)`;
         };
 
-        const onStart = (clientX) => {
+        const openTo = (x) => {
+            const finalX = Math.max(-actionWidth, Math.min(actionWidth, x));
+            setTranslate(finalX);
+            itemEl.classList.toggle('swipe-open', finalX !== 0);
+            itemEl.classList.toggle('swipe-open-left', finalX > 0);
+            itemEl.classList.toggle('swipe-open-right', finalX < 0);
+        };
+
+        const closeSelf = () => {
+            openTo(0);
+        };
+
+        const onStart = (clientX, clientY) => {
+            closeAllOpenSwipeItems(itemEl);
             dragging = true;
             startX = clientX;
-            currentX = 0;
+            startY = clientY;
+            axisLocked = false;
+            horizontalDrag = false;
+            baseX = itemEl.classList.contains('swipe-open-left')
+                ? actionWidth
+                : itemEl.classList.contains('swipe-open-right')
+                    ? -actionWidth
+                    : 0;
+            currentX = baseX;
             contentEl.classList.add('dragging');
         };
 
-        const onMove = (clientX) => {
+        const onMove = (clientX, clientY, originalEvent = null) => {
             if (!dragging) return;
-            const delta = clientX - startX;
-            currentX = Math.max(-88, Math.min(88, delta));
+
+            const deltaX = clientX - startX;
+            const deltaY = clientY - startY;
+
+            if (!axisLocked && (Math.abs(deltaX) > axisLockThreshold || Math.abs(deltaY) > axisLockThreshold)) {
+                axisLocked = true;
+                horizontalDrag = Math.abs(deltaX) >= Math.abs(deltaY);
+            }
+
+            if (!horizontalDrag) return;
+
+            if (originalEvent && typeof originalEvent.preventDefault === 'function' && originalEvent.cancelable) {
+                originalEvent.preventDefault();
+            }
+
+            currentX = Math.max(-actionWidth, Math.min(actionWidth, baseX + deltaX));
             setTranslate(currentX);
         };
 
@@ -2261,28 +2436,101 @@
             if (!dragging) return;
             dragging = false;
             contentEl.classList.remove('dragging');
-            if (currentX > 42) {
-                setTranslate(72);
-            } else if (currentX < -42) {
-                setTranslate(-72);
-            } else {
-                setTranslate(0);
+
+            if (!horizontalDrag) {
+                setTranslate(baseX);
+                return;
             }
+
+            if (currentX > openThreshold) {
+                openTo(actionWidth);
+            } else if (currentX < -openThreshold) {
+                openTo(-actionWidth);
+            } else {
+                closeSelf();
+            }
+
+            axisLocked = false;
+            horizontalDrag = false;
         };
 
-        contentEl.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX), { passive: true });
-        contentEl.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX), { passive: true });
+        contentEl.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+        contentEl.addEventListener('touchmove', (e) => onMove(e.touches[0].clientX, e.touches[0].clientY, e), { passive: false });
         contentEl.addEventListener('touchend', onEnd, { passive: true });
+        contentEl.addEventListener('touchcancel', onEnd, { passive: true });
 
-        contentEl.addEventListener('mousedown', (e) => onStart(e.clientX));
-        contentEl.addEventListener('mousemove', (e) => onMove(e.clientX));
+        contentEl.addEventListener('mousedown', (e) => onStart(e.clientX, e.clientY));
+        contentEl.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY, e));
         contentEl.addEventListener('mouseup', onEnd);
         contentEl.addEventListener('mouseleave', onEnd);
 
-        itemEl.querySelectorAll('.swipe-action').forEach(action => {
-            action.addEventListener('click', () => {
-                setTranslate(0);
-            });
+        if (!state.notepadSwipeGlobalBound) {
+            document.addEventListener('click', (e) => {
+                if (!(e.target instanceof Element)) return;
+                if (e.target.closest('.swipe-item')) return;
+                closeAllOpenSwipeItems();
+            }, true);
+            state.notepadSwipeGlobalBound = true;
+        }
+    }
+
+    async function showQuickNoteCreateModal() {
+        const existingModal = document.getElementById('quickNoteCreateModal');
+        if (existingModal) existingModal.remove();
+
+        const createHtml = `
+            <div class="modal" id="quickNoteCreateModal">
+                <div class="modal-backdrop" id="quickNoteCreateBackdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>新建笔记</h2>
+                        <button class="modal-close" id="quickNoteCreateClose">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="text" id="quickNoteTitle" class="note-edit-title-input" placeholder="标题（可选）" />
+                        <textarea id="quickNoteContent" class="note-edit-textarea" placeholder="输入笔记内容..."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn" id="quickNoteCancel">取消</button>
+                        <button class="btn btn-primary" id="quickNoteSave">保存</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', createHtml);
+
+        const modal = document.getElementById('quickNoteCreateModal');
+        const backdrop = document.getElementById('quickNoteCreateBackdrop');
+        const closeBtn = document.getElementById('quickNoteCreateClose');
+        const cancelBtn = document.getElementById('quickNoteCancel');
+        const saveBtn = document.getElementById('quickNoteSave');
+        const titleInput = document.getElementById('quickNoteTitle');
+        const contentInput = document.getElementById('quickNoteContent');
+
+        const closeModal = () => modal.remove();
+        backdrop.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+
+        saveBtn.addEventListener('click', async () => {
+            const title = (titleInput?.value || '').trim();
+            const content = (contentInput?.value || '').trim();
+            if (!content) {
+                showToast('请输入笔记内容');
+                return;
+            }
+            const result = await createNote({ title, content });
+            if (result) {
+                showToast('笔记已保存');
+                closeModal();
+                await renderNotesList();
+            }
+        });
+
+        requestAnimationFrame(() => {
+            modal.classList.remove('hidden');
+            contentInput.focus();
         });
     }
 
@@ -2415,9 +2663,18 @@
         
         stopStatsClock();
 
-        // Show/hide floating add button (in calendar subviews or todo)
-        if (view === 'day' || view === 'todo') {
+        // Immersive notepad mode: hide top chrome and keep scrolling local
+        if (elements.app) {
+            elements.app.classList.toggle('notepad-immersive', view === 'notepad');
+        }
+
+        // Show/hide floating add button (day/todo/notepad)
+        if (view === 'day' || view === 'todo' || view === 'notepad') {
             elements.contentAddBtn.classList.remove('hidden');
+            elements.contentAddBtn.textContent = '+';
+            elements.contentAddBtn.title = view === 'notepad'
+                ? (state.notepadSubview === 'expense' ? '快速记账' : '新建笔记')
+                : '新建日程';
         } else {
             elements.contentAddBtn.classList.add('hidden');
         }
@@ -3135,6 +3392,83 @@
         }
     }
 
+    async function handleCleanupTestEntries() {
+        const confirmed = await showConfirm('确定一键清理测试条目吗？\n将删除包含“测试/test/demo/debug/样例/示例/tmp/临时”等关键词的日程、笔记和记账条目。');
+        if (!confirmed) return;
+
+        const result = await cleanupTestEntries();
+        if (!result) {
+            showToast('清理失败，请稍后重试');
+            return;
+        }
+
+        const eventsDeleted = Number(result.events_deleted || 0);
+        const notesDeleted = Number(result.notes_deleted || 0);
+        const expensesDeleted = Number(result.expenses_deleted || 0);
+        const totalDeleted = eventsDeleted + notesDeleted + expensesDeleted;
+
+        showToast(`已清理 ${totalDeleted} 条（日程${eventsDeleted} / 笔记${notesDeleted} / 记账${expensesDeleted}）`);
+
+        await loadData();
+        if (state.currentView === 'notepad') {
+            await renderNotepadView();
+        }
+    }
+
+    function showSemanticHelpModal() {
+        const existing = document.getElementById('semanticHelpModal');
+        if (existing) existing.remove();
+
+        const helpHtml = `
+            <div class="modal" id="semanticHelpModal">
+                <div class="modal-backdrop" id="semanticHelpBackdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>统一语义解析说明</h2>
+                        <button class="modal-close" id="semanticHelpClose">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="settings-item-desc" style="line-height:1.7; color:var(--text-primary)">
+                            当前支持你在顶部自然语言输入框里，直接用一句话执行日程/待办操作：
+                        </div>
+                        <ul style="margin:10px 0 0 18px; padding:0; line-height:1.8; color:var(--text-primary)">
+                            <li><strong>创建任务</strong>：如“明天下午3点开组会”</li>
+                            <li><strong>删除任务</strong>：如“删除所有4月5号的代办”</li>
+                            <li><strong>完成任务</strong>：如“完成所有代办”</li>
+                            <li><strong>撤销完成</strong>：如“把今天完成的都改回待办”</li>
+                            <li><strong>批量多操作</strong>：一条输入可解析为多个顺序操作</li>
+                            <li><strong>安全确认</strong>：删除/批量状态变更会先弹窗确认</li>
+                            <li><strong>时间语义</strong>：
+                                “4月17号前”按 4/17 23:59 处理；
+                                “4月17号之前/以前”按 4/16 23:59 处理；
+                                没有明确时间可保留为无明确时间
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" id="semanticHelpOk">我知道了</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', helpHtml);
+
+        const modal = document.getElementById('semanticHelpModal');
+        const backdrop = document.getElementById('semanticHelpBackdrop');
+        const closeBtn = document.getElementById('semanticHelpClose');
+        const okBtn = document.getElementById('semanticHelpOk');
+
+        const closeModal = () => modal?.remove();
+        backdrop?.addEventListener('click', closeModal);
+        closeBtn?.addEventListener('click', closeModal);
+        okBtn?.addEventListener('click', closeModal);
+
+        requestAnimationFrame(() => {
+            modal?.classList.remove('hidden');
+        });
+    }
+
     async function analyzeBreakdown() {
         const text = elements.breakdownInput.value.trim();
         if (!text) {
@@ -3407,20 +3741,59 @@
         elements.llmBtn.textContent = '⏳';
         
         try {
-            const result = await createEventWithLLM(text);
-            if (result) {
-                const count = Array.isArray(result) ? result.length : 1;
-                if (count > 1) {
-                    showToast(`✅ ${count}个日程已创建`);
-                } else {
-                    showToast('✅ 日程已创建');
+            // Unified path: supports create/delete/complete/uncomplete and multi-ops.
+            const preview = await executeUnifiedLlmCommand(text, true);
+            if (!preview) {
+                throw new Error('AI解析失败');
+            }
+
+            const operations = Array.isArray(preview.operations) ? preview.operations : [];
+            if (operations.length === 0) {
+                throw new Error('未解析到可执行操作');
+            }
+
+            // For destructive or bulk updates, require confirmation after preview.
+            const hasMutatingBatch = operations.some((op) => op.action !== 'create');
+            if (hasMutatingBatch) {
+                const summary = preview.summary || operations.map((op) => {
+                    if (op.action === 'create') return `创建 ${op.title || '日程'}`;
+                    if (op.scope === 'date') return `${op.action} ${op.date || ''}`;
+                    return `${op.action} 全部`;
+                }).join('；');
+                const confirmed = await showConfirm(`将执行以下操作：\n${summary}\n\n确认执行吗？`);
+                if (!confirmed) {
+                    showToast('已取消');
+                    return;
                 }
+            }
+
+            const result = await executeUnifiedLlmCommand(text, false);
+            if (result) {
+                const stats = result.stats || {};
+                const created = Number(stats.created || 0);
+                const deleted = Number(stats.deleted || 0);
+                const completed = Number(stats.completed || 0);
+                const uncompleted = Number(stats.uncompleted || 0);
+
+                if (deleted > 0 || completed > 0 || uncompleted > 0) {
+                    const parts = [];
+                    if (created > 0) parts.push(`创建${created}`);
+                    if (deleted > 0) parts.push(`删除${deleted}`);
+                    if (completed > 0) parts.push(`完成${completed}`);
+                    if (uncompleted > 0) parts.push(`撤销完成${uncompleted}`);
+                    showToast(`✅ 已执行：${parts.join(' / ')}`);
+                } else {
+                    if (created > 1) showToast(`✅ ${created}个日程已创建`);
+                    else if (created === 1) showToast('✅ 日程已创建');
+                    else showToast('✅ 已执行');
+                }
+
                 elements.llmInput.value = '';
                 await loadData();
             }
         } catch (error) {
             console.error('LLM Error:', error);
-            showToast('❌ 创建失败: ' + (error.message || '未知错误'));
+            showToast('❌ 执行失败: ' + (error.message || '未知错误'));
         } finally {
             state.isLlmProcessing = false;
             elements.llmBtn.classList.remove('processing');
@@ -3444,6 +3817,12 @@
     function handlePullTouchStart(e) {
         // Don't track pull-to-refresh during event drag
         if (state.dragState.event) return;
+
+        // Notepad/Week should scroll only inside their own content area
+        if (state.currentView === 'notepad' || (state.currentView === 'day' && state.calendarSubview === 'week')) {
+            state.pullToRefresh.isAtTop = false;
+            return;
+        }
         
         // Check if current view can scroll - only enable pull-to-refresh when at top
         const scrollEl = getCurrentScrollElement();
@@ -3463,6 +3842,13 @@
     function handlePullTouchMove(e) {
         // Don't trigger pull-to-refresh during event drag
         if (state.dragState.event) return;
+
+        if (state.currentView === 'notepad' || (state.currentView === 'day' && state.calendarSubview === 'week')) {
+            elements.app.classList.remove('pulling');
+            elements.app.style.transform = '';
+            elements.ptrIndicator.classList.remove('visible', 'enough');
+            return;
+        }
         
         // Must be at top AND user must be pulling DOWN
         if (!state.pullToRefresh.isAtTop) return;
@@ -3502,6 +3888,15 @@
     function handlePullTouchEnd(e) {
         // Don't handle pull-to-refresh during event drag
         if (state.dragState.event) return;
+
+        if (state.currentView === 'notepad' || (state.currentView === 'day' && state.calendarSubview === 'week')) {
+            elements.app.classList.remove('pulling');
+            elements.app.style.transform = '';
+            elements.ptrIndicator.classList.remove('visible', 'enough', 'refreshing');
+            state.pullToRefresh.pullDistance = 0;
+            state.pullToRefresh.isRefreshing = false;
+            return;
+        }
         
         // Remove pulling class to enable transitions
         elements.app.classList.remove('pulling');
@@ -3739,6 +4134,8 @@
         elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
         elements.enableQQReminder.addEventListener('change', handleQQReminderToggle);
         elements.defaultTaskReminderEnabled.addEventListener('change', handleDefaultTaskReminderToggle);
+        document.getElementById('cleanupTestEntriesBtn')?.addEventListener('click', handleCleanupTestEntries);
+        document.getElementById('semanticHelpBtn')?.addEventListener('click', showSemanticHelpModal);
         
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
@@ -3781,7 +4178,18 @@
         });
 
         // Floating add button (content area, visible in day/todo)
-        elements.contentAddBtn.addEventListener('click', () => openEventModal());
+        elements.contentAddBtn.addEventListener('click', async () => {
+            if (state.currentView === 'notepad') {
+                if (state.notepadSubview === 'expense') {
+                    elements.notepadInput?.focus();
+                    showToast('在输入框描述消费，AI会帮你结构化记账');
+                    return;
+                }
+                await showQuickNoteCreateModal();
+                return;
+            }
+            openEventModal();
+        });
         
         // Event modal
         elements.modalBackdrop.addEventListener('click', closeEventModal);

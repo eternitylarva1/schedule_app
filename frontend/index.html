@@ -325,13 +325,27 @@
                                 <span class="settings-item-desc" id="appVersion">v1.0.0</span>
                             </div>
                         </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <span class="settings-item-title">功能帮助</span>
+                                <span class="settings-item-desc">查看统一语义解析目前支持的能力与示例</span>
+                            </div>
+                            <button class="btn btn-secondary" id="semanticHelpBtn">查看说明</button>
+                        </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <span class="settings-item-title">清理测试条目</span>
+                                <span class="settings-item-desc">一键删除测试/示例/demo/debug相关的日程、笔记和记账条目</span>
+                            </div>
+                            <button class="btn btn-danger settings-cleanup-btn" id="cleanupTestEntriesBtn">一键清理</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260406-5"></script>
+<script src="/static/app.js?v=20260406-15"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {
