@@ -3613,7 +3613,7 @@
         elements.tabDay.addEventListener('click', () => switchView('day'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
         elements.tabGoals.addEventListener('click', () => switchView('goals'));
-        elements.tabStats.addEventListener('click', () => switchView('stats'));
+        elements.tabNotepad.addEventListener('click', () => switchView('notepad'));
 
         // Calendar segmented control (in day view)
         document.getElementById('calendarSegmented')?.addEventListener('click', async (e) => {
@@ -3813,8 +3813,8 @@
         renderCategorySelector();
         syncPendingTimeState();
         
-        // Load last view from localStorage (tab bar supports: day/todo/goals/stats)
-        const allowedViews = new Set(['day', 'todo', 'goals', 'stats']);
+        // Load last view from localStorage (tab bar supports: day/todo/goals/notepad)
+        const allowedViews = new Set(['day', 'todo', 'goals', 'notepad']);
         const savedView = localStorage.getItem('lastView') || 'day';
         const lastView = allowedViews.has(savedView) ? savedView : 'day';
         
