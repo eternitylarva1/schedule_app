@@ -7,7 +7,7 @@ from aiohttp import web
 from typing import Any
 
 from . import db
-from .models import Event, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES
+from .models import Event, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES, NoteGroup
 
 
 def json_response(data: Any, code: int = 0) -> web.Response:
@@ -502,6 +502,7 @@ async def get_goals(request: web.Request) -> web.Response:
                     else:
                         subtask_dict["subtasks"] = []
                     goal_dict["subtasks"].append(subtask_dict)
+            result.append(goal_dict)
         return json_response(result)
     except Exception as e:
         return error_response(f"获取目标失败: {str(e)}")
@@ -800,6 +801,7 @@ async def create_note(request: web.Request) -> web.Response:
         note = Note(
             title=(data.get("title", "") or "").strip(),
             content=(data.get("content", "") or "").strip(),
+            group_id=data.get("group_id"),
         )
         if not note.content:
             return error_response("笔记内容不能为空")
@@ -826,9 +828,14 @@ async def update_note(request: web.Request) -> web.Response:
         existing = await db.get_note(note_id)
         if not existing:
             return error_response("笔记不存在", code=404)
+        # Handle group_id: allow null to be set explicitly
+        group_id = data.get("group_id")
+        if group_id is not None and not isinstance(group_id, int):
+            group_id = None
         note = Note(
             title=(data.get("title", existing.title) or "").strip(),
             content=(data.get("content", existing.content) or "").strip(),
+            group_id=group_id,
         )
         updated = await db.update_note(note_id, note)
         if not updated:
@@ -848,6 +855,83 @@ async def delete_note(request: web.Request) -> web.Response:
         return error_response("笔记不存在", code=404)
     except Exception as e:
         return error_response(f"删除笔记失败: {str(e)}")
+
+
+# ============ Note Groups Endpoints ============
+
+async def get_note_groups(request: web.Request) -> web.Response:
+    """GET /api/note-groups - list all note groups."""
+    try:
+        groups = await db.get_note_groups()
+        return json_response([g.to_dict() for g in groups])
+    except Exception as e:
+        return error_response(f"获取分组失败: {str(e)}")
+
+
+async def create_note_group(request: web.Request) -> web.Response:
+    """POST /api/note-groups - create a note group."""
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception as e:
+        return error_response("无效的JSON数据")
+
+    try:
+        group = NoteGroup(
+            name=(data.get("name", "") or "").strip(),
+            sort_order=data.get("sort_order", 0),
+        )
+        if not group.name:
+            return error_response("分组名称不能为空")
+        created = await db.create_note_group(group)
+        return json_response(created.to_dict())
+    except Exception as e:
+        return error_response(f"创建分组失败: {str(e)}")
+
+
+async def update_note_group(request: web.Request) -> web.Response:
+    """PUT /api/note-groups/{id} - update a note group."""
+    group_id = int(request.match_info["id"])
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception as e:
+        return error_response("无效的JSON数据")
+
+    try:
+        existing = await db.get_note_group(group_id)
+        if not existing:
+            return error_response("分组不存在", code=404)
+        group = NoteGroup(
+            name=(data.get("name", existing.name) or "").strip(),
+            sort_order=data.get("sort_order", existing.sort_order),
+        )
+        updated = await db.update_note_group(group_id, group)
+        if not updated:
+            return error_response("分组不存在", code=404)
+        return json_response(updated.to_dict())
+    except Exception as e:
+        return error_response(f"更新分组失败: {str(e)}")
+
+
+async def delete_note_group(request: web.Request) -> web.Response:
+    """DELETE /api/note-groups/{id} - delete a note group (notes retain, group_id set to null)."""
+    group_id = int(request.match_info["id"])
+    try:
+        success = await db.delete_note_group(group_id)
+        if success:
+            return json_response({"deleted": True})
+        return error_response("分组不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除分组失败: {str(e)}")
 
 
 # ============ Expenses Endpoints ============
@@ -943,6 +1027,140 @@ async def get_expense_stats(request: web.Request) -> web.Response:
 async def get_expense_categories(request: web.Request) -> web.Response:
     """GET /api/expenses/categories - list expense categories."""
     return json_response(EXPENSE_CATEGORIES)
+
+
+# ============================================
+# Notes API
+# ============================================
+
+async def get_notes(request: web.Request) -> web.Response:
+    """GET /api/notes - list all notes."""
+    try:
+        notes = await db.get_notes()
+        return json_response([n.to_dict() for n in notes])
+    except Exception as e:
+        return error_response(f"获取笔记失败: {str(e)}")
+
+
+async def create_note(request: web.Request) -> web.Response:
+    """POST /api/notes - create a new note."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        note = Note(
+            title=data.get("title", ""),
+            content=data.get("content", ""),
+            group_id=data.get("group_id"),
+        )
+        note = await db.create_note(note)
+        return json_response(note.to_dict())
+    except Exception as e:
+        return error_response(f"创建笔记失败: {str(e)}")
+
+
+async def update_note(request: web.Request) -> web.Response:
+    """PUT /api/notes/{id} - update a note."""
+    note_id = int(request.match_info["id"])
+    
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        note = Note(
+            title=data.get("title", ""),
+            content=data.get("content", ""),
+            group_id=data.get("group_id"),
+        )
+        result = await db.update_note(note_id, note)
+        if not result:
+            return error_response("笔记不存在", code=404)
+        return json_response(result.to_dict())
+    except Exception as e:
+        return error_response(f"更新笔记失败: {str(e)}")
+
+
+async def delete_note(request: web.Request) -> web.Response:
+    """DELETE /api/notes/{id} - delete a note."""
+    note_id = int(request.match_info["id"])
+    
+    try:
+        success = await db.delete_note(note_id)
+        if not success:
+            return error_response("笔记不存在", code=404)
+        return json_response({"success": True})
+    except Exception as e:
+        return error_response(f"删除笔记失败: {str(e)}")
+
+
+# ============================================
+# Note Groups API
+# ============================================
+
+async def get_note_groups(request: web.Request) -> web.Response:
+    """GET /api/note-groups - list all note groups."""
+    try:
+        groups = await db.get_note_groups()
+        return json_response([g.to_dict() for g in groups])
+    except Exception as e:
+        return error_response(f"获取笔记分组失败: {str(e)}")
+
+
+async def create_note_group(request: web.Request) -> web.Response:
+    """POST /api/note-groups - create a new note group."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        note_group = NoteGroup(
+            name=data.get("name", ""),
+            sort_order=data.get("sort_order", 0),
+        )
+        note_group = await db.create_note_group(note_group)
+        return json_response(note_group.to_dict())
+    except Exception as e:
+        return error_response(f"创建笔记分组失败: {str(e)}")
+
+
+async def update_note_group(request: web.Request) -> web.Response:
+    """PUT /api/note-groups/{id} - update a note group."""
+    group_id = int(request.match_info["id"])
+    
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        note_group = NoteGroup(
+            name=data.get("name", ""),
+            sort_order=data.get("sort_order", 0),
+        )
+        result = await db.update_note_group(group_id, note_group)
+        if not result:
+            return error_response("笔记分组不存在", code=404)
+        return json_response(result.to_dict())
+    except Exception as e:
+        return error_response(f"更新笔记分组失败: {str(e)}")
+
+
+async def delete_note_group(request: web.Request) -> web.Response:
+    """DELETE /api/note-groups/{id} - delete a note group."""
+    group_id = int(request.match_info["id"])
+    
+    try:
+        success = await db.delete_note_group(group_id)
+        if not success:
+            return error_response("笔记分组不存在", code=404)
+        return json_response({"success": True})
+    except Exception as e:
+        return error_response(f"删除笔记分组失败: {str(e)}")
 
 
 async def cleanup_test_entries(request: web.Request) -> web.Response:
@@ -1124,6 +1342,11 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/notes", create_note)
     app.router.add_put("/api/notes/{id}", update_note)
     app.router.add_delete("/api/notes/{id}", delete_note)
+    # Note groups endpoints
+    app.router.add_get("/api/note-groups", get_note_groups)
+    app.router.add_post("/api/note-groups", create_note_group)
+    app.router.add_put("/api/note-groups/{id}", update_note_group)
+    app.router.add_delete("/api/note-groups/{id}", delete_note_group)
     # Expenses endpoints
     app.router.add_get("/api/expenses", get_expenses)
     app.router.add_post("/api/expenses", create_expense)

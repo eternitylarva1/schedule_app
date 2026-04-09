@@ -135,6 +135,7 @@ class Note:
     id: int | None = None
     title: str = ""
     content: str = ""
+    group_id: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -152,6 +153,30 @@ class Note:
         for key in ["created_at", "updated_at"]:
             if d.get(key) and isinstance(d[key], str):
                 d[key] = datetime.fromisoformat(d[key])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)
+
+
+@dataclass
+class NoteGroup:
+    """Note group model for custom note groupings."""
+    id: int | None = None
+    name: str = ""
+    sort_order: int = 0
+    created_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        if d.get("created_at") and isinstance(d["created_at"], datetime):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "NoteGroup":
+        """Create NoteGroup from dictionary."""
+        if d.get("created_at") and isinstance(d["created_at"], str):
+            d["created_at"] = datetime.fromisoformat(d["created_at"])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
 

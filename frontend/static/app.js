@@ -34,8 +34,20 @@
         },
         selectedCategory: 'work',
         selectedEvent: null,
+        isSavingEvent: false,
         isLoading: false,
+        loadPromise: null,
+        reloadRequested: false,
         isLlmProcessing: false,
+        llmQueue: [],
+        llmQueueRunning: false,
+        llmActiveRequest: null,
+        llmCycleTotal: 0,
+        llmCycleDone: 0,
+        llmCycleSucceeded: 0,
+        llmCycleFailed: 0,
+        llmStatusHideTimer: null,
+        llmLastStatusText: '',
         isNavigating: false,
         // Drag state for event resizing
         dragState: {
@@ -71,6 +83,8 @@
         // Notepad state
         notepadSubview: 'notes',  // 'notes' | 'expense'
         notes: [],
+        noteGroups: [],
+        expandedGroups: new Set(),
         expenses: [],
         expenseCategories: [
             { id: 'food', name: '餐饮', color: '#F97316' },
@@ -95,8 +109,11 @@
         refreshBtn: document.getElementById('refreshBtn'),
         llmInput: document.getElementById('llmInput'),
         llmBtn: document.getElementById('llmBtn'),
-        breakdownBtn: document.getElementById('breakdownBtn'),
         llmInputArea: document.getElementById('llmInputArea'),
+        llmQueueStatus: document.getElementById('llmQueueStatus'),
+        llmQueueText: document.getElementById('llmQueueText'),
+        llmQueueMeta: document.getElementById('llmQueueMeta'),
+        llmQueueProgressBar: document.getElementById('llmQueueProgressBar'),
         dayView: document.getElementById('dayView'),
         weekView: document.getElementById('weekView'),
         monthView: document.getElementById('monthView'),
@@ -129,6 +146,7 @@
         contentAddBtn: document.getElementById('contentAddBtn'),
         // Event modal
         eventModal: document.getElementById('eventModal'),
+        eventModalTitle: document.getElementById('eventModalTitle'),
         modalBackdrop: document.getElementById('modalBackdrop'),
         modalClose: document.getElementById('modalClose'),
         eventTitle: document.getElementById('eventTitle'),
@@ -692,6 +710,7 @@
             : {
                 title: (noteInput?.title || '').trim(),
                 content: (noteInput?.content || '').trim(),
+                group_id: noteInput?.group_id || null,
             };
         return await apiCall('notes', {
             method: 'POST',
@@ -705,6 +724,7 @@
             : {
                 title: (noteInput?.title || '').trim(),
                 content: (noteInput?.content || '').trim(),
+                group_id: noteInput?.group_id !== undefined ? noteInput.group_id : undefined,
             };
         return await apiCall(`notes/${noteId}`, {
             method: 'PUT',
@@ -714,6 +734,38 @@
 
     async function deleteNote(noteId) {
         return await apiCall(`notes/${noteId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // ============================================
+    // Note Groups API Functions
+    // ============================================
+    async function fetchNoteGroups() {
+        const data = await apiCall('note-groups');
+        if (data) {
+            state.noteGroups = data;
+            return data;
+        }
+        return [];
+    }
+
+    async function createNoteGroup(name) {
+        return await apiCall('note-groups', {
+            method: 'POST',
+            body: JSON.stringify({ name: name, sort_order: state.noteGroups.length })
+        });
+    }
+
+    async function updateNoteGroup(groupId, groupData) {
+        return await apiCall(`note-groups/${groupId}`, {
+            method: 'PUT',
+            body: JSON.stringify(groupData)
+        });
+    }
+
+    async function deleteNoteGroup(groupId) {
+        return await apiCall(`note-groups/${groupId}`, {
             method: 'DELETE'
         });
     }
@@ -1210,6 +1262,7 @@
             cell.addEventListener('click', (e) => {
                 if (e.target.closest('.week-event')) return;
                 state.currentDate = new Date(date);
+                state.calendarSubview = 'day';
                 switchView('day');
             });
             
@@ -1384,6 +1437,7 @@
             // Click on cell to switch to day view
             cell.addEventListener('click', () => {
                 state.currentDate = new Date(dayInfo.date);
+                state.calendarSubview = 'day';
                 switchView('day');
             });
             
@@ -1394,6 +1448,42 @@
     async function renderTodoView() {
         const container = elements.todoContainer;
         container.innerHTML = '<div class="loading">加载中...</div>';
+
+        const deadlineRegex = /截止\s*(\d{1,2})月(\d{1,2})日/;
+        const endOfDayHour = 23;
+        const endOfDayMinute = 59;
+        const deadlineMeta = (event) => {
+            const title = String(event?.title || '');
+            const match = title.match(deadlineRegex);
+            if (!match) {
+                return {
+                    hasDeadlineLabel: false,
+                    deadlineDate: null,
+                    treatAsDeadlineWarning: false
+                };
+            }
+
+            const month = Number(match[1]);
+            const day = Number(match[2]);
+            const base = event?.start_time ? new Date(event.start_time) : new Date();
+            const year = Number.isFinite(base.getFullYear()) ? base.getFullYear() : new Date().getFullYear();
+            const deadlineDate = new Date(year, month - 1, day, endOfDayHour, endOfDayMinute, 0, 0);
+
+            const isNoTime = !event?.start_time;
+            const startDate = event?.start_time ? new Date(event.start_time) : null;
+            const isLegacyDeadlineTime = !!(
+                startDate &&
+                !Number.isNaN(startDate.getTime()) &&
+                startDate.getHours() === endOfDayHour &&
+                startDate.getMinutes() === endOfDayMinute
+            );
+
+            return {
+                hasDeadlineLabel: true,
+                deadlineDate,
+                treatAsDeadlineWarning: isNoTime || isLegacyDeadlineTime
+            };
+        };
         
         // Fetch all events (use month filter to get more events)
         const data = await apiCall('events?date=month');
@@ -1414,10 +1504,14 @@
         const allEvents = data
             .filter(e => e.status !== 'hidden')
             .sort((a, b) => {
-                // Timed events first, no-time items later
-                if (!a.start_time && !b.start_time) return 0;
-                if (!a.start_time) return 1;
-                if (!b.start_time) return -1;
+                const aMeta = deadlineMeta(a);
+                const bMeta = deadlineMeta(b);
+                const aNoTimeLike = !a.start_time || aMeta.treatAsDeadlineWarning;
+                const bNoTimeLike = !b.start_time || bMeta.treatAsDeadlineWarning;
+                // Timed events first, no-time-like items later
+                if (aNoTimeLike && bNoTimeLike) return 0;
+                if (aNoTimeLike) return 1;
+                if (bNoTimeLike) return -1;
                 return new Date(a.start_time) - new Date(b.start_time);
             });
         
@@ -1436,7 +1530,8 @@
         const grouped = {};
         allEvents.forEach(event => {
             let dateKey;
-            if (!event.start_time) {
+            const meta = deadlineMeta(event);
+            if (!event.start_time || meta.treatAsDeadlineWarning) {
                 dateKey = NO_TIME_KEY;
             } else {
                 const date = new Date(event.start_time);
@@ -1479,10 +1574,13 @@
             if (isNoTimeGroup) {
                 // Put explicit deadline items first within no-time group
                 events.sort((a, b) => {
-                    const aDeadline = /截止\d{1,2}月\d{1,2}日/.test(String(a.title || ''));
-                    const bDeadline = /截止\d{1,2}月\d{1,2}日/.test(String(b.title || ''));
-                    if (aDeadline === bDeadline) return 0;
-                    return aDeadline ? -1 : 1;
+                    const aMeta = deadlineMeta(a);
+                    const bMeta = deadlineMeta(b);
+                    if (aMeta.hasDeadlineLabel && bMeta.hasDeadlineLabel && aMeta.deadlineDate && bMeta.deadlineDate) {
+                        return aMeta.deadlineDate - bMeta.deadlineDate;
+                    }
+                    if (aMeta.hasDeadlineLabel === bMeta.hasDeadlineLabel) return 0;
+                    return aMeta.hasDeadlineLabel ? -1 : 1;
                 });
             }
             
@@ -1496,7 +1594,8 @@
                 eventEl.dataset.eventId = event.id;
                 
                 let timeStr = '无明确时间';
-                if (event.start_time) {
+                const meta = deadlineMeta(event);
+                if (event.start_time && !meta.treatAsDeadlineWarning) {
                     const startTime = formatTime(event.start_time);
                     const endTime = event.end_time ? formatTime(event.end_time) : '';
                     timeStr = endTime ? `${startTime} - ${endTime}` : startTime;
@@ -1550,6 +1649,7 @@
                 let swiping = false;
                 let isHorizontalSwipe = null;
                 let swipeDeltaX = 0;
+                let mainContent = null; // Cache reference
                 
                 eventEl.addEventListener('touchstart', (e) => {
                     swipeStartX = e.touches[0].clientX;
@@ -1557,8 +1657,12 @@
                     swiping = true;
                     isHorizontalSwipe = null;
                     swipeDeltaX = 0;
-                    eventEl.style.opacity = '';
                     eventEl.classList.remove('swiped');
+                    // Cache and disable transition during drag
+                    mainContent = eventEl.querySelector('.todo-main-content');
+                    if (mainContent) {
+                        mainContent.style.transition = 'none';
+                    }
                 }, { passive: false }); // Must be non-passive to allow preventDefault
                 
                 eventEl.addEventListener('touchmove', (e) => {
@@ -1578,24 +1682,16 @@
                     }
                     
                     // Only handle horizontal swipe
-                    if (isHorizontalSwipe) {
+                    if (isHorizontalSwipe && mainContent) {
                         // Already prevented above
-                        const mainContent = eventEl.querySelector('.todo-main-content');
-                        
                         if (deltaX < 0) {
-                            // Swipe left - show actions with progressive opacity
+                            // Swipe left - reveal actions
                             const moveX = Math.max(deltaX, -90); // Limit to -90px
-                            const fadeProgress = Math.min(Math.max((-deltaX - 30) / 60, 0), 1);
-                            const opacity = 1 - (fadeProgress * 0.7); // 1 to 0.3
                             mainContent.style.transform = `translateX(${moveX}px)`;
-                            eventEl.style.opacity = opacity;
                         } else if (deltaX > 0) {
-                            // Swipe right - delete with progressive opacity
-                            const fadeProgress = Math.min(Math.max((deltaX - 30) / 120, 0), 1);
-                            const opacity = 1 - (fadeProgress * 0.7); // 1 to 0.3
+                            // Swipe right - prepare delete
                             const moveX = Math.min(deltaX, 150); // Limit to 150px
                             mainContent.style.transform = `translateX(${moveX}px)`;
-                            eventEl.style.opacity = opacity;
                         }
                     }
                 }, { passive: false });
@@ -1603,25 +1699,44 @@
                 eventEl.addEventListener('touchend', async () => {
                     if (!swiping) return;
                     
+                    if (mainContent) {
+                        // CRITICAL: Disable transition BEFORE clearing transform to prevent animation lag
+                        mainContent.style.transition = 'none';
+                        mainContent.style.transform = '';
+                    }
+                    
                     if (swipeDeltaX < -90) {
                         // Swiped left past threshold - keep actions visible
                         eventEl.classList.add('swiped');
                     } else if (swipeDeltaX > 100) {
                         // Swipe right past threshold - auto delete
-                        eventEl.style.opacity = '0';
                         await deleteEvent(event.id);
                         showToast('已删除');
                         renderTodoView();
                     } else {
-                        // Reset
-                        eventEl.style.opacity = '';
+                        // Reset - instant snap, not animated
                         eventEl.classList.remove('swiped');
                     }
                     
                     swiping = false;
                     isHorizontalSwipe = null;
                     swipeDeltaX = 0;
+                    mainContent = null;
                 }, { passive: true });
+                
+                // Also handle mouse events for desktop testing
+                eventEl.addEventListener('mouseleave', () => {
+                    if (swiping && mainContent) {
+                        // Instant reset on mouse leave during drag
+                        mainContent.style.transform = '';
+                        mainContent.style.transition = '';
+                        eventEl.classList.remove('swiped');
+                        swiping = false;
+                        isHorizontalSwipe = null;
+                        swipeDeltaX = 0;
+                        mainContent = null;
+                    }
+                });
                 
                 // Action button handlers
                 eventEl.querySelector('.edit-btn').addEventListener('click', (e) => {
@@ -1639,11 +1754,11 @@
                     }
                 });
                 
-                // Click on item (not checkbox or actions) - show detail
+                // Click on item (not checkbox or actions) - direct edit (including time)
                 eventEl.addEventListener('click', (e) => {
                     // Don't trigger if clicking on actions or checkbox
                     if (e.target.closest('.todo-actions') || e.target.closest('.todo-checkbox')) return;
-                    showEventDetail(event);
+                    openEventModal(event);
                 });
                 
                 // Double click on checkbox area to toggle
@@ -1817,6 +1932,7 @@
                         </div>
                         <div class="goal-actions">
                             <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
+                            <button class="goal-action-btn edit-btn" data-action="edit" data-goal-id="${goal.id}" title="编辑">✏️</button>
                             <button class="goal-action-btn history-btn" data-action="history" data-goal-id="${goal.id}" title="历史">🕘</button>
                             <button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${goal.id}" title="展开">▶</button>
                             <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${goal.id}" title="删除">🗑️</button>
@@ -1861,6 +1977,11 @@
                     await updateGoal(goalId, { status: 'done' });
                     showToast('已完成 ✓');
                     await renderGoalsList();
+                } else if (action === 'edit') {
+                    const goal = state.goals.find(g => g.id === parseInt(goalId));
+                    if (goal) {
+                        await openGoalEditModal(goal);
+                    }
                 }
             });
         });
@@ -2007,8 +2128,10 @@
     async function renderNotesList() {
         const container = elements.notepadContainer;
         const notes = await fetchNotes();
+        const groups = await fetchNoteGroups() || [];
         
-        if (!notes || notes.length === 0) {
+        // If no notes at all
+        if ((!notes || notes.length === 0) && (!groups || groups.length === 0)) {
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-icon">📝</div>
@@ -2019,22 +2142,111 @@
             return;
         }
         
-        container.innerHTML = notes.map(note => `
-            <div class="swipe-item note-swipe" data-note-id="${note.id}">
-                <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">✏️ 编辑</div>
-                <div class="swipe-action swipe-action-right" data-action="delete" data-note-id="${note.id}">🗑️ 删除</div>
-                <div class="swipe-content">
-                    <div class="note-item" data-note-id="${note.id}">
-                        ${note.title ? `<div class="note-title">${escapeHtml(note.title)}</div>` : ''}
-                        <div class="note-content">${escapeHtml(note.content)}</div>
-                        <div class="note-meta">
-                            <span class="note-time">${formatNoteTime(note.created_at)}</span>
-                            <div class="note-actions-hint">↔ 右滑编辑 / 左滑删除</div>
-                        </div>
+        // Build group map
+        const groupMap = {};
+        groups.forEach(g => {
+            groupMap[g.id] = { ...g, notes: [] };
+        });
+        
+        // Separate notes into groups
+        const ungroupedNotes = [];
+        notes.forEach(note => {
+            if (note.group_id && groupMap[note.group_id]) {
+                groupMap[note.group_id].notes.push(note);
+            } else {
+                ungroupedNotes.push(note);
+            }
+        });
+        
+        // Build HTML with groups
+        let html = '';
+        
+        // Render each group (sorted by sort_order)
+        const sortedGroups = groups.sort((a, b) => a.sort_order - b.sort_order);
+        sortedGroups.forEach(group => {
+            const isExpanded = state.expandedGroups.has(group.id);
+            const groupData = groupMap[group.id] || { notes: [] };
+            const noteCount = groupData.notes.length;
+            
+            html += `
+                <div class="note-group" data-group-id="${group.id}">
+                    <div class="note-group-header" data-group-id="${group.id}">
+                        <span class="note-group-toggle">${isExpanded ? '▼' : '▶'}</span>
+                        <span class="note-group-name">${escapeHtml(group.name)}</span>
+                        <span class="note-group-count">${noteCount}</span>
+                        <button class="note-group-delete" data-group-id="${group.id}" title="删除分组">×</button>
+                    </div>
+                    <div class="note-group-content ${isExpanded ? '' : 'collapsed'}">
+                        ${noteCount > 0 ? groupData.notes.map(note => renderNoteItem(note)).join('') : '<div class="note-group-empty">暂无笔记</div>'}
                     </div>
                 </div>
+            `;
+        });
+        
+        // Render ungrouped notes (collapsible)
+        const ungroupedExpanded = state.expandedGroups.has('ungrouped');
+        if (ungroupedNotes.length > 0) {
+            html += `
+                <div class="note-group" data-group-id="ungrouped">
+                    <div class="note-group-header" data-group-id="ungrouped">
+                        <span class="note-group-toggle">${ungroupedExpanded ? '▼' : '▶'}</span>
+                        <span class="note-group-name">未分组</span>
+                        <span class="note-group-count">${ungroupedNotes.length}</span>
+                    </div>
+                    <div class="note-group-content ${ungroupedExpanded ? '' : 'collapsed'}">
+                        ${ungroupedNotes.map(note => renderNoteItem(note)).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Add "Add Group" button at the end
+        html += `
+            <div class="add-group-container">
+                <button class="add-group-btn" id="addGroupBtn">
+                    <span>+</span> 新建分组
+                </button>
             </div>
-        `).join('');
+        `;
+        
+        container.innerHTML = html;
+        
+        // Bind group toggle events
+        container.querySelectorAll('.note-group-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                if (e.target.closest('.note-group-delete')) return;
+                const groupId = header.dataset.groupId;
+                
+                if (state.expandedGroups.has(groupId)) {
+                    state.expandedGroups.delete(groupId);
+                } else {
+                    state.expandedGroups.add(groupId);
+                }
+                renderNotesList();
+            });
+        });
+        
+        // Bind group delete events
+        container.querySelectorAll('.note-group-delete').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const groupId = parseInt(btn.dataset.groupId);
+                const confirmed = await showConfirm('删除分组？分组内的笔记将移至"未分组"。');
+                if (confirmed) {
+                    await deleteNoteGroup(groupId);
+                    showToast('分组已删除');
+                    await renderNotesList();
+                }
+            });
+        });
+        
+        // Bind add group button
+        const addGroupBtn = document.getElementById('addGroupBtn');
+        if (addGroupBtn) {
+            addGroupBtn.addEventListener('click', () => {
+                showAddGroupPrompt();
+            });
+        }
         
         // Bind note item events
         container.querySelectorAll('.note-item').forEach(item => {
@@ -2050,7 +2262,7 @@
                 if (note) showNoteDetail(note);
             });
         });
-
+        
         // Swipe actions
         container.querySelectorAll('.note-swipe').forEach(bindSwipeItem);
         container.querySelectorAll('.note-swipe .swipe-action').forEach(btn => {
@@ -2072,6 +2284,36 @@
                 }
             });
         });
+    }
+    
+    function renderNoteItem(note) {
+        return `
+            <div class="swipe-item note-swipe" data-note-id="${note.id}">
+                <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">✏️ 编辑</div>
+                <div class="swipe-action swipe-action-right" data-action="delete" data-note-id="${note.id}">🗑️ 删除</div>
+                <div class="swipe-content">
+                    <div class="note-item" data-note-id="${note.id}">
+                        ${note.title ? `<div class="note-title">${escapeHtml(note.title)}</div>` : ''}
+                        <div class="note-content">${escapeHtml(note.content)}</div>
+                        <div class="note-meta">
+                            <span class="note-time">${formatNoteTime(note.created_at)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    async function showAddGroupPrompt() {
+        const name = prompt('请输入分组名称：');
+        if (name && name.trim()) {
+            const result = await createNoteGroup(name.trim());
+            if (result) {
+                showToast('分组已创建');
+                state.expandedGroups.add(result.id);
+                await renderNotesList();
+            }
+        }
     }
 
     function formatNoteTime(isoString) {
@@ -2163,6 +2405,16 @@
         const existingModal = document.getElementById('noteEditModal');
         if (existingModal) existingModal.remove();
 
+        // Get groups for selector
+        const groups = await fetchNoteGroups();
+        
+        // Build group options
+        let groupOptions = '<option value="">未分组</option>';
+        groups.forEach(g => {
+            const selected = note.group_id === g.id ? 'selected' : '';
+            groupOptions += `<option value="${g.id}" ${selected}>${escapeHtml(g.name)}</option>`;
+        });
+
         const editHtml = `
             <div class="modal" id="noteEditModal">
                 <div class="modal-backdrop" id="noteEditBackdrop"></div>
@@ -2173,6 +2425,9 @@
                     </div>
                     <div class="modal-body">
                         <input type="text" id="noteEditTitle" class="note-edit-title-input" placeholder="标题（可选）" value="${escapeHtml(note.title || '')}">
+                        <select id="noteEditGroup" class="note-edit-group-select">
+                            ${groupOptions}
+                        </select>
                         <textarea id="noteEditTextarea" class="note-edit-textarea">${escapeHtml(note.content)}</textarea>
                     </div>
                     <div class="modal-footer">
@@ -2191,6 +2446,7 @@
         const cancelBtn = document.getElementById('noteEditCancel');
         const saveBtn = document.getElementById('noteEditSave');
         const titleInput = document.getElementById('noteEditTitle');
+        const groupSelect = document.getElementById('noteEditGroup');
         const textarea = document.getElementById('noteEditTextarea');
 
         const closeModal = () => modal.remove();
@@ -2201,17 +2457,20 @@
         saveBtn.addEventListener('click', async () => {
             const newContent = textarea.value.trim();
             const newTitle = (titleInput?.value || '').trim();
+            const newGroupId = groupSelect.value ? parseInt(groupSelect.value) : null;
+            
             if (!newContent) {
                 showToast('内容不能为空');
                 return;
             }
-            if (newContent === note.content && newTitle === (note.title || '')) {
+            if (newContent === note.content && newTitle === (note.title || '') && newGroupId === note.group_id) {
                 closeModal();
                 return;
             }
             const result = await updateNote(note.id, {
                 title: newTitle,
                 content: newContent,
+                group_id: newGroupId,
             });
             if (result) {
                 showToast('笔记已更新');
@@ -2321,8 +2580,32 @@
         listHtml += '</div>';
         container.innerHTML = listHtml;
         
-        // Swipe actions
+        // Swipe actions for expenses
         container.querySelectorAll('.expense-swipe').forEach(bindSwipeItem);
+        // Swipe actions for notes
+        container.querySelectorAll('.note-swipe').forEach(bindSwipeItem);
+        container.querySelectorAll('.note-swipe .swipe-action').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const noteId = parseInt(btn.dataset.noteId);
+                if (!noteId) return;
+
+                if (action === 'edit') {
+                    const note = state.notes.find(n => n.id === noteId);
+                    if (note) {
+                        await showNoteEdit(note);
+                    }
+                } else if (action === 'delete') {
+                    const confirmed = await showConfirm('确定删除这条笔记吗？');
+                    if (confirmed) {
+                        await deleteNote(noteId);
+                        showToast('已删除');
+                        await renderNotesList();
+                    }
+                }
+            });
+        });
         container.querySelectorAll('.expense-swipe .swipe-action').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -2822,12 +3105,43 @@
     function openEventModal(event = null) {
         state.selectedEvent = event;
         state.selectedCategory = event ? event.category_id : 'work';
+
+        const getDefaultEditableTimes = () => {
+            const baseDate = new Date(state.currentDate || new Date());
+            const now = new Date();
+            if (isToday(baseDate)) {
+                baseDate.setHours(now.getHours(), now.getMinutes(), 0, 0);
+            } else {
+                baseDate.setHours(9, 0, 0, 0);
+            }
+
+            const minutes = baseDate.getMinutes();
+            const rounded = minutes <= 30 ? 30 : 60;
+            baseDate.setMinutes(rounded, 0, 0);
+            if (rounded === 60) {
+                baseDate.setHours(baseDate.getHours() + 1, 0, 0, 0);
+            }
+
+            const end = new Date(baseDate.getTime() + 30 * 60 * 1000);
+            return {
+                start: toLocalDatetime(baseDate),
+                end: toLocalDatetime(end)
+            };
+        };
+        
+        // Update modal title based on create vs edit
+        if (elements.eventModalTitle) {
+            elements.eventModalTitle.textContent = event ? '编辑日程' : '新建日程';
+        }
         
         // Reset form
         elements.eventTitle.value = event ? event.title : '';
-        elements.startTime.value = event && event.start_time ? toLocalDatetime(event.start_time) : '';
-        elements.endTime.value = event && event.end_time ? toLocalDatetime(event.end_time) : '';
-        elements.pendingTimeCheck.checked = event ? !event.start_time : false;
+        const defaultTimes = getDefaultEditableTimes();
+        elements.startTime.value = event && event.start_time ? toLocalDatetime(event.start_time) : defaultTimes.start;
+        elements.endTime.value = event && event.end_time ? toLocalDatetime(event.end_time) : defaultTimes.end;
+        // Keep time fields directly editable when opening a todo item.
+        // Users can still manually mark "pending time" if needed.
+        elements.pendingTimeCheck.checked = false;
         elements.allDayCheck.checked = event ? event.all_day : false;
         
         // Reset reminder fields
@@ -2860,6 +3174,10 @@
     }
 
     async function saveEvent() {
+        if (state.isSavingEvent) {
+            return;
+        }
+
         const title = elements.eventTitle.value.trim();
         if (!title) {
             showToast('请输入日程内容');
@@ -2881,16 +3199,36 @@
             end_time: endTime || null,
             category_id: state.selectedCategory,
             all_day: elements.allDayCheck.checked,
-            status: 'pending',
+            status: state.selectedEvent?.status || 'pending',
             reminder_enabled: elements.reminderEnabled.checked,
             reminder_minutes: elements.reminderEnabled.checked ? 1 : 0
         };
         
-        const result = await createEvent(eventData);
-        if (result) {
-            showToast('日程已创建');
-            closeEventModal();
-            loadData();
+        state.isSavingEvent = true;
+        elements.saveEventBtn.disabled = true;
+
+        try {
+            let result;
+            if (state.selectedEvent && state.selectedEvent.id) {
+                // Update existing event
+                result = await updateEvent(state.selectedEvent.id, eventData);
+                if (result) {
+                    showToast('日程已更新');
+                    closeEventModal();
+                    await loadData();
+                }
+            } else {
+                // Create new event
+                result = await createEvent(eventData);
+                if (result) {
+                    showToast('日程已创建');
+                    closeEventModal();
+                    await loadData();
+                }
+            }
+        } finally {
+            state.isSavingEvent = false;
+            elements.saveEventBtn.disabled = false;
         }
     }
 
@@ -3019,7 +3357,8 @@
         conversationHistory: [],
         currentSubtasks: [],
         isComplete: false,
-        mode: 'discuss'
+        mode: 'discuss',
+        isRequesting: false
     };
 
     function openGoalDiscussModal(goalId = null) {
@@ -3029,7 +3368,8 @@
             conversationHistory: [],
             currentSubtasks: [],
             isComplete: false,
-            mode: 'discuss'
+            mode: 'discuss',
+            isRequesting: false
         };
         
         // Show intro, hide conversation and results
@@ -3050,13 +3390,16 @@
     }
 
     async function openGoalHistoryModal(goalId) {
+        const goal = state.goals.find(g => String(g.id) === String(goalId));
+
         goalDiscussState = {
             goalId,
-            goalContent: '',
+            goalContent: goal ? goal.title : '',
             conversationHistory: [],
             currentSubtasks: [],
             isComplete: false,
-            mode: 'history'
+            mode: 'history',
+            isRequesting: false
         };
 
         const titleEl = elements.goalDiscussModal.querySelector('.modal-header h2');
@@ -3065,9 +3408,28 @@
         elements.goalDiscussModal.querySelector('.goal-discuss-intro').classList.add('hidden');
         elements.goalDiscussModal.querySelector('.goal-discuss-input-area').classList.add('hidden');
         elements.goalDiscussResults.classList.add('hidden');
-        elements.goalDiscussFooter.classList.add('hidden');
         elements.goalDiscussConversation.classList.remove('hidden');
         elements.goalDiscussConversation.innerHTML = '<div class="discuss-loading">加载历史中...</div>';
+
+        // Dynamically rebuild footer for history mode
+        elements.goalDiscussFooter.classList.remove('hidden');
+        elements.goalDiscussFooter.innerHTML = `
+            <button class="btn btn-secondary" id="goalDiscussCancelBtn">取消</button>
+            <button class="btn btn-secondary" id="goalDiscussContinueBtn">继续对话</button>
+            <button class="btn btn-primary" id="goalDiscussSaveBtn">保存目标</button>
+        `;
+        document.getElementById('goalDiscussCancelBtn')?.addEventListener('click', closeGoalDiscussModal);
+        document.getElementById('goalDiscussContinueBtn')?.addEventListener('click', () => {
+            goalDiscussState.mode = 'discuss';
+            elements.goalDiscussConversation.classList.remove('hidden');
+            elements.goalDiscussResults.classList.add('hidden');
+            elements.goalDiscussFooter.classList.add('hidden');
+            elements.goalDiscussConversation.querySelectorAll('.discuss-loading, .discuss-input-area').forEach((el) => {
+                el.remove();
+            });
+            showDiscussInput();
+        });
+        document.getElementById('goalDiscussSaveBtn')?.addEventListener('click', saveGoalDiscuss);
 
         try {
             const conversations = await fetchGoalConversations(goalId);
@@ -3078,6 +3440,10 @@
                 conversations.forEach((msg) => {
                     addDiscussMessage(msg.role, msg.content);
                 });
+                goalDiscussState.conversationHistory = conversations.map((msg) => ({
+                    role: msg.role,
+                    content: msg.content
+                }));
             }
         } catch (error) {
             console.error('Load conversations error:', error);
@@ -3089,6 +3455,87 @@
 
     function closeGoalDiscussModal() {
         elements.goalDiscussModal.classList.add('hidden');
+    }
+    
+    async function openGoalEditModal(goal) {
+        const editHtml = `
+            <div class="modal" id="goalEditModal">
+                <div class="modal-backdrop" id="goalEditBackdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>编辑目标</h2>
+                        <button class="modal-close" id="goalEditClose">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="goalEditTitle">目标内容</label>
+                            <input type="text" id="goalEditTitle" value="${escapeHtml(goal.title || '')}">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="goalEditStart">开始日期</label>
+                                <input type="date" id="goalEditStart" value="${goal.start_date ? new Date(goal.start_date).toISOString().slice(0, 10) : ''}">
+                            </div>
+                            <div class="form-group">
+                                <label for="goalEditEnd">截止日期</label>
+                                <input type="date" id="goalEditEnd" value="${goal.end_date ? new Date(goal.end_date).toISOString().slice(0, 10) : ''}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn" id="goalEditCancel">取消</button>
+                        <button class="btn btn-primary" id="goalEditSave">保存</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const existingModal = document.getElementById('goalEditModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', editHtml);
+        
+        const modal = document.getElementById('goalEditModal');
+        const backdrop = document.getElementById('goalEditBackdrop');
+        const closeBtn = document.getElementById('goalEditClose');
+        const cancelBtn = document.getElementById('goalEditCancel');
+        const saveBtn = document.getElementById('goalEditSave');
+        const titleInput = document.getElementById('goalEditTitle');
+        const startInput = document.getElementById('goalEditStart');
+        const endInput = document.getElementById('goalEditEnd');
+        
+        const closeModal = () => modal.remove();
+        backdrop.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        
+        saveBtn.addEventListener('click', async () => {
+            const newTitle = titleInput.value.trim();
+            if (!newTitle) {
+                showToast('目标内容不能为空');
+                return;
+            }
+            
+            const updates = { title: newTitle };
+            if (startInput.value) {
+                updates.start_date = new Date(startInput.value).toISOString();
+            }
+            if (endInput.value) {
+                updates.end_date = new Date(endInput.value).toISOString();
+            }
+            
+            const result = await updateGoal(goal.id, updates);
+            if (result) {
+                showToast('已保存');
+                closeModal();
+                await renderGoalsList();
+            }
+        });
+        
+        requestAnimationFrame(() => {
+            modal.classList.remove('hidden');
+            titleInput.focus();
+        });
     }
 
     async function persistDiscussMessage(role, content) {
@@ -3105,11 +3552,16 @@
     }
 
     async function startGoalDiscuss() {
+        if (goalDiscussState.isRequesting) return;
         const input = elements.goalDiscussInput.value.trim();
         if (!input) {
             showToast('请输入你的目标');
             return;
         }
+
+        goalDiscussState.isRequesting = true;
+        elements.goalDiscussStartBtn.disabled = true;
+        elements.goalDiscussInput.disabled = true;
         
         goalDiscussState.goalContent = input;
         goalDiscussState.conversationHistory = [];
@@ -3160,21 +3612,37 @@
         } catch (error) {
             console.error('Discuss error:', error);
             elements.goalDiscussConversation.innerHTML = '<div class="discuss-error">请求失败: ' + error.message + '</div>';
+        } finally {
+            goalDiscussState.isRequesting = false;
+            elements.goalDiscussStartBtn.disabled = false;
+            elements.goalDiscussInput.disabled = false;
         }
     }
 
     async function continueGoalDiscuss() {
-        const continueInputEl = document.getElementById('discussContinueInput');
+        if (goalDiscussState.isRequesting) return;
+        const inputNodes = elements.goalDiscussConversation.querySelectorAll('.discuss-input-area input');
+        const continueInputEl = inputNodes.length > 0 ? inputNodes[inputNodes.length - 1] : null;
         const input = continueInputEl ? continueInputEl.value.trim() : '';
         if (!input) return;
+
+        goalDiscussState.isRequesting = true;
+        const continueBtnEl = continueInputEl ? continueInputEl.closest('.discuss-input-area')?.querySelector('.discuss-continue-btn') : null;
+        if (continueInputEl) continueInputEl.disabled = true;
+        if (continueBtnEl) continueBtnEl.disabled = true;
+
+        // Remove old input row immediately to avoid accumulating empty dialog rows
+        const inputWrapper = continueInputEl ? continueInputEl.closest('.discuss-input-area') : null;
+        if (inputWrapper) {
+            inputWrapper.remove();
+        }
         
         // Add user message
         addDiscussMessage('user', input);
         goalDiscussState.conversationHistory.push({ role: 'user', content: input });
         await persistDiscussMessage('user', input);
         
-        // Clear input and show loading
-        if (continueInputEl) continueInputEl.value = '';
+        // Show loading
         showDiscussLoading();
         
         try {
@@ -3203,11 +3671,15 @@
                     goalDiscussState.currentSubtasks = result.subtasks || [];
                     goalDiscussState.isComplete = true;
                     showDiscussResults();
+                } else {
+                    showToast('AI未返回可继续内容，请重试');
                 }
             }
         } catch (error) {
             console.error('Continue discuss error:', error);
             elements.goalDiscussConversation.innerHTML += '<div class="discuss-error">请求失败: ' + error.message + '</div>';
+        } finally {
+            goalDiscussState.isRequesting = false;
         }
     }
 
@@ -3220,20 +3692,27 @@
     }
 
     function showDiscussLoading() {
+        elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+            el.remove();
+        });
         elements.goalDiscussConversation.innerHTML += '<div class="discuss-loading">🤔 AI思考中...</div>';
         elements.goalDiscussConversation.scrollTop = elements.goalDiscussConversation.scrollHeight;
     }
 
-    function showDiscussInput() {
+    function showDiscussInput(placeholder = '回答AI的问题...') {
+        // Keep exactly one active follow-up input row
+        elements.goalDiscussConversation.querySelectorAll('.discuss-input-area').forEach((el) => {
+            el.remove();
+        });
         const wrapper = document.createElement('div');
         wrapper.className = 'discuss-input-area';
         wrapper.innerHTML = `
-            <input type="text" id="discussContinueInput" placeholder="回答AI的问题..." />
-            <button class="btn btn-primary" id="discussContinueBtn">发送</button>
+            <input type="text" class="discuss-continue-input" placeholder="${placeholder}" />
+            <button class="btn btn-primary discuss-continue-btn">发送</button>
         `;
         elements.goalDiscussConversation.appendChild(wrapper);
-        const inputEl = document.getElementById('discussContinueInput');
-        const btnEl = document.getElementById('discussContinueBtn');
+        const inputEl = wrapper.querySelector('.discuss-continue-input');
+        const btnEl = wrapper.querySelector('.discuss-continue-btn');
         if (btnEl) btnEl.addEventListener('click', continueGoalDiscuss);
         if (inputEl) {
             inputEl.addEventListener('keypress', (e) => {
@@ -3244,6 +3723,10 @@
     }
 
     function showDiscussResults() {
+        // Clear transient rows before switching to results view
+        elements.goalDiscussConversation.querySelectorAll('.discuss-loading, .discuss-input-area').forEach((el) => {
+            el.remove();
+        });
         elements.goalDiscussConversation.classList.add('hidden');
         elements.goalDiscussResults.classList.remove('hidden');
         elements.goalDiscussFooter.classList.remove('hidden');
@@ -3257,31 +3740,190 @@
             <div class="discuss-results-title">💡 建议的任务拆解</div>
             <div class="discuss-subtasks">
                 ${goalDiscussState.currentSubtasks.map((st, i) => `
-                    <div class="discuss-subtask">
+                    <div class="discuss-subtask" data-index="${i}">
                         <div class="discuss-subtask-num">${i + 1}</div>
                         <div class="discuss-subtask-content">
                             <div class="discuss-subtask-title">${escapeHtml(st.title)}</div>
                             ${st.duration_hint ? `<div class="discuss-subtask-hint">⏱️ ${escapeHtml(st.duration_hint)}</div>` : ''}
                         </div>
+                        <label class="discuss-subtask-select">
+                            <input type="checkbox" data-index="${i}" checked>
+                        </label>
                     </div>
                 `).join('')}
             </div>
+            <div class="discuss-results-actions">
+                <button class="btn btn-secondary" id="discussRefineBtn">继续细化</button>
+                <button class="btn btn-primary" id="importSelectedBtn">导入到日程</button>
+            </div>
         `;
+
+        // Bind refine button - switch back to conversation to continue refining
+        const refineBtn = document.getElementById('discussRefineBtn');
+        if (refineBtn) {
+            refineBtn.addEventListener('click', () => {
+                goalDiscussState.mode = 'discuss';
+                elements.goalDiscussConversation.classList.remove('hidden');
+                elements.goalDiscussResults.classList.add('hidden');
+                elements.goalDiscussFooter.classList.add('hidden');
+                elements.goalDiscussConversation.querySelectorAll('.discuss-input-area').forEach((el) => {
+                    el.remove();
+                });
+                // Show input with context-aware placeholder
+                showDiscussInput('继续细化这些任务，或者让AI调整时间分配...');
+            });
+        }
+
+        // Bind import button
+        const importBtn = document.getElementById('importSelectedBtn');
+        if (importBtn) {
+            importBtn.addEventListener('click', () => showImportModal());
+        }
+    }
+    
+    async function showImportModal() {
+        const selectedSubtasks = goalDiscussState.currentSubtasks.filter((st, i) => {
+            const checkbox = document.querySelector(`input[data-index="${i}"]`);
+            return checkbox && checkbox.checked;
+        });
+        
+        if (selectedSubtasks.length === 0) {
+            showToast('请选择要导入的任务');
+            return;
+        }
+        
+        const importHtml = `
+            <div class="modal" id="importModal">
+                <div class="modal-backdrop" id="importBackdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>导入到日程</h2>
+                        <button class="modal-close" id="importClose">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="import-tip">为选中的任务设置时间：</p>
+                        <div class="import-subtasks-list">
+                            ${selectedSubtasks.map((st, i) => `
+                                <div class="import-task-item" data-index="${i}">
+                                    <div class="import-task-title">${escapeHtml(st.title)}</div>
+                                    <div class="import-task-time">
+                                        <input type="datetime-local" class="import-start-time" value="${new Date().toISOString().slice(0, 16)}">
+                                        <span>至</span>
+                                        <input type="datetime-local" class="import-end-time">
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn" id="importCancel">取消</button>
+                        <button class="btn btn-primary" id="importConfirm">确认导入</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const existingModal = document.getElementById('importModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', importHtml);
+        
+        const modal = document.getElementById('importModal');
+        const backdrop = document.getElementById('importBackdrop');
+        const closeBtn = document.getElementById('importClose');
+        const cancelBtn = document.getElementById('importCancel');
+        const confirmBtn = document.getElementById('importConfirm');
+        
+        const closeModal = () => modal.remove();
+        backdrop.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        
+        confirmBtn.addEventListener('click', async () => {
+            let imported = 0;
+            for (let i = 0; i < selectedSubtasks.length; i++) {
+                const item = document.querySelector(`.import-task-item[data-index="${i}"]`);
+                const startTime = item.querySelector('.import-start-time').value;
+                const endTime = item.querySelector('.import-end-time').value;
+
+                if (startTime) {
+                    await createEvent({
+                        title: selectedSubtasks[i].title,
+                        start_time: startTime,
+                        end_time: endTime || null,
+                        category_id: 'work'
+                    });
+                    imported++;
+                }
+            }
+
+            if (imported > 0) {
+                showToast(`已导入 ${imported} 个日程`);
+                closeModal();
+                // In discuss mode (new goal), also save the goal/subtasks.
+                // In history mode, the goal already exists - just close.
+                if (goalDiscussState.mode !== 'history') {
+                    await saveGoalDiscuss();
+                } else {
+                    closeGoalDiscussModal();
+                }
+            } else {
+                showToast('请至少设置一个开始时间');
+            }
+        });
+        
+        requestAnimationFrame(() => {
+            modal.classList.remove('hidden');
+        });
     }
 
     async function saveGoalDiscuss() {
+        // In history mode (goalId set), save conversation history to existing goal, update subtasks
+        if (goalDiscussState.goalId && goalDiscussState.mode === 'history') {
+            // Save conversation history
+            if (goalDiscussState.conversationHistory.length > 0) {
+                for (const msg of goalDiscussState.conversationHistory) {
+                    await createGoalConversation(goalDiscussState.goalId, {
+                        role: msg.role,
+                        content: msg.content
+                    });
+                }
+            }
+            // Update goal with new subtasks if refined
+            if (goalDiscussState.currentSubtasks.length > 0) {
+                // Delete existing subtasks and recreate
+                const existingGoal = state.goals.find(g => String(g.id) === String(goalDiscussState.goalId));
+                if (existingGoal && existingGoal.subtasks) {
+                    for (const st of existingGoal.subtasks) {
+                        await deleteGoal(st.id);
+                    }
+                }
+                for (let i = 0; i < goalDiscussState.currentSubtasks.length; i++) {
+                    await createGoal({
+                        title: goalDiscussState.currentSubtasks[i].title,
+                        parent_id: goalDiscussState.goalId,
+                        horizon: state.goalsHorizon,
+                        order: i
+                    });
+                }
+            }
+            showToast('目标已更新');
+            closeGoalDiscussModal();
+            return;
+        }
+
         if (!goalDiscussState.goalContent || goalDiscussState.currentSubtasks.length === 0) {
             showToast('没有可保存的内容');
             return;
         }
-        
+
         try {
             // Create main goal
             const goalResult = await createGoal({
                 title: goalDiscussState.goalContent,
                 horizon: state.goalsHorizon
             });
-            
+
             if (goalResult && goalResult.id) {
                 // Create subtasks
                 for (let i = 0; i < goalDiscussState.currentSubtasks.length; i++) {
@@ -3303,7 +3945,7 @@
                         });
                     }
                 }
-                
+
                 showToast('目标已保存');
                 closeGoalDiscussModal();
                 await renderGoalsList();
@@ -3724,82 +4366,201 @@
     // ============================================
     // LLM Input Handling
     // ============================================
+    function updateLlmQueueIndicator() {
+        const waitingCount = state.llmQueue.length;
+        const isRunning = state.llmQueueRunning;
+
+        elements.llmBtn.classList.toggle('processing', isRunning);
+        elements.llmBtn.disabled = false;
+
+        if (waitingCount > 0) {
+            elements.llmBtn.classList.add('has-queue');
+            elements.llmBtn.setAttribute('data-queue-count', String(waitingCount));
+        } else {
+            elements.llmBtn.classList.remove('has-queue');
+            elements.llmBtn.removeAttribute('data-queue-count');
+        }
+    }
+
+    function updateLlmQueueStatusBar() {
+        if (!elements.llmQueueStatus || !elements.llmQueueText || !elements.llmQueueMeta || !elements.llmQueueProgressBar) {
+            return;
+        }
+
+        const hasActive = !!state.llmActiveRequest;
+        const waiting = state.llmQueue.length;
+        const inFlight = hasActive || waiting > 0;
+
+        clearTimeout(state.llmStatusHideTimer);
+        state.llmStatusHideTimer = null;
+
+        if (!inFlight && !state.llmLastStatusText) {
+            elements.llmQueueStatus.classList.add('hidden');
+            return;
+        }
+
+        elements.llmQueueStatus.classList.remove('hidden');
+
+        if (hasActive) {
+            const current = state.llmCycleDone + 1;
+            const total = Math.max(state.llmCycleTotal, current);
+            const previewText = String(state.llmActiveRequest.text || '').slice(0, 18);
+            elements.llmQueueText.textContent = `AI处理中 ${current}/${total}：${previewText}${state.llmActiveRequest.text.length > 18 ? '…' : ''}`;
+            elements.llmQueueMeta.textContent = waiting > 0 ? `排队 ${waiting}` : '进行中';
+
+            const progress = Math.max(4, Math.min(96, ((state.llmCycleDone + 0.5) / Math.max(1, total)) * 100));
+            elements.llmQueueProgressBar.style.width = `${progress}%`;
+            return;
+        }
+
+        elements.llmQueueText.textContent = state.llmLastStatusText;
+        elements.llmQueueMeta.textContent = '完成';
+        elements.llmQueueProgressBar.style.width = '100%';
+
+        state.llmStatusHideTimer = setTimeout(() => {
+            state.llmLastStatusText = '';
+            elements.llmQueueStatus.classList.add('hidden');
+            elements.llmQueueProgressBar.style.width = '0%';
+        }, 3500);
+    }
+
+    function enqueueLlmRequest(text) {
+        const normalizedText = String(text || '').trim();
+        if (!normalizedText) return;
+
+        const isNewCycle = !state.llmQueueRunning && !state.llmActiveRequest && state.llmQueue.length === 0;
+        if (isNewCycle) {
+            state.llmCycleTotal = 0;
+            state.llmCycleDone = 0;
+            state.llmCycleSucceeded = 0;
+            state.llmCycleFailed = 0;
+            state.llmLastStatusText = '';
+        }
+
+        state.llmQueue.push({
+            id: `llm_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            text: normalizedText
+        });
+        state.llmCycleTotal += 1;
+
+        updateLlmQueueIndicator();
+        updateLlmQueueStatusBar();
+
+        const waiting = state.llmQueue.length;
+        if (state.llmQueueRunning) {
+            showToast(`已加入队列（前方${Math.max(0, waiting - 1)}条）`);
+        }
+
+        void processLlmQueue();
+    }
+
+    async function processSingleLlmRequest(request) {
+        const text = request.text;
+
+        // Unified path: supports create/delete/complete/uncomplete and multi-ops.
+        const preview = await executeUnifiedLlmCommand(text, true);
+        if (!preview) {
+            throw new Error('AI解析失败');
+        }
+
+        const operations = Array.isArray(preview.operations) ? preview.operations : [];
+        if (operations.length === 0) {
+            throw new Error('未解析到可执行操作');
+        }
+
+        // For destructive or bulk updates, require confirmation after preview.
+        const hasMutatingBatch = operations.some((op) => op.action !== 'create');
+        if (hasMutatingBatch) {
+            const summary = preview.summary || operations.map((op) => {
+                if (op.action === 'create') return `创建 ${op.title || '日程'}`;
+                if (op.scope === 'date') return `${op.action} ${op.date || ''}`;
+                return `${op.action} 全部`;
+            }).join('；');
+            const confirmed = await showConfirm(`将执行以下操作：\n${summary}\n\n确认执行吗？`);
+            if (!confirmed) {
+                showToast('已取消该条AI操作');
+                return false;
+            }
+        }
+
+        const result = await executeUnifiedLlmCommand(text, false);
+        if (!result) {
+            throw new Error('执行失败');
+        }
+
+        const stats = result.stats || {};
+        const created = Number(stats.created || 0);
+        const deleted = Number(stats.deleted || 0);
+        const completed = Number(stats.completed || 0);
+        const uncompleted = Number(stats.uncompleted || 0);
+
+        if (deleted > 0 || completed > 0 || uncompleted > 0) {
+            const parts = [];
+            if (created > 0) parts.push(`创建${created}`);
+            if (deleted > 0) parts.push(`删除${deleted}`);
+            if (completed > 0) parts.push(`完成${completed}`);
+            if (uncompleted > 0) parts.push(`撤销完成${uncompleted}`);
+            showToast(`✅ 已执行：${parts.join(' / ')}`);
+        } else {
+            if (created > 1) showToast(`✅ ${created}个日程已创建`);
+            else if (created === 1) showToast('✅ 日程已创建');
+            else showToast('✅ 已执行');
+        }
+
+        await loadData();
+        return true;
+    }
+
+    async function processLlmQueue() {
+        if (state.llmQueueRunning) return;
+
+        state.llmQueueRunning = true;
+        updateLlmQueueIndicator();
+        updateLlmQueueStatusBar();
+
+        while (state.llmQueue.length > 0) {
+            const request = state.llmQueue.shift();
+            if (!request) continue;
+
+            state.llmActiveRequest = request;
+            updateLlmQueueIndicator();
+            updateLlmQueueStatusBar();
+
+            try {
+                const success = await processSingleLlmRequest(request);
+                if (success) {
+                    state.llmCycleSucceeded += 1;
+                } else {
+                    state.llmCycleFailed += 1;
+                }
+            } catch (error) {
+                console.error('LLM Error:', error);
+                showToast(`❌ 执行失败: ${error.message || '未知错误'}`);
+                state.llmCycleFailed += 1;
+            } finally {
+                state.llmCycleDone += 1;
+                state.llmActiveRequest = null;
+                updateLlmQueueIndicator();
+                updateLlmQueueStatusBar();
+            }
+        }
+
+        state.llmQueueRunning = false;
+        state.llmLastStatusText = `本轮完成：成功${state.llmCycleSucceeded}，失败${state.llmCycleFailed}`;
+        updateLlmQueueIndicator();
+        updateLlmQueueStatusBar();
+    }
+
     async function handleLlmSubmit() {
         const text = elements.llmInput.value.trim();
         if (!text) {
             showToast('请输入日程内容');
             return;
         }
-        
-        if (state.isLlmProcessing) {
-            return;
-        }
-        
-        state.isLlmProcessing = true;
-        elements.llmBtn.classList.add('processing');
-        elements.llmBtn.disabled = true;
-        elements.llmBtn.textContent = '⏳';
-        
-        try {
-            // Unified path: supports create/delete/complete/uncomplete and multi-ops.
-            const preview = await executeUnifiedLlmCommand(text, true);
-            if (!preview) {
-                throw new Error('AI解析失败');
-            }
 
-            const operations = Array.isArray(preview.operations) ? preview.operations : [];
-            if (operations.length === 0) {
-                throw new Error('未解析到可执行操作');
-            }
-
-            // For destructive or bulk updates, require confirmation after preview.
-            const hasMutatingBatch = operations.some((op) => op.action !== 'create');
-            if (hasMutatingBatch) {
-                const summary = preview.summary || operations.map((op) => {
-                    if (op.action === 'create') return `创建 ${op.title || '日程'}`;
-                    if (op.scope === 'date') return `${op.action} ${op.date || ''}`;
-                    return `${op.action} 全部`;
-                }).join('；');
-                const confirmed = await showConfirm(`将执行以下操作：\n${summary}\n\n确认执行吗？`);
-                if (!confirmed) {
-                    showToast('已取消');
-                    return;
-                }
-            }
-
-            const result = await executeUnifiedLlmCommand(text, false);
-            if (result) {
-                const stats = result.stats || {};
-                const created = Number(stats.created || 0);
-                const deleted = Number(stats.deleted || 0);
-                const completed = Number(stats.completed || 0);
-                const uncompleted = Number(stats.uncompleted || 0);
-
-                if (deleted > 0 || completed > 0 || uncompleted > 0) {
-                    const parts = [];
-                    if (created > 0) parts.push(`创建${created}`);
-                    if (deleted > 0) parts.push(`删除${deleted}`);
-                    if (completed > 0) parts.push(`完成${completed}`);
-                    if (uncompleted > 0) parts.push(`撤销完成${uncompleted}`);
-                    showToast(`✅ 已执行：${parts.join(' / ')}`);
-                } else {
-                    if (created > 1) showToast(`✅ ${created}个日程已创建`);
-                    else if (created === 1) showToast('✅ 日程已创建');
-                    else showToast('✅ 已执行');
-                }
-
-                elements.llmInput.value = '';
-                await loadData();
-            }
-        } catch (error) {
-            console.error('LLM Error:', error);
-            showToast('❌ 执行失败: ' + (error.message || '未知错误'));
-        } finally {
-            state.isLlmProcessing = false;
-            elements.llmBtn.classList.remove('processing');
-            elements.llmBtn.disabled = false;
-            elements.llmBtn.textContent = '🤖';
-        }
+        enqueueLlmRequest(text);
+        elements.llmInput.value = '';
+        elements.llmInput.focus();
     }
 
     // ============================================
@@ -3927,50 +4688,84 @@
     // ============================================
     // Data Loading
     // ============================================
-    async function loadData() {
-        state.isLoading = true;
-        
-        // Determine date filter based on active tab + calendar subview
-        let dateFilter = 'month';
-        
+    async function renderActiveViewAfterDataLoad() {
         if (state.currentView === 'day') {
-            if (state.calendarSubview === 'month') {
-                const year = state.currentMonth.getFullYear();
-                const month = state.currentMonth.getMonth() + 1;
-                dateFilter = `${year}-${String(month).padStart(2, '0')}`;
-            } else {
-                const year = state.currentDate.getFullYear();
-                const month = state.currentDate.getMonth() + 1;
-                dateFilter = `${year}-${String(month).padStart(2, '0')}`;
+            if (state.calendarSubview === 'day') {
+                renderTimeline();
+            } else if (state.calendarSubview === 'week') {
+                renderWeekView();
+            } else if (state.calendarSubview === 'month') {
+                renderMonthView();
             }
+            return;
         }
-        
-        try {
-            await Promise.all([
-                fetchCategories(),
-                fetchEvents(dateFilter),
-                fetchStats('today')
-            ]);
-            
-            console.log('loadData fetched events:', state.events.length);
-            renderHeaderTitle();
-            
-            if (state.currentView === 'day') {
-                if (state.calendarSubview === 'day') {
-                    renderTimeline();
-                } else if (state.calendarSubview === 'week') {
-                    renderWeekView();
-                } else if (state.calendarSubview === 'month') {
-                    renderMonthView();
+
+        if (state.currentView === 'todo') {
+            await renderTodoView();
+            return;
+        }
+
+        if (state.currentView === 'notepad') {
+            await renderNotepadView();
+            return;
+        }
+
+        if (state.currentView === 'goals') {
+            await renderGoalsView();
+            return;
+        }
+
+        if (state.currentView === 'stats') {
+            renderStatsView();
+        }
+    }
+
+    async function loadData() {
+        if (state.isLoading) {
+            state.reloadRequested = true;
+            return state.loadPromise || Promise.resolve();
+        }
+
+        state.isLoading = true;
+        state.loadPromise = (async () => {
+            do {
+                state.reloadRequested = false;
+
+                // Determine date filter based on active tab + calendar subview
+                let dateFilter = 'month';
+                if (state.currentView === 'day') {
+                    if (state.calendarSubview === 'month') {
+                        const year = state.currentMonth.getFullYear();
+                        const month = state.currentMonth.getMonth() + 1;
+                        dateFilter = `${year}-${String(month).padStart(2, '0')}`;
+                    } else {
+                        const year = state.currentDate.getFullYear();
+                        const month = state.currentDate.getMonth() + 1;
+                        dateFilter = `${year}-${String(month).padStart(2, '0')}`;
+                    }
                 }
-            } else if (state.currentView === 'stats') {
-                renderStatsView();
-            }
-        } catch (error) {
-            console.error('Load data error:', error);
-        }
-        
-        state.isLoading = false;
+
+                try {
+                    await Promise.all([
+                        fetchCategories(),
+                        fetchEvents(dateFilter),
+                        fetchStats('today')
+                    ]);
+
+                    console.log('loadData fetched events:', state.events.length);
+                    renderHeaderTitle();
+                    await renderActiveViewAfterDataLoad();
+                } catch (error) {
+                    console.error('Load data error:', error);
+                }
+            } while (state.reloadRequested);
+        })().finally(() => {
+            state.isLoading = false;
+            state.loadPromise = null;
+            state.reloadRequested = false;
+        });
+
+        return state.loadPromise;
     }
 
     // ============================================
@@ -4097,9 +4892,6 @@
                 handleLlmSubmit();
             }
         });
-        
-        // Breakdown button
-        elements.breakdownBtn.addEventListener('click', openBreakdownModal);
         
         // Breakdown modal events
         elements.breakdownBackdrop.addEventListener('click', closeBreakdownModal);

@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
 
-from .models import Event, Goal, GoalConversation, Note, Expense
+from .models import Event, Goal, GoalConversation, Note, Expense, NoteGroup
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
@@ -126,6 +126,11 @@ async def init_db() -> None:
         except Exception:
             pass
         
+        try:
+            await db.execute("ALTER TABLE notes ADD COLUMN group_id INTEGER")
+        except Exception:
+            pass
+        
         # Expenses table for expense tracking
         await db.execute("""
             CREATE TABLE IF NOT EXISTS expenses (
@@ -136,6 +141,22 @@ async def init_db() -> None:
                 created_at TEXT
             )
         """)
+
+        # Note groups table for custom note groupings
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS note_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                sort_order INTEGER DEFAULT 0,
+                created_at TEXT
+            )
+        """)
+
+        # Add group_id column to notes table
+        try:
+            await db.execute("ALTER TABLE notes ADD COLUMN group_id INTEGER")
+        except Exception:
+            pass
         
         await db.commit()
 
@@ -771,9 +792,9 @@ async def create_note(note: Note) -> Note:
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            """INSERT INTO notes (title, content, created_at, updated_at)
-               VALUES (?, ?, ?, ?)""",
-            (note.title, note.content, now, now),
+            """INSERT INTO notes (title, content, group_id, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (note.title, note.content, note.group_id, now, now),
         )
         await db.commit()
         note.id = cursor.lastrowid
@@ -796,6 +817,7 @@ async def get_notes() -> List[Note]:
                     id=row["id"],
                     title=row["title"] or "",
                     content=row["content"] or "",
+                    group_id=row["group_id"] if "group_id" in row.keys() else None,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                 ))
@@ -814,6 +836,7 @@ async def get_note(note_id: int) -> Optional[Note]:
                 id=row["id"],
                 title=row["title"] or "",
                 content=row["content"] or "",
+                group_id=row["group_id"] if "group_id" in row.keys() and row["group_id"] is not None else None,
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
             )
@@ -824,8 +847,8 @@ async def update_note(note_id: int, note: Note) -> Optional[Note]:
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE notes SET title = ?, content = ?, updated_at = ? WHERE id = ?",
-            (note.title, note.content, now, note_id),
+            "UPDATE notes SET title = ?, content = ?, group_id = ?, updated_at = ? WHERE id = ?",
+            (note.title, note.content, note.group_id, now, note_id),
         )
         await db.commit()
     return await get_note(note_id)
@@ -835,6 +858,80 @@ async def delete_note(note_id: int) -> bool:
     """Delete a note."""
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+# ============ Note Groups Functions ============
+
+async def create_note_group(group: NoteGroup) -> NoteGroup:
+    """Create a new note group."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO note_groups (name, sort_order, created_at)
+               VALUES (?, ?, ?)""",
+            (group.name, group.sort_order, now),
+        )
+        await db.commit()
+        group.id = cursor.lastrowid
+        group.created_at = datetime.now()
+    return group
+
+
+async def get_note_groups() -> List[NoteGroup]:
+    """Get all note groups, ordered by sort_order."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM note_groups ORDER BY sort_order ASC, created_at DESC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            groups = []
+            for row in rows:
+                groups.append(NoteGroup(
+                    id=row["id"],
+                    name=row["name"] or "",
+                    sort_order=row["sort_order"] or 0,
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                ))
+    return groups
+
+
+async def get_note_group(group_id: int) -> Optional[NoteGroup]:
+    """Get a single note group by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM note_groups WHERE id = ?", (group_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return NoteGroup(
+                id=row["id"],
+                name=row["name"] or "",
+                sort_order=row["sort_order"] or 0,
+                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+            )
+
+
+async def update_note_group(group_id: int, group: NoteGroup) -> Optional[NoteGroup]:
+    """Update an existing note group."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE note_groups SET name = ?, sort_order = ? WHERE id = ?",
+            (group.name, group.sort_order, group_id),
+        )
+        await db.commit()
+    return await get_note_group(group_id)
+
+
+async def delete_note_group(group_id: int) -> bool:
+    """Delete a note group (notes retain, group_id set to null)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Set group_id to null for all notes in this group
+        await db.execute("UPDATE notes SET group_id = NULL WHERE group_id = ?", (group_id,))
+        # Delete the group
+        cursor = await db.execute("DELETE FROM note_groups WHERE id = ?", (group_id,))
         await db.commit()
         return cursor.rowcount > 0
 
@@ -1011,6 +1108,181 @@ async def get_expense_stats(date_filter: str = "month") -> dict[str, Any]:
         "total": total,
         "by_category": by_category,
     }
+
+
+# ============================================
+# Note CRUD functions
+# ============================================
+
+async def create_note(note: Note) -> Note:
+    """Create a new note."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            "INSERT INTO notes (title, content, group_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (note.title, note.content, note.group_id, now, now),
+        )
+        await db.commit()
+        note.id = cursor.lastrowid
+        note.created_at = datetime.now()
+        note.updated_at = datetime.now()
+        return note
+
+
+async def get_notes() -> list[Note]:
+    """Get all notes ordered by created_at desc."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT id, title, content, group_id, created_at, updated_at FROM notes ORDER BY created_at DESC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                Note(
+                    id=row[0],
+                    title=row[1],
+                    content=row[2],
+                    group_id=row[3],
+                    created_at=datetime.fromisoformat(row[4]) if row[4] else None,
+                    updated_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                )
+                for row in rows
+            ]
+
+
+async def get_note(note_id: int) -> Optional[Note]:
+    """Get a single note by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT id, title, content, group_id, created_at, updated_at FROM notes WHERE id = ?",
+            (note_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return Note(
+                    id=row[0],
+                    title=row[1],
+                    content=row[2],
+                    group_id=row[3],
+                    created_at=datetime.fromisoformat(row[4]) if row[4] else None,
+                    updated_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                )
+            return None
+
+
+async def update_note(note_id: int, note: Note) -> Optional[Note]:
+    """Update an existing note."""
+    existing = await get_note(note_id)
+    if not existing:
+        return None
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = datetime.now().isoformat()
+        await db.execute(
+            "UPDATE notes SET title = ?, content = ?, group_id = ?, updated_at = ? WHERE id = ?",
+            (
+                note.title if note.title else existing.title,
+                note.content if note.content else existing.content,
+                note.group_id,
+                now,
+                note_id,
+            ),
+        )
+        await db.commit()
+    
+    return await get_note(note_id)
+
+
+async def delete_note(note_id: int) -> bool:
+    """Delete a note."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+# ============================================
+# NoteGroup CRUD functions
+# ============================================
+
+async def create_note_group(note_group: NoteGroup) -> NoteGroup:
+    """Create a new note group."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            "INSERT INTO note_groups (name, sort_order, created_at) VALUES (?, ?, ?)",
+            (note_group.name, note_group.sort_order, now),
+        )
+        await db.commit()
+        note_group.id = cursor.lastrowid
+        note_group.created_at = datetime.now()
+        return note_group
+
+
+async def get_note_groups() -> list[NoteGroup]:
+    """Get all note groups ordered by sort_order."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT id, name, sort_order, created_at FROM note_groups ORDER BY sort_order"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                NoteGroup(
+                    id=row[0],
+                    name=row[1],
+                    sort_order=row[2],
+                    created_at=datetime.fromisoformat(row[3]) if row[3] else None,
+                )
+                for row in rows
+            ]
+
+
+async def get_note_group(group_id: int) -> Optional[NoteGroup]:
+    """Get a single note group by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT id, name, sort_order, created_at FROM note_groups WHERE id = ?",
+            (group_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return NoteGroup(
+                    id=row[0],
+                    name=row[1],
+                    sort_order=row[2],
+                    created_at=datetime.fromisoformat(row[3]) if row[3] else None,
+                )
+            return None
+
+
+async def update_note_group(group_id: int, note_group: NoteGroup) -> Optional[NoteGroup]:
+    """Update an existing note group."""
+    existing = await get_note_group(group_id)
+    if not existing:
+        return None
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE note_groups SET name = ?, sort_order = ? WHERE id = ?",
+            (
+                note_group.name if note_group.name else existing.name,
+                note_group.sort_order if note_group.sort_order != existing.sort_order else existing.sort_order,
+                group_id,
+            ),
+        )
+        await db.commit()
+    
+    return await get_note_group(group_id)
+
+
+async def delete_note_group(group_id: int) -> bool:
+    """Delete a note group. Notes in the group will have group_id set to NULL."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # First set notes in this group to NULL
+        await db.execute("UPDATE notes SET group_id = NULL WHERE group_id = ?", (group_id,))
+        # Then delete the group
+        cursor = await db.execute("DELETE FROM note_groups WHERE id = ?", (group_id,))
+        await db.commit()
+        return cursor.rowcount > 0
 
 
 async def cleanup_test_entries() -> dict[str, int]:

@@ -37,7 +37,15 @@
             <div class="llm-input-wrapper">
                 <input type="text" class="llm-input" id="llmInput" placeholder="输入自然语言创建日程..." autocomplete="off">
                 <button class="llm-btn" id="llmBtn">AI</button>
-                <button class="breakdown-btn" id="breakdownBtn" title="任务拆解">📋</button>
+            </div>
+            <div class="llm-queue-status hidden" id="llmQueueStatus" aria-live="polite">
+                <div class="llm-queue-main">
+                    <span class="llm-queue-text" id="llmQueueText">AI处理中...</span>
+                    <span class="llm-queue-meta" id="llmQueueMeta">进行中</span>
+                </div>
+                <div class="llm-queue-progress-track">
+                    <div class="llm-queue-progress-bar" id="llmQueueProgressBar"></div>
+                </div>
             </div>
         </div>
 
@@ -100,7 +108,7 @@
             <div class="modal-backdrop" id="modalBackdrop"></div>
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>新建日程</h2>
+                    <h2 id="eventModalTitle">新建日程</h2>
                     <button class="modal-close" id="modalClose">×</button>
                 </div>
                 <div class="modal-body">
@@ -345,7 +353,7 @@
         </div>
     </div>
 
-<script src="/static/app.js?v=20260406-15"></script>
+    <script src="/static/app.js?v=20260410-01"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {
