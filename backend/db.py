@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
 
-from .models import Event, Goal, GoalConversation, Note, Expense, NoteGroup
+from .models import Event, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
@@ -154,6 +154,19 @@ async def init_db() -> None:
                 name TEXT NOT NULL,
                 sort_order INTEGER DEFAULT 0,
                 created_at TEXT
+            )
+        """)
+
+        # Note conversations table for AI chat history
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS note_conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                note_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                selected_text TEXT DEFAULT '',
+                created_at TEXT,
+                FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
             )
         """)
 
@@ -948,6 +961,55 @@ async def delete_note_group(group_id: int) -> bool:
         cursor = await db.execute("DELETE FROM note_groups WHERE id = ?", (group_id,))
         await db.commit()
         return cursor.rowcount > 0
+
+
+# ============ Note Conversations Functions ============
+
+async def create_note_conversation(conversation: "NoteConversation") -> "NoteConversation":
+    """Create a new note conversation message."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO note_conversations (note_id, role, content, selected_text, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (conversation.note_id, conversation.role, conversation.content, conversation.selected_text, now),
+        )
+        await db.commit()
+        conversation.id = cursor.lastrowid
+        conversation.created_at = datetime.now()
+    return conversation
+
+
+async def get_note_conversations(note_id: int) -> List["NoteConversation"]:
+    """Get all conversation messages for a note, ordered by creation time."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """SELECT id, note_id, role, content, selected_text, created_at 
+               FROM note_conversations 
+               WHERE note_id = ? 
+               ORDER BY created_at ASC""",
+            (note_id,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            NoteConversation(
+                id=row[0],
+                note_id=row[1],
+                role=row[2],
+                content=row[3],
+                selected_text=row[4] or "",
+                created_at=datetime.fromisoformat(row[5]) if row[5] else None,
+            )
+            for row in rows
+        ]
+
+
+async def delete_note_conversations(note_id: int) -> bool:
+    """Delete all conversation messages for a note."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM note_conversations WHERE note_id = ?", (note_id,))
+        await db.commit()
+    return True
 
 
 # ============ Expenses Functions ============

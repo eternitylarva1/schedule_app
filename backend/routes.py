@@ -939,6 +939,99 @@ async def delete_note_group(request: web.Request) -> web.Response:
         return error_response(f"删除分组失败: {str(e)}")
 
 
+# ============ Note Conversations Endpoints (AI Chat) ============
+
+async def get_note_conversations(request: web.Request) -> web.Response:
+    """GET /api/notes/{note_id}/conversations - get conversation history for a note."""
+    note_id = int(request.match_info["note_id"])
+    try:
+        conversations = await db.get_note_conversations(note_id)
+        return json_response([c.to_dict() for c in conversations])
+    except Exception as e:
+        return error_response(f"获取对话历史失败: {str(e)}")
+
+
+async def chat_note(request: web.Request) -> web.Response:
+    """POST /api/notes/{note_id}/chat - chat with AI about a note."""
+    note_id = int(request.match_info["note_id"])
+    
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception as e:
+        return error_response("无效的JSON数据")
+    
+    try:
+        # Get the note content
+        note = await db.get_note(note_id)
+        if not note:
+            return error_response("笔记不存在", code=404)
+        
+        user_message = data.get("message", "").strip()
+        if not user_message:
+            return error_response("消息内容不能为空")
+        
+        selected_text = data.get("selected_text", "")
+        
+        # Get conversation history for context
+        conversations = await db.get_note_conversations(note_id)
+        history_str = ""
+        if conversations:
+            history_lines = []
+            for c in conversations:
+                role_label = "用户" if c.role == "user" else "AI"
+                history_lines.append(f"{role_label}：{c.content}")
+            history_str = "\n".join(history_lines)
+        
+        # Call LLM service
+        from .llm_service import llm_service
+        ai_response = await llm_service.chat_about_note(
+            note_content=note.content,
+            user_message=user_message,
+            selected_text=selected_text,
+            conversation_history=history_str
+        )
+        
+        if not ai_response:
+            return error_response("AI 响应失败，请重试")
+        
+        # Save user message to history
+        user_conv = db.NoteConversation(
+            note_id=note_id,
+            role="user",
+            content=user_message,
+            selected_text=selected_text or ""
+        )
+        await db.create_note_conversation(user_conv)
+        
+        # Save AI response to history
+        ai_conv = db.NoteConversation(
+            note_id=note_id,
+            role="assistant",
+            content=ai_response,
+            selected_text=""
+        )
+        saved_ai = await db.create_note_conversation(ai_conv)
+        
+        return json_response(saved_ai.to_dict())
+    except Exception as e:
+        return error_response(f"AI 对话失败: {str(e)}")
+
+
+async def delete_note_conversations(request: web.Request) -> web.Response:
+    """DELETE /api/notes/{note_id}/conversations - clear conversation history for a note."""
+    note_id = int(request.match_info["note_id"])
+    try:
+        await db.delete_note_conversations(note_id)
+        return json_response({"deleted": True})
+    except Exception as e:
+        return error_response(f"清空对话历史失败: {str(e)}")
+
+
 # ============ Expenses Endpoints ============
 
 async def get_expenses(request: web.Request) -> web.Response:
@@ -1362,6 +1455,10 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/note-groups", create_note_group)
     app.router.add_put("/api/note-groups/{id}", update_note_group)
     app.router.add_delete("/api/note-groups/{id}", delete_note_group)
+    # Note conversations (AI chat) endpoints
+    app.router.add_get("/api/notes/{note_id}/conversations", get_note_conversations)
+    app.router.add_post("/api/notes/{note_id}/chat", chat_note)
+    app.router.add_delete("/api/notes/{note_id}/conversations", delete_note_conversations)
     # Expenses endpoints
     app.router.add_get("/api/expenses", get_expenses)
     app.router.add_post("/api/expenses", create_expense)

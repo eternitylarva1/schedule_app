@@ -388,6 +388,56 @@ class LLMService:
         
         return None
 
+    async def chat_about_note(
+        self,
+        note_content: str,
+        user_message: str,
+        selected_text: str = "",
+        conversation_history: str = ""
+    ) -> Optional[str]:
+        """Chat about a note with full context.
+        
+        Args:
+            note_content: The full note text as context
+            user_message: The user's question
+            selected_text: Optional text the user selected in the note
+            conversation_history: Previous conversation context
+        
+        Returns:
+            AI's response text or None if failed
+        """
+        # Build context section
+        context = f"""
+## 笔记全文
+{note_content if note_content else "（笔记为空）"}
+"""
+        
+        if selected_text:
+            context += f"""
+## 用户选中的文本
+{selected_text}
+"""
+        
+        if conversation_history:
+            context += f"""
+## 对话历史
+{conversation_history}
+"""
+        
+        prompt = f"""{context}
+
+用户的问题：{user_message}
+
+请根据笔记内容回答用户的问题。如果用户选中了特定文本，重点针对该文本回答。
+回答要简洁、有帮助。如果笔记内容与问题无关，请如实说明。"""
+        
+        response = await self.chat([
+            {"role": "system", "content": "你是一个笔记助手，帮助用户理解和整理笔记内容。回答要简洁、有条理。"},
+            {"role": "user", "content": prompt}
+        ], temperature=0.7)
+        
+        return response
+
     async def process_unified_command(self, user_text: str) -> Optional[Dict[str, Any]]:
         """Parse unified natural-language commands for schedule/todo operations.
 

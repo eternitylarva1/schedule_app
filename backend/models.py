@@ -207,3 +207,29 @@ class Expense:
             d["amount"] = float(d["amount"])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
+
+
+@dataclass
+class NoteConversation:
+    """Conversation message for note AI discussion."""
+    id: int | None = None
+    note_id: int | None = None
+    role: str = "user"  # user/assistant
+    content: str = ""
+    selected_text: str = ""  # User's selected text when asking
+    created_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        if d.get("created_at") and isinstance(d["created_at"], datetime):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "NoteConversation":
+        """Create NoteConversation from dictionary."""
+        if d.get("created_at") and isinstance(d["created_at"], str):
+            d["created_at"] = datetime.fromisoformat(d["created_at"])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)

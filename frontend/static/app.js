@@ -772,6 +772,29 @@
     }
 
     // ============================================
+    // Note AI Chat API Functions
+    // ============================================
+    async function fetchNoteConversations(noteId) {
+        return await apiCall(`notes/${noteId}/conversations`);
+    }
+
+    async function chatWithNote(noteId, message, selectedText = '') {
+        return await apiCall(`notes/${noteId}/chat`, {
+            method: 'POST',
+            body: JSON.stringify({
+                message: message,
+                selected_text: selectedText
+            })
+        });
+    }
+
+    async function clearNoteConversations(noteId) {
+        return await apiCall(`notes/${noteId}/conversations`, {
+            method: 'DELETE'
+        });
+    }
+
+    // ============================================
     // Expenses API Functions
     // ============================================
     async function fetchExpenses(dateFilter = 'month') {
@@ -2057,6 +2080,17 @@
                 elements.contentAddBtn.textContent = '+';
                 elements.contentAddBtn.title = state.notepadSubview === 'expense' ? '快速记账' : '新建笔记';
             }
+
+            // Show AI chat button when in notes subview
+            const aiFloatBtn = document.getElementById('aiChatFloatBtn');
+            if (aiFloatBtn) {
+                if (state.notepadSubview === 'notes') {
+                    aiFloatBtn.classList.remove('hidden');
+                } else {
+                    aiFloatBtn.classList.add('hidden');
+                    closeAIChatPanel();
+                }
+            }
         } catch (err) {
             console.error('renderNotepadView error:', err);
             if (elements.notepadContainer) {
@@ -2255,7 +2289,23 @@
                 }
                 const noteId = parseInt(item.dataset.noteId);
                 const note = state.notes.find(n => n.id === noteId);
-                if (note) showNoteDetail(note);
+                if (note) {
+                    state.selectedNote = note;
+                    // If AI chat panel is open, update panel context instead of showing modal
+                    if (aiChatState.isOpen) {
+                        const contextContent = document.getElementById('aiChatContextContent');
+                        if (contextContent) {
+                            contextContent.textContent = note.content || '（空笔记）';
+                        }
+                        // Focus input for chat
+                        setTimeout(() => {
+                            const input = document.getElementById('aiChatInput');
+                            if (input) input.focus();
+                        }, 100);
+                    } else {
+                        showNoteDetail(note);
+                    }
+                }
             });
         });
         
@@ -2338,6 +2388,320 @@
         container.addEventListener('drop', handleNoteDrop, false);
         container.addEventListener('dragend', handleNoteDragEnd, false);
     }
+
+    // ============================================
+    // AI Chat Panel for Notes
+    // ============================================
+    let aiChatState = {
+        isOpen: false,
+        currentNote: null,
+        conversations: [],
+        selectedText: '',
+        isLoading: false
+    };
+
+    function initAIChatPanel() {
+        const floatBtn = document.getElementById('aiChatFloatBtn');
+        const panel = document.getElementById('aiChatPanel');
+        const closeBtn = document.getElementById('aiChatPanelClose');
+        const backdrop = document.getElementById('aiChatBackdrop');
+        const sendBtn = document.getElementById('aiChatSendBtn');
+        const input = document.getElementById('aiChatInput');
+        const askAiBtn = document.getElementById('askAiFloatBtn');
+
+        if (!floatBtn || !panel) return;
+
+        // Toggle panel open/close
+        floatBtn.addEventListener('click', () => toggleAIChatPanel());
+
+        // Close button
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => closeAIChatPanel());
+        }
+
+        // Backdrop click to close
+        if (backdrop) {
+            backdrop.addEventListener('click', () => closeAIChatPanel());
+        }
+
+        // Send message on button click
+        if (sendBtn) {
+            sendBtn.addEventListener('click', () => sendAIChatMessage());
+        }
+
+        // Send on Enter key
+        if (input) {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendAIChatMessage();
+                }
+            });
+        }
+
+        // Ask AI button (floating when text selected)
+        if (askAiBtn) {
+            askAiBtn.addEventListener('click', () => {
+                if (aiChatState.selectedText) {
+                    openAIChatPanelWithSelection(aiChatState.selectedText);
+                }
+            });
+        }
+
+        // Listen for text selection in notepad
+        document.addEventListener('mouseup', handleTextSelection);
+        document.addEventListener('touchend', handleTextSelection);
+    }
+
+    function handleTextSelection() {
+        const askAiBtn = document.getElementById('askAiFloatBtn');
+        if (!askAiBtn) return;
+
+        // Only show when notepad view is active
+        if (state.currentView !== 'notepad' || !state.selectedNote) {
+            askAiBtn.classList.remove('visible');
+            return;
+        }
+
+        setTimeout(() => {
+            const selection = window.getSelection();
+            const selectedText = selection.toString().trim();
+
+            if (selectedText && selectedText.length > 0) {
+                aiChatState.selectedText = selectedText;
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+
+                askAiBtn.style.left = `${rect.left + rect.width / 2 - 40}px`;
+                askAiBtn.style.top = `${rect.top - 45}px`;
+                askAiBtn.classList.add('visible');
+            } else {
+                askAiBtn.classList.remove('visible');
+                aiChatState.selectedText = '';
+            }
+        }, 10);
+    }
+
+    function toggleAIChatPanel() {
+        if (aiChatState.isOpen) {
+            closeAIChatPanel();
+        } else {
+            openAIChatPanel();
+        }
+    }
+
+    function openAIChatPanel() {
+        if (!state.selectedNote) {
+            showToast('请先选择一个笔记');
+            return;
+        }
+
+        aiChatState.isOpen = true;
+        aiChatState.currentNote = state.selectedNote;
+
+        const panel = document.getElementById('aiChatPanel');
+        const floatBtn = document.getElementById('aiChatFloatBtn');
+        const backdrop = document.getElementById('aiChatBackdrop');
+        const contextContent = document.getElementById('aiChatContextContent');
+
+        if (panel) panel.classList.add('open');
+        if (floatBtn) floatBtn.classList.add('hidden');
+        if (backdrop) backdrop.classList.add('visible');
+
+        // Show note context
+        if (contextContent && aiChatState.currentNote) {
+            contextContent.textContent = aiChatState.currentNote.content || '（空笔记）';
+        }
+
+        // Load conversation history
+        loadAIChatHistory();
+
+        // Focus input
+        setTimeout(() => {
+            const input = document.getElementById('aiChatInput');
+            if (input) input.focus();
+        }, 300);
+    }
+
+    function openAIChatPanelWithSelection(selectedText) {
+        openAIChatPanel();
+        aiChatState.selectedText = selectedText;
+
+        const preview = document.getElementById('aiChatSelectedPreview');
+        const previewSpan = preview?.querySelector('span');
+
+        if (preview && previewSpan) {
+            previewSpan.textContent = selectedText.length > 50
+                ? selectedText.substring(0, 50) + '...'
+                : selectedText;
+            preview.classList.add('has-selection');
+        }
+    }
+
+    function closeAIChatPanel() {
+        aiChatState.isOpen = false;
+        aiChatState.selectedText = '';
+        aiChatState.conversations = [];
+
+        const panel = document.getElementById('aiChatPanel');
+        const floatBtn = document.getElementById('aiChatFloatBtn');
+        const backdrop = document.getElementById('aiChatBackdrop');
+        const preview = document.getElementById('aiChatSelectedPreview');
+        const askAiBtn = document.getElementById('askAiFloatBtn');
+
+        if (panel) panel.classList.remove('open');
+        if (floatBtn) floatBtn.classList.remove('hidden');
+        if (backdrop) backdrop.classList.remove('visible');
+        if (preview) preview.classList.remove('has-selection');
+        if (askAiBtn) askAiBtn.classList.remove('visible');
+
+        // Clear input
+        const input = document.getElementById('aiChatInput');
+        if (input) input.value = '';
+    }
+
+    async function loadAIChatHistory() {
+        if (!aiChatState.currentNote) return;
+
+        try {
+            const conversations = await fetchNoteConversations(aiChatState.currentNote.id);
+            aiChatState.conversations = conversations || [];
+            renderAIChatHistory();
+        } catch (error) {
+            console.error('Failed to load chat history:', error);
+        }
+    }
+
+    function renderAIChatHistory() {
+        const container = document.getElementById('aiChatHistory');
+        if (!container) return;
+
+        if (aiChatState.conversations.length === 0) {
+            container.innerHTML = '<div class="ai-chat-empty">发送消息开始对话</div>';
+            return;
+        }
+
+        container.innerHTML = aiChatState.conversations.map(conv => `
+            <div class="ai-chat-message ${conv.role}">
+                <div class="ai-chat-bubble">
+                    ${conv.selected_text ? `<div class="ai-chat-bubble selected-text">"${escapeHtml(conv.selected_text)}"</div>` : ''}
+                    ${escapeHtml(conv.content)}
+                    ${conv.role === 'assistant' ? `<button class="ai-chat-insert-btn" onclick="insertAIResponseToNote('${escapeHtml(conv.content.replace(/'/g, "\\'"))}')">↩ 插入到笔记</button>` : ''}
+                </div>
+                <div class="ai-chat-meta">${conv.role === 'user' ? '你' : 'AI'}</div>
+            </div>
+        `).join('');
+
+        // Scroll to bottom
+        container.scrollTop = container.scrollHeight;
+    }
+
+    async function sendAIChatMessage() {
+        if (!aiChatState.currentNote || aiChatState.isLoading) return;
+
+        const input = document.getElementById('aiChatInput');
+        const message = input?.value.trim();
+
+        if (!message) return;
+
+        const selectedText = aiChatState.selectedText;
+        aiChatState.isLoading = true;
+        input.value = '';
+
+        // Show loading
+        const container = document.getElementById('aiChatHistory');
+        if (container) {
+            container.innerHTML += `
+                <div class="ai-chat-message user">
+                    <div class="ai-chat-bubble">${escapeHtml(message)}</div>
+                    <div class="ai-chat-meta">你</div>
+                </div>
+                <div class="ai-chat-loading">
+                    <span class="ai-chat-loading-dot">●●●</span>
+                    <span>AI 思考中...</span>
+                </div>
+            `;
+            container.scrollTop = container.scrollHeight;
+        }
+
+        try {
+            const response = await chatWithNote(
+                aiChatState.currentNote.id,
+                message,
+                selectedText
+            );
+
+            if (response) {
+                // Remove loading
+                const loading = container?.querySelector('.ai-chat-loading');
+                if (loading) loading.remove();
+
+                // Add user message to state
+                aiChatState.conversations.push({
+                    role: 'user',
+                    content: message,
+                    selected_text: selectedText
+                });
+
+                // Add AI response
+                aiChatState.conversations.push({
+                    role: 'assistant',
+                    content: response.content
+                });
+
+                renderAIChatHistory();
+            }
+        } catch (error) {
+            console.error('Chat error:', error);
+            showToast('AI 对话失败，请重试');
+
+            // Remove loading
+            const loading = container?.querySelector('.ai-chat-loading');
+            if (loading) loading.remove();
+        } finally {
+            aiChatState.isLoading = false;
+            aiChatState.selectedText = '';
+
+            // Clear selection preview
+            const preview = document.getElementById('aiChatSelectedPreview');
+            if (preview) preview.classList.remove('has-selection');
+        }
+    }
+
+    async function insertAIResponseToNote(content) {
+        if (!aiChatState.currentNote) return;
+
+        const currentContent = aiChatState.currentNote.content || '';
+        const newContent = currentContent
+            ? currentContent + '\n\n---\nAI 回答：\n' + content
+            : 'AI 回答：\n' + content;
+
+        try {
+            await updateNote(aiChatState.currentNote.id, {
+                content: newContent
+            });
+
+            // Update local state
+            aiChatState.currentNote.content = newContent;
+
+            // Refresh note detail if open
+            if (state.selectedNote && state.selectedNote.id === aiChatState.currentNote.id) {
+                state.selectedNote.content = newContent;
+                showNoteDetail(state.selectedNote);
+            }
+
+            // Refresh notes list
+            await fetchNotes();
+            await renderNotesList();
+
+            showToast('已插入到笔记');
+        } catch (error) {
+            console.error('Failed to insert to note:', error);
+            showToast('插入失败');
+        }
+    }
+
+    // Make insert function globally accessible
+    window.insertAIResponseToNote = insertAIResponseToNote;
 
     function handleNoteDragStart(e) {
         console.log('[DragStart] Firing!');
@@ -3191,6 +3555,13 @@
                 : '新建日程';
         } else {
             elements.contentAddBtn.classList.add('hidden');
+        }
+
+        // Close AI chat panel when switching away from notepad
+        if (view !== 'notepad') {
+            closeAIChatPanel();
+            const aiFloatBtn = document.getElementById('aiChatFloatBtn');
+            if (aiFloatBtn) aiFloatBtn.classList.add('hidden');
         }
 
         // Show active view
@@ -5374,6 +5745,7 @@
         bindEvents();
         renderCategorySelector();
         syncPendingTimeState();
+        initAIChatPanel();
         
         // Load last view from localStorage (tab bar supports: day/todo/goals/notepad)
         const allowedViews = new Set(['day', 'todo', 'goals', 'notepad']);

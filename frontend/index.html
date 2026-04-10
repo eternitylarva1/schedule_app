@@ -103,6 +103,42 @@
             </div>
         </main>
 
+        <!-- AI Chat Floating Button (visible in notepad view) -->
+        <button class="ai-chat-float-btn hidden" id="aiChatFloatBtn" title="AI 对话">🤖</button>
+
+        <!-- AI Chat Backdrop -->
+        <div class="ai-chat-backdrop" id="aiChatBackdrop"></div>
+
+        <!-- AI Chat Panel -->
+        <div class="ai-chat-panel" id="aiChatPanel">
+            <div class="ai-chat-panel-header">
+                <div class="ai-chat-panel-title">
+                    <span>💬</span>
+                    <span>笔记 AI 对话</span>
+                </div>
+                <button class="ai-chat-panel-close" id="aiChatPanelClose">×</button>
+            </div>
+            <div class="ai-chat-context">
+                <div class="ai-chat-context-title">📄 当前笔记上下文</div>
+                <div class="ai-chat-context-content" id="aiChatContextContent">选择一个笔记开始对话</div>
+            </div>
+            <div class="ai-chat-history" id="aiChatHistory">
+                <div class="ai-chat-empty">发送消息开始对话</div>
+            </div>
+            <div class="ai-chat-input-area">
+                <div class="ai-chat-selected-preview" id="aiChatSelectedPreview">
+                    选中: <span></span>
+                </div>
+                <div class="ai-chat-input-row">
+                    <input type="text" class="ai-chat-input" id="aiChatInput" placeholder="输入问题..." autocomplete="off">
+                    <button class="ai-chat-send-btn" id="aiChatSendBtn">➤</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ask AI Floating Button (when text selected) -->
+        <button class="ask-ai-float-btn" id="askAiFloatBtn">💬 问 AI</button>
+
         <!-- Event Creation Modal -->
         <div class="modal hidden" id="eventModal">
             <div class="modal-backdrop" id="modalBackdrop"></div>
