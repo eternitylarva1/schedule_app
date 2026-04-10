@@ -3008,6 +3008,156 @@ textarea {
     border-color: var(--accent-primary);
 }
 
+/* Note Drag Handle */
+.note-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+}
+
+.note-drag-handle {
+    color: var(--text-muted);
+    font-size: var(--font-size-lg);
+    cursor: grab;
+    padding: var(--space-xs);
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.note-drag-handle:active {
+    cursor: grabbing;
+}
+
+.note-item .note-title,
+.note-item .note-content {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Note Drag State */
+.note-swipe.dragging {
+    opacity: 0.5;
+}
+
+.note-swipe.drag-over {
+    border-top: 2px solid var(--accent-primary);
+}
+
+.note-swipe.drag-over::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-primary);
+}
+
+/* Drop Indicator */
+.drop-indicator {
+    height: 3px;
+    background: var(--accent-primary);
+    border-radius: 2px;
+    margin: var(--space-xs) 0;
+}
+
+/* Note Group Styles */
+.note-group {
+    margin-bottom: var(--space-sm);
+}
+
+.note-group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    user-select: none;
+}
+
+.note-group-toggle {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    width: 16px;
+    text-align: center;
+}
+
+.note-group-name {
+    flex: 1;
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.note-group-count {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    background: var(--bg-card);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.note-group-delete {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: var(--font-size-lg);
+    cursor: pointer;
+    padding: 0 var(--space-xs);
+    opacity: 0.6;
+    transition: opacity var(--transition-fast);
+}
+
+.note-group-delete:hover {
+    opacity: 1;
+    color: var(--accent-danger);
+}
+
+.note-group-content {
+    overflow: hidden;
+}
+
+.note-group-content.collapsed {
+    display: none;
+}
+
+.note-group-empty {
+    padding: var(--space-md);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.add-group-container {
+    padding: var(--space-md);
+    text-align: center;
+}
+
+.add-group-btn {
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    color: var(--text-muted);
+    font-size: var(--font-size-md);
+    cursor: pointer;
+    width: 100%;
+    transition: all var(--transition-fast);
+}
+
+.add-group-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* Group Drop Target Highlight */
+.note-group.drag-over .note-group-header {
+    background: var(--accent-primary);
+    opacity: 0.3;
+}
+
 .note-detail-title {
     font-size: var(--font-size-lg);
     font-weight: 700;
@@ -3037,6 +3187,14 @@ textarea {
     color: #fff;
     z-index: 1;
     user-select: none;
+}
+
+.note-group-header::-webkit-details-marker {
+    display: none;
+}
+
+.note-group-header::marker {
+    content: '';
 }
 
 .swipe-action-left {

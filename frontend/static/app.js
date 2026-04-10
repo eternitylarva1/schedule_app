@@ -725,6 +725,7 @@
                 title: (noteInput?.title || '').trim(),
                 content: (noteInput?.content || '').trim(),
                 group_id: noteInput?.group_id !== undefined ? noteInput.group_id : undefined,
+                sort_order: noteInput?.sort_order !== undefined ? noteInput.sort_order : undefined,
             };
         return await apiCall(`notes/${noteId}`, {
             method: 'PUT',
@@ -2130,6 +2131,15 @@
         const notes = await fetchNotes();
         const groups = await fetchNoteGroups() || [];
         
+        // Initialize expandedGroups on first load (when set is empty)
+        if (state.expandedGroups.size === 0 && groups.length > 0) {
+            groups.forEach((g) => {
+                state.expandedGroups.add(String(g.id));
+            });
+            // Also add 'ungrouped' by default
+            state.expandedGroups.add('ungrouped');
+        }
+        
         // If no notes at all
         if ((!notes || notes.length === 0) && (!groups || groups.length === 0)) {
             container.innerHTML = `
@@ -2164,22 +2174,22 @@
         // Render each group (sorted by sort_order)
         const sortedGroups = groups.sort((a, b) => a.sort_order - b.sort_order);
         sortedGroups.forEach(group => {
-            const isExpanded = state.expandedGroups.has(group.id);
+            const isExpanded = state.expandedGroups.has(String(group.id));
             const groupData = groupMap[group.id] || { notes: [] };
             const noteCount = groupData.notes.length;
             
             html += `
-                <div class="note-group" data-group-id="${group.id}">
-                    <div class="note-group-header" data-group-id="${group.id}">
+                <details class="note-group" data-group-id="${group.id}" ${isExpanded ? 'open' : ''}>
+                    <summary class="note-group-header" data-group-id="${group.id}">
                         <span class="note-group-toggle">${isExpanded ? '▼' : '▶'}</span>
                         <span class="note-group-name">${escapeHtml(group.name)}</span>
                         <span class="note-group-count">${noteCount}</span>
                         <button class="note-group-delete" data-group-id="${group.id}" title="删除分组">×</button>
-                    </div>
+                    </summary>
                     <div class="note-group-content ${isExpanded ? '' : 'collapsed'}">
                         ${noteCount > 0 ? groupData.notes.map(note => renderNoteItem(note)).join('') : '<div class="note-group-empty">暂无笔记</div>'}
                     </div>
-                </div>
+                </details>
             `;
         });
         
@@ -2187,16 +2197,16 @@
         const ungroupedExpanded = state.expandedGroups.has('ungrouped');
         if (ungroupedNotes.length > 0) {
             html += `
-                <div class="note-group" data-group-id="ungrouped">
-                    <div class="note-group-header" data-group-id="ungrouped">
+                <details class="note-group" data-group-id="ungrouped" ${ungroupedExpanded ? 'open' : ''}>
+                    <summary class="note-group-header" data-group-id="ungrouped">
                         <span class="note-group-toggle">${ungroupedExpanded ? '▼' : '▶'}</span>
                         <span class="note-group-name">未分组</span>
                         <span class="note-group-count">${ungroupedNotes.length}</span>
-                    </div>
+                    </summary>
                     <div class="note-group-content ${ungroupedExpanded ? '' : 'collapsed'}">
                         ${ungroupedNotes.map(note => renderNoteItem(note)).join('')}
                     </div>
-                </div>
+                </details>
             `;
         }
         
@@ -2208,28 +2218,14 @@
                 </button>
             </div>
         `;
-        
+
         container.innerHTML = html;
-        
-        // Bind group toggle events
-        container.querySelectorAll('.note-group-header').forEach(header => {
-            header.addEventListener('click', (e) => {
-                if (e.target.closest('.note-group-delete')) return;
-                const groupId = header.dataset.groupId;
-                
-                if (state.expandedGroups.has(groupId)) {
-                    state.expandedGroups.delete(groupId);
-                } else {
-                    state.expandedGroups.add(groupId);
-                }
-                renderNotesList();
-            });
-        });
-        
+
         // Bind group delete events
         container.querySelectorAll('.note-group-delete').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 const groupId = parseInt(btn.dataset.groupId);
                 const confirmed = await showConfirm('删除分组？分组内的笔记将移至"未分组"。');
                 if (confirmed) {
@@ -2284,15 +2280,18 @@
                 }
             });
         });
+        
+        // Drag-and-drop temporarily disabled for stability
     }
     
     function renderNoteItem(note) {
         return `
-            <div class="swipe-item note-swipe" data-note-id="${note.id}">
+            <div class="swipe-item note-swipe" data-note-id="${note.id}" draggable="true">
                 <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">✏️ 编辑</div>
                 <div class="swipe-action swipe-action-right" data-action="delete" data-note-id="${note.id}">🗑️ 删除</div>
                 <div class="swipe-content">
                     <div class="note-item" data-note-id="${note.id}">
+                        <div class="note-drag-handle" title="拖动排序">⋮⋮</div>
                         ${note.title ? `<div class="note-title">${escapeHtml(note.title)}</div>` : ''}
                         <div class="note-content">${escapeHtml(note.content)}</div>
                         <div class="note-meta">
@@ -2310,10 +2309,242 @@
             const result = await createNoteGroup(name.trim());
             if (result) {
                 showToast('分组已创建');
-                state.expandedGroups.add(result.id);
+                state.expandedGroups.add(String(result.id));
                 await renderNotesList();
             }
         }
+    }
+
+    // ============================================
+    // Note Drag and Drop
+    // ============================================
+    let noteDragState = {
+        draggedNoteId: null,
+        draggedElement: null,
+        sourceGroupId: null,
+        dragOverGroupId: null,
+        dragOverNoteId: null,
+    };
+
+    function initNoteDragDrop() {
+        const container = elements.notepadContainer;
+        if (!container) return;
+
+        // Use native drag events only
+        container.addEventListener('dragstart', handleNoteDragStart, false);
+        container.addEventListener('dragover', handleNoteDragOver, false);
+        container.addEventListener('dragenter', handleNoteDragEnter, false);
+        container.addEventListener('dragleave', handleNoteDragLeave, false);
+        container.addEventListener('drop', handleNoteDrop, false);
+        container.addEventListener('dragend', handleNoteDragEnd, false);
+    }
+
+    function handleNoteDragStart(e) {
+        console.log('[DragStart] Firing!');
+        
+        // Find the swipe-item being dragged
+        const swipeItem = e.target.closest('.note-swipe');
+        if (!swipeItem) {
+            console.log('[DragStart] No swipe-item found');
+            return;
+        }
+        
+        // Don't start drag if clicking on swipe actions (edit/delete buttons)
+        if (e.target.closest('.swipe-action')) {
+            console.log('[DragStart] Clicked on swipe action');
+            return;
+        }
+
+        noteDragState.draggedNoteId = parseInt(swipeItem.dataset.noteId);
+        noteDragState.draggedElement = swipeItem;
+        
+        // Find source group
+        const groupEl = swipeItem.closest('.note-group');
+        if (groupEl) {
+            const groupId = groupEl.dataset.groupId;
+            noteDragState.sourceGroupId = groupId === 'ungrouped' ? null : parseInt(groupId);
+        }
+        
+        console.log('[DragStart] Started dragging note:', noteDragState.draggedNoteId, 'from group:', noteDragState.sourceGroupId);
+
+        swipeItem.classList.add('dragging');
+        
+        // Set drag data
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', noteDragState.draggedNoteId);
+        
+        // Make drag image slightly transparent
+        setTimeout(() => {
+            swipeItem.style.opacity = '0.5';
+        }, 0);
+    }
+
+    function handleNoteDragOver(e) {
+        const swipeItem = e.target.closest('.note-swipe');
+        const groupHeader = e.target.closest('.note-group-header');
+        
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        if (noteDragState.draggedNoteId === null) {
+            console.log('[DragOver] No dragged note yet');
+            return;
+        }
+        
+        if (groupHeader) {
+            noteDragState.dragOverGroupId = groupHeader.closest('.note-group')?.dataset.groupId || null;
+            noteDragState.dragOverNoteId = null;
+            console.log('[DragOver] Over group header:', noteDragState.dragOverGroupId);
+            return;
+        }
+        
+        if (swipeItem && swipeItem !== noteDragState.draggedElement) {
+            noteDragState.dragOverNoteId = parseInt(swipeItem.dataset.noteId);
+            noteDragState.dragOverGroupId = null;
+            console.log('[DragOver] Over note:', noteDragState.dragOverNoteId);
+        }
+    }
+
+    function handleNoteDragEnter(e) {
+        const swipeItem = e.target.closest('.note-swipe');
+        const groupHeader = e.target.closest('.note-group-header');
+        
+        console.log('[DragEnter] Target:', e.target?.className, 'swipeItem:', swipeItem?.className);
+        
+        if (groupHeader) {
+            // Highlight the group as drop target
+            document.querySelectorAll('.note-group.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+            const groupEl = groupHeader.closest('.note-group');
+            if (groupEl) {
+                groupEl.classList.add('drag-over');
+            }
+            noteDragState.dragOverGroupId = groupEl?.dataset.groupId || null;
+            noteDragState.dragOverNoteId = null;
+            console.log('[DragEnter] Entered group:', noteDragState.dragOverGroupId);
+            return;
+        }
+        
+        if (!swipeItem || swipeItem === noteDragState.draggedElement) {
+            return;
+        }
+        
+        e.preventDefault();
+        
+        // Remove drag-over from all
+        document.querySelectorAll('.note-swipe.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+        
+        swipeItem.classList.add('drag-over');
+        noteDragState.dragOverNoteId = parseInt(swipeItem.dataset.noteId);
+        noteDragState.dragOverGroupId = null;
+        console.log('[DragEnter] Entered note:', noteDragState.dragOverNoteId);
+    }
+
+    function handleNoteDragLeave(e) {
+        const groupHeader = e.target.closest('.note-group-header');
+        const swipeItem = e.target.closest('.note-swipe');
+        
+        // Only clear if leaving the container
+        if (!e.relatedTarget || !e.currentTarget.contains(e.relatedTarget)) {
+            document.querySelectorAll('.note-swipe.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+            document.querySelectorAll('.note-group.drag-over').forEach(el => {
+                el.classList.remove('drag-over');
+            });
+            noteDragState.dragOverGroupId = null;
+            noteDragState.dragOverNoteId = null;
+        }
+    }
+
+    async function handleNoteDrop(e) {
+        e.preventDefault();
+        console.log('[Drop] Fired! dragState:', noteDragState);
+        
+        // Clean up highlights
+        document.querySelectorAll('.note-swipe.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+        document.querySelectorAll('.note-group.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+        
+        // Only process drop if we actually started a drag
+        if (!noteDragState.draggedNoteId) {
+            console.log('[Drop] No dragged note ID (not a real drag)');
+            return;
+        }
+        
+        let targetGroupId = noteDragState.sourceGroupId;
+        let targetSortOrder = 0;
+        
+        // Use tracked drag-over state
+        if (noteDragState.dragOverGroupId !== null) {
+            // Dropped on group header
+            const groupId = noteDragState.dragOverGroupId;
+            targetGroupId = groupId === 'ungrouped' ? null : parseInt(groupId);
+            
+            // Get notes in target group to determine sort order
+            const groupNotes = state.notes.filter(n => n.group_id === targetGroupId);
+            targetSortOrder = groupNotes.length;
+        } else if (noteDragState.dragOverNoteId !== null) {
+            // Dropped on another note
+            const targetNoteId = noteDragState.dragOverNoteId;
+            const targetNote = state.notes.find(n => n.id === targetNoteId);
+            
+            if (targetNote) {
+                targetGroupId = targetNote.group_id;
+                
+                // Calculate sort order based on target position
+                const groupNotes = state.notes
+                    .filter(n => n.group_id === targetGroupId)
+                    .sort((a, b) => a.sort_order - b.sort_order);
+                
+                const targetIndex = groupNotes.findIndex(n => n.id === targetNoteId);
+                targetSortOrder = targetIndex;
+            }
+        }
+        
+        // Update note via API
+        if (noteDragState.draggedNoteId) {
+            console.log('[Drop] Updating note:', noteDragState.draggedNoteId, 'to group:', targetGroupId, 'sort:', targetSortOrder);
+            await updateNote(noteDragState.draggedNoteId, {
+                group_id: targetGroupId,
+                sort_order: targetSortOrder
+            });
+            
+            // Refresh notes
+            await fetchNotes();
+            await renderNotesList();
+            console.log('[Drop] Done!');
+        }
+    }
+
+    function handleNoteDragEnd(e) {
+        console.log('[DragEnd] Fired!');
+        
+        // Clean up
+        document.querySelectorAll('.note-swipe.dragging').forEach(el => {
+            el.classList.remove('dragging');
+            el.style.opacity = '';
+        });
+        document.querySelectorAll('.note-swipe.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+        document.querySelectorAll('.note-group.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
+        
+        noteDragState = {
+            draggedNoteId: null,
+            draggedElement: null,
+            sourceGroupId: null,
+            dragOverGroupId: null,
+            dragOverNoteId: null,
+        };
     }
 
     function formatNoteTime(isoString) {

@@ -131,6 +131,11 @@ async def init_db() -> None:
         except Exception:
             pass
         
+        try:
+            await db.execute("ALTER TABLE notes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        
         # Expenses table for expense tracking
         await db.execute("""
             CREATE TABLE IF NOT EXISTS expenses (
@@ -788,13 +793,20 @@ async def delete_goal_conversations(goal_id: int) -> bool:
 # ============ Notes Functions ============
 
 async def create_note(note: Note) -> Note:
-    """Create a new note."""
+    """Create a new note with sort_order set to highest + 1 in its group."""
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
+        # Get max sort_order in the same group
+        group_filter = "group_id IS NULL" if note.group_id is None else f"group_id = {note.group_id}"
+        async with db.execute(f"SELECT MAX(sort_order) FROM notes WHERE {group_filter}") as cursor:
+            row = await cursor.fetchone()
+            max_order = row[0] if row and row[0] is not None else -1
+            note.sort_order = max_order + 1
+        
         cursor = await db.execute(
-            """INSERT INTO notes (title, content, group_id, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (note.title, note.content, note.group_id, now, now),
+            """INSERT INTO notes (title, content, group_id, sort_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (note.title, note.content, note.group_id, note.sort_order, now, now),
         )
         await db.commit()
         note.id = cursor.lastrowid
@@ -804,11 +816,11 @@ async def create_note(note: Note) -> Note:
 
 
 async def get_notes() -> List[Note]:
-    """Get all notes, ordered by most recent first."""
+    """Get all notes, ordered by sort_order then most recent first."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT * FROM notes ORDER BY created_at DESC"
+            "SELECT * FROM notes ORDER BY sort_order ASC, created_at DESC"
         ) as cursor:
             rows = await cursor.fetchall()
             notes = []
@@ -818,6 +830,7 @@ async def get_notes() -> List[Note]:
                     title=row["title"] or "",
                     content=row["content"] or "",
                     group_id=row["group_id"] if "group_id" in row.keys() else None,
+                    sort_order=row["sort_order"] if "sort_order" in row.keys() else 0,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                 ))
@@ -837,6 +850,7 @@ async def get_note(note_id: int) -> Optional[Note]:
                 title=row["title"] or "",
                 content=row["content"] or "",
                 group_id=row["group_id"] if "group_id" in row.keys() and row["group_id"] is not None else None,
+                sort_order=row["sort_order"] if "sort_order" in row.keys() else 0,
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
             )
@@ -847,8 +861,8 @@ async def update_note(note_id: int, note: Note) -> Optional[Note]:
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE notes SET title = ?, content = ?, group_id = ?, updated_at = ? WHERE id = ?",
-            (note.title, note.content, note.group_id, now, note_id),
+            "UPDATE notes SET title = ?, content = ?, group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?",
+            (note.title, note.content, note.group_id, note.sort_order, now, note_id),
         )
         await db.commit()
     return await get_note(note_id)
@@ -1153,7 +1167,7 @@ async def get_note(note_id: int) -> Optional[Note]:
     """Get a single note by ID."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT id, title, content, group_id, created_at, updated_at FROM notes WHERE id = ?",
+            "SELECT id, title, content, group_id, sort_order, created_at, updated_at FROM notes WHERE id = ?",
             (note_id,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -1163,8 +1177,9 @@ async def get_note(note_id: int) -> Optional[Note]:
                     title=row[1],
                     content=row[2],
                     group_id=row[3],
-                    created_at=datetime.fromisoformat(row[4]) if row[4] else None,
-                    updated_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                    sort_order=row[4] if row[4] is not None else 0,
+                    created_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                    updated_at=datetime.fromisoformat(row[6]) if row[6] else None,
                 )
             return None
 
@@ -1175,14 +1190,17 @@ async def update_note(note_id: int, note: Note) -> Optional[Note]:
     if not existing:
         return None
     
+    sort_order_to_use = note.sort_order if note.sort_order is not None else existing.sort_order
+    
     async with aiosqlite.connect(DB_PATH) as db:
         now = datetime.now().isoformat()
         await db.execute(
-            "UPDATE notes SET title = ?, content = ?, group_id = ?, updated_at = ? WHERE id = ?",
+            "UPDATE notes SET title = ?, content = ?, group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?",
             (
                 note.title if note.title else existing.title,
                 note.content if note.content else existing.content,
-                note.group_id,
+                note.group_id if note.group_id is not None else existing.group_id,
+                sort_order_to_use,
                 now,
                 note_id,
             ),

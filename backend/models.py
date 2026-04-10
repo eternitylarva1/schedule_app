@@ -136,6 +136,7 @@ class Note:
     title: str = ""
     content: str = ""
     group_id: int | None = None
+    sort_order: int = 0  # Sort order within group
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

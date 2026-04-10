@@ -832,10 +832,15 @@ async def update_note(request: web.Request) -> web.Response:
         group_id = data.get("group_id")
         if group_id is not None and not isinstance(group_id, int):
             group_id = None
+        # Handle sort_order
+        sort_order = data.get("sort_order")
+        if sort_order is None:
+            sort_order = existing.sort_order
         note = Note(
             title=(data.get("title", existing.title) or "").strip(),
             content=(data.get("content", existing.content) or "").strip(),
             group_id=group_id,
+            sort_order=sort_order,
         )
         updated = await db.update_note(note_id, note)
         if not updated:
@@ -1071,10 +1076,20 @@ async def update_note(request: web.Request) -> web.Response:
         return error_response("无效的JSON数据")
     
     try:
+        existing = await db.get_note(note_id)
+        if not existing:
+            return error_response("笔记不存在", code=404)
+        
+        # Handle sort_order - use new value if provided, otherwise keep existing
+        sort_order = data.get("sort_order")
+        if sort_order is None:
+            sort_order = existing.sort_order
+        
         note = Note(
-            title=data.get("title", ""),
-            content=data.get("content", ""),
-            group_id=data.get("group_id"),
+            title=data.get("title", existing.title) or existing.title,
+            content=data.get("content", existing.content) or existing.content,
+            group_id=data.get("group_id", existing.group_id),
+            sort_order=sort_order,
         )
         result = await db.update_note(note_id, note)
         if not result:
