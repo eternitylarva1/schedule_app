@@ -2390,38 +2390,43 @@
     }
 
     // ============================================
-    // AI Chat Panel for Notes
+    // AI Floating Window for Notes
     // ============================================
     let aiChatState = {
         isOpen: false,
         currentNote: null,
         conversations: [],
-        selectedText: '',
-        isLoading: false
+        isLoading: false,
+        isMinimized: false,
+        isDragging: false,
+        offsetX: 0,
+        offsetY: 0
     };
 
     function initAIChatPanel() {
-        const floatBtn = document.getElementById('aiChatFloatBtn');
-        const panel = document.getElementById('aiChatPanel');
-        const closeBtn = document.getElementById('aiChatPanelClose');
-        const backdrop = document.getElementById('aiChatBackdrop');
-        const sendBtn = document.getElementById('aiChatSendBtn');
-        const input = document.getElementById('aiChatInput');
-        const askAiBtn = document.getElementById('askAiFloatBtn');
+        const floatingWindow = document.getElementById('aiFloatingWindow');
+        const minimizeBtn = document.getElementById('aiFloatingMinimize');
+        const sendBtn = document.getElementById('aiFloatingSend');
+        const input = document.getElementById('aiFloatingInput');
+        const header = document.getElementById('aiFloatingHeader');
 
-        if (!floatBtn || !panel) return;
+        if (!floatingWindow) return;
 
-        // Toggle panel open/close
-        floatBtn.addEventListener('click', () => toggleAIChatPanel());
+        // Hide by default
+        floatingWindow.style.display = 'none';
 
-        // Close button
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => closeAIChatPanel());
-        }
-
-        // Backdrop click to close
-        if (backdrop) {
-            backdrop.addEventListener('click', () => closeAIChatPanel());
+        // Minimize/maximize toggle
+        if (minimizeBtn) {
+            minimizeBtn.addEventListener('click', () => {
+                aiChatState.isMinimized = !aiChatState.isMinimized;
+                if (aiChatState.isMinimized) {
+                    floatingWindow.classList.add('minimized');
+                    minimizeBtn.textContent = '□';
+                } else {
+                    floatingWindow.classList.remove('minimized');
+                    minimizeBtn.textContent = '─';
+                }
+            });
         }
 
         // Send message on button click
@@ -2438,78 +2443,99 @@
             });
         }
 
-        // Ask AI button (floating when text selected)
-        if (askAiBtn) {
-            askAiBtn.addEventListener('click', () => {
-                if (aiChatState.selectedText) {
-                    openAIChatPanelWithSelection(aiChatState.selectedText);
+        // Event delegation for insert buttons
+        const history = document.getElementById('aiFloatingHistory');
+        if (history) {
+            history.addEventListener('click', (e) => {
+                const insertBtn = e.target.closest('.ai-floating-insert-btn');
+                if (insertBtn) {
+                    const content = decodeURIComponent(insertBtn.dataset.content);
+                    insertAIResponseToNote(content);
                 }
             });
         }
 
-        // Listen for text selection in notepad
-        document.addEventListener('mouseup', handleTextSelection);
-        document.addEventListener('touchend', handleTextSelection);
-    }
-
-    function handleTextSelection() {
-        const askAiBtn = document.getElementById('askAiFloatBtn');
-        if (!askAiBtn) return;
-
-        // Only show when notepad view is active
-        if (state.currentView !== 'notepad' || !state.selectedNote) {
-            askAiBtn.classList.remove('visible');
-            return;
+        // Drag functionality
+        if (header) {
+            header.addEventListener('mousedown', startDrag);
+            header.addEventListener('touchstart', startDrag, { passive: false });
         }
 
-        setTimeout(() => {
-            const selection = window.getSelection();
-            const selectedText = selection.toString().trim();
-
-            if (selectedText && selectedText.length > 0) {
-                aiChatState.selectedText = selectedText;
-                const range = selection.getRangeAt(0);
-                const rect = range.getBoundingClientRect();
-
-                askAiBtn.style.left = `${rect.left + rect.width / 2 - 40}px`;
-                askAiBtn.style.top = `${rect.top - 45}px`;
-                askAiBtn.classList.add('visible');
-            } else {
-                askAiBtn.classList.remove('visible');
-                aiChatState.selectedText = '';
-            }
-        }, 10);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag, { passive: false });
+        document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchend', stopDrag);
     }
 
-    function toggleAIChatPanel() {
-        if (aiChatState.isOpen) {
-            closeAIChatPanel();
+    function startDrag(e) {
+        const floatingWindow = document.getElementById('aiFloatingWindow');
+        if (!floatingWindow) return;
+
+        aiChatState.isDragging = true;
+        const rect = floatingWindow.getBoundingClientRect();
+
+        if (e.type === 'touchstart') {
+            aiChatState.offsetX = e.touches[0].clientX - rect.left;
+            aiChatState.offsetY = e.touches[0].clientY - rect.top;
         } else {
-            openAIChatPanel();
+            aiChatState.offsetX = e.clientX - rect.left;
+            aiChatState.offsetY = e.clientY - rect.top;
         }
     }
 
-    function openAIChatPanel() {
-        if (!state.selectedNote) {
-            showToast('请先选择一个笔记');
-            return;
+    function drag(e) {
+        if (!aiChatState.isDragging) return;
+
+        const floatingWindow = document.getElementById('aiFloatingWindow');
+        if (!floatingWindow) return;
+
+        let clientX, clientY;
+        if (e.type === 'touchmove') {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
         }
+
+        const newLeft = clientX - aiChatState.offsetX;
+        const newTop = clientY - aiChatState.offsetY;
+
+        // Keep within viewport
+        const maxLeft = window.innerWidth - floatingWindow.offsetWidth;
+        const maxTop = window.innerHeight - floatingWindow.offsetHeight;
+
+        floatingWindow.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
+        floatingWindow.style.top = Math.max(0, Math.min(newTop, maxTop)) + 'px';
+        floatingWindow.style.right = 'auto';
+
+        e.preventDefault();
+    }
+
+    function stopDrag() {
+        aiChatState.isDragging = false;
+    }
+
+    function showAIFloatingWindow(note) {
+        const floatingWindow = document.getElementById('aiFloatingWindow');
+        const context = document.getElementById('aiFloatingContext');
+        const history = document.getElementById('aiFloatingHistory');
+        const input = document.getElementById('aiFloatingInput');
+
+        if (!floatingWindow) return;
 
         aiChatState.isOpen = true;
-        aiChatState.currentNote = state.selectedNote;
+        aiChatState.currentNote = note;
+        aiChatState.isMinimized = false;
 
-        const panel = document.getElementById('aiChatPanel');
-        const floatBtn = document.getElementById('aiChatFloatBtn');
-        const backdrop = document.getElementById('aiChatBackdrop');
-        const contextContent = document.getElementById('aiChatContextContent');
-
-        if (panel) panel.classList.add('open');
-        if (floatBtn) floatBtn.classList.add('hidden');
-        if (backdrop) backdrop.classList.add('visible');
+        floatingWindow.style.display = 'flex';
+        floatingWindow.classList.remove('minimized');
+        const minimizeBtn = document.getElementById('aiFloatingMinimize');
+        if (minimizeBtn) minimizeBtn.textContent = '─';
 
         // Show note context
-        if (contextContent && aiChatState.currentNote) {
-            contextContent.textContent = aiChatState.currentNote.content || '（空笔记）';
+        if (context) {
+            context.textContent = note.content ? note.content.substring(0, 200) + (note.content.length > 200 ? '...' : '') : '（空笔记）';
         }
 
         // Load conversation history
@@ -2517,46 +2543,20 @@
 
         // Focus input
         setTimeout(() => {
-            const input = document.getElementById('aiChatInput');
-            if (input) input.focus();
-        }, 300);
+            if (input) {
+                input.focus();
+            }
+        }, 100);
     }
 
-    function openAIChatPanelWithSelection(selectedText) {
-        openAIChatPanel();
-        aiChatState.selectedText = selectedText;
+    function hideAIFloatingWindow() {
+        const floatingWindow = document.getElementById('aiFloatingWindow');
+        if (!floatingWindow) return;
 
-        const preview = document.getElementById('aiChatSelectedPreview');
-        const previewSpan = preview?.querySelector('span');
-
-        if (preview && previewSpan) {
-            previewSpan.textContent = selectedText.length > 50
-                ? selectedText.substring(0, 50) + '...'
-                : selectedText;
-            preview.classList.add('has-selection');
-        }
-    }
-
-    function closeAIChatPanel() {
         aiChatState.isOpen = false;
-        aiChatState.selectedText = '';
+        aiChatState.currentNote = null;
         aiChatState.conversations = [];
-
-        const panel = document.getElementById('aiChatPanel');
-        const floatBtn = document.getElementById('aiChatFloatBtn');
-        const backdrop = document.getElementById('aiChatBackdrop');
-        const preview = document.getElementById('aiChatSelectedPreview');
-        const askAiBtn = document.getElementById('askAiFloatBtn');
-
-        if (panel) panel.classList.remove('open');
-        if (floatBtn) floatBtn.classList.remove('hidden');
-        if (backdrop) backdrop.classList.remove('visible');
-        if (preview) preview.classList.remove('has-selection');
-        if (askAiBtn) askAiBtn.classList.remove('visible');
-
-        // Clear input
-        const input = document.getElementById('aiChatInput');
-        if (input) input.value = '';
+        floatingWindow.style.display = 'none';
     }
 
     async function loadAIChatHistory() {
@@ -2572,22 +2572,20 @@
     }
 
     function renderAIChatHistory() {
-        const container = document.getElementById('aiChatHistory');
+        const container = document.getElementById('aiFloatingHistory');
         if (!container) return;
 
         if (aiChatState.conversations.length === 0) {
-            container.innerHTML = '<div class="ai-chat-empty">发送消息开始对话</div>';
+            container.innerHTML = '<div class="ai-floating-empty">发送消息开始对话</div>';
             return;
         }
 
         container.innerHTML = aiChatState.conversations.map(conv => `
-            <div class="ai-chat-message ${conv.role}">
-                <div class="ai-chat-bubble">
-                    ${conv.selected_text ? `<div class="ai-chat-bubble selected-text">"${escapeHtml(conv.selected_text)}"</div>` : ''}
+            <div class="ai-floating-message ${conv.role}">
+                <div class="ai-floating-bubble">
                     ${escapeHtml(conv.content)}
-                    ${conv.role === 'assistant' ? `<button class="ai-chat-insert-btn" onclick="insertAIResponseToNote('${escapeHtml(conv.content.replace(/'/g, "\\'"))}')">↩ 插入到笔记</button>` : ''}
+                    ${conv.role === 'assistant' ? `<button class="ai-floating-insert-btn" data-content="${encodeURIComponent(conv.content)}">↩ 插入</button>` : ''}
                 </div>
-                <div class="ai-chat-meta">${conv.role === 'user' ? '你' : 'AI'}</div>
             </div>
         `).join('');
 
@@ -2598,72 +2596,52 @@
     async function sendAIChatMessage() {
         if (!aiChatState.currentNote || aiChatState.isLoading) return;
 
-        const input = document.getElementById('aiChatInput');
+        const input = document.getElementById('aiFloatingInput');
         const message = input?.value.trim();
-
         if (!message) return;
 
-        const selectedText = aiChatState.selectedText;
+        const container = document.getElementById('aiFloatingHistory');
         aiChatState.isLoading = true;
         input.value = '';
 
-        // Show loading
-        const container = document.getElementById('aiChatHistory');
+        // Show user message immediately
         if (container) {
             container.innerHTML += `
-                <div class="ai-chat-message user">
-                    <div class="ai-chat-bubble">${escapeHtml(message)}</div>
-                    <div class="ai-chat-meta">你</div>
+                <div class="ai-floating-message user">
+                    <div class="ai-floating-bubble">${escapeHtml(message)}</div>
                 </div>
-                <div class="ai-chat-loading">
-                    <span class="ai-chat-loading-dot">●●●</span>
-                    <span>AI 思考中...</span>
+                <div class="ai-floating-message assistant">
+                    <div class="ai-floating-bubble" style="color: var(--text-muted);">思考中...</div>
                 </div>
             `;
             container.scrollTop = container.scrollHeight;
         }
 
         try {
-            const response = await chatWithNote(
-                aiChatState.currentNote.id,
-                message,
-                selectedText
-            );
+            const response = await chatWithNote(aiChatState.currentNote.id, message);
 
             if (response) {
-                // Remove loading
-                const loading = container?.querySelector('.ai-chat-loading');
-                if (loading) loading.remove();
+                // Remove thinking message and add response
+                const thinkingEl = container?.querySelector('.ai-floating-message.assistant:last-child');
+                if (thinkingEl) {
+                    thinkingEl.innerHTML = `
+                        <div class="ai-floating-bubble">${escapeHtml(response.content)}<button class="ai-floating-insert-btn" data-content="${encodeURIComponent(response.content)}">↩ 插入</button></div>
+                    `;
+                }
 
-                // Add user message to state
-                aiChatState.conversations.push({
-                    role: 'user',
-                    content: message,
-                    selected_text: selectedText
-                });
-
-                // Add AI response
-                aiChatState.conversations.push({
-                    role: 'assistant',
-                    content: response.content
-                });
-
-                renderAIChatHistory();
+                // Add to state
+                aiChatState.conversations.push({ role: 'user', content: message });
+                aiChatState.conversations.push({ role: 'assistant', content: response.content });
             }
         } catch (error) {
             console.error('Chat error:', error);
             showToast('AI 对话失败，请重试');
 
-            // Remove loading
-            const loading = container?.querySelector('.ai-chat-loading');
-            if (loading) loading.remove();
+            // Remove thinking message
+            const thinkingEl = container?.querySelector('.ai-floating-message.assistant:last-child');
+            if (thinkingEl) thinkingEl.remove();
         } finally {
             aiChatState.isLoading = false;
-            aiChatState.selectedText = '';
-
-            // Clear selection preview
-            const preview = document.getElementById('aiChatSelectedPreview');
-            if (preview) preview.classList.remove('has-selection');
         }
     }
 
@@ -2676,22 +2654,14 @@
             : 'AI 回答：\n' + content;
 
         try {
-            await updateNote(aiChatState.currentNote.id, {
-                content: newContent
-            });
-
-            // Update local state
+            await updateNote(aiChatState.currentNote.id, { content: newContent });
             aiChatState.currentNote.content = newContent;
 
-            // Refresh note detail if open
-            if (state.selectedNote && state.selectedNote.id === aiChatState.currentNote.id) {
-                state.selectedNote.content = newContent;
-                showNoteDetail(state.selectedNote);
+            // Update context display
+            const context = document.getElementById('aiFloatingContext');
+            if (context) {
+                context.textContent = newContent.substring(0, 200) + (newContent.length > 200 ? '...' : '');
             }
-
-            // Refresh notes list
-            await fetchNotes();
-            await renderNotesList();
 
             showToast('已插入到笔记');
         } catch (error) {
@@ -2970,6 +2940,10 @@
         const closeModal = () => {
             modal.remove();
             state.selectedNote = null;
+            // If AI window is showing this note, close it
+            if (aiChatState.currentNote && aiChatState.currentNote.id === note.id) {
+                hideAIFloatingWindow();
+            }
         };
         
         backdrop.addEventListener('click', closeModal);
@@ -2997,8 +2971,8 @@
     }
 
     async function showNoteEdit(note) {
-        const existingModal = document.getElementById('noteEditModal');
-        if (existingModal) existingModal.remove();
+        // Remove ALL existing note edit modals (getElementById only returns first)
+        document.querySelectorAll('#noteEditModal').forEach(m => { m.remove(); });
 
         // Get groups for selector
         const groups = await fetchNoteGroups();
@@ -3020,9 +2994,12 @@
                     </div>
                     <div class="modal-body">
                         <input type="text" id="noteEditTitle" class="note-edit-title-input" placeholder="标题（可选）" value="${escapeHtml(note.title || '')}">
-                        <select id="noteEditGroup" class="note-edit-group-select">
-                            ${groupOptions}
-                        </select>
+                        <div class="note-edit-row">
+                            <select id="noteEditGroup" class="note-edit-group-select">
+                                ${groupOptions}
+                            </select>
+                            <button class="btn btn-secondary note-edit-ai-btn" id="noteEditAiBtn" title="AI 对话">🤖 AI</button>
+                        </div>
                         <textarea id="noteEditTextarea" class="note-edit-textarea">${escapeHtml(note.content)}</textarea>
                     </div>
                     <div class="modal-footer">
@@ -3043,11 +3020,32 @@
         const titleInput = document.getElementById('noteEditTitle');
         const groupSelect = document.getElementById('noteEditGroup');
         const textarea = document.getElementById('noteEditTextarea');
+        const floatBtn = document.getElementById('aiChatFloatBtn');
 
-        const closeModal = () => modal.remove();
+        // Hide float button when edit modal is open
+        if (floatBtn) floatBtn.classList.add('hidden');
+
+        const closeModal = () => {
+            modal.remove();
+            // If AI window is showing this note, close it
+            if (aiChatState.currentNote && aiChatState.currentNote.id === note.id) {
+                hideAIFloatingWindow();
+            }
+        };
         backdrop.addEventListener('click', closeModal);
         closeBtn.addEventListener('click', closeModal);
         cancelBtn.addEventListener('click', closeModal);
+
+        // AI chat button handler
+        const aiBtn = document.getElementById('noteEditAiBtn');
+        if (aiBtn) {
+            aiBtn.addEventListener('click', () => {
+                // Set this note as selected for AI chat
+                state.selectedNote = note;
+                // Show floating AI window
+                showAIFloatingWindow(note);
+            });
+        }
 
         saveBtn.addEventListener('click', async () => {
             const newContent = textarea.value.trim();
@@ -3069,6 +3067,14 @@
             });
             if (result) {
                 showToast('笔记已更新');
+                // Update AI window if showing this note
+                if (aiChatState.currentNote && aiChatState.currentNote.id === note.id) {
+                    aiChatState.currentNote.content = newContent;
+                    const context = document.getElementById('aiFloatingContext');
+                    if (context) {
+                        context.textContent = newContent ? newContent.substring(0, 200) + (newContent.length > 200 ? '...' : '') : '（空笔记）';
+                    }
+                }
                 closeModal();
                 await renderNotesList();
             }
@@ -4153,6 +4159,57 @@
         }
     }
 
+    function normalizeSubtasksNoConflict(subtasks) {
+        const items = Array.isArray(subtasks) ? subtasks.map((s) => ({ ...s })) : [];
+        const toDateTime = (dateStr, timeStr) => {
+            if (!dateStr || !timeStr) return null;
+            const dt = new Date(`${dateStr}T${timeStr}`);
+            return Number.isNaN(dt.getTime()) ? null : dt;
+        };
+        const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const toTimeStr = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+        const occupied = state.events
+            .filter((e) => e.status !== 'done' && e.start_time)
+            .map((e) => {
+                const start = new Date(e.start_time);
+                const end = e.end_time ? new Date(e.end_time) : new Date(e.start_time);
+                return Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? null : { start, end };
+            })
+            .filter(Boolean);
+
+        const hasOverlap = (start, end) => {
+            for (const iv of occupied) {
+                if (!(iv.end <= start || iv.start >= end)) return true;
+            }
+            return false;
+        };
+
+        for (const st of items) {
+            let start = toDateTime(st.date, st.start_time);
+            let end = toDateTime(st.date, st.end_time);
+            if (!start) continue;
+            if (!end || end <= start) {
+                end = new Date(start.getTime() + 60 * 60 * 1000);
+            }
+            const duration = Math.max(30 * 60 * 1000, end.getTime() - start.getTime());
+
+            let attempts = 0;
+            while (hasOverlap(start, end) && attempts < 24 * 14) {
+                start = new Date(start.getTime() + 60 * 60 * 1000);
+                end = new Date(start.getTime() + duration);
+                attempts += 1;
+            }
+
+            st.date = toDateStr(start);
+            st.start_time = toTimeStr(start);
+            st.end_time = toTimeStr(end);
+            occupied.push({ start, end });
+        }
+
+        return items;
+    }
+
     async function startGoalDiscuss() {
         if (goalDiscussState.isRequesting) return;
         const input = elements.goalDiscussInput.value.trim();
@@ -4204,7 +4261,7 @@
                     showDiscussInput();
                 } else if (result.type === 'subtasks') {
                     // AI generated subtasks
-                    goalDiscussState.currentSubtasks = result.subtasks || [];
+                    goalDiscussState.currentSubtasks = normalizeSubtasksNoConflict(result.subtasks || []);
                     goalDiscussState.isComplete = true;
                     showDiscussResults();
                 }
@@ -4270,7 +4327,7 @@
                     showDiscussInput();
                 } else if (result.type === 'subtasks') {
                     // AI generated subtasks
-                    goalDiscussState.currentSubtasks = result.subtasks || [];
+                    goalDiscussState.currentSubtasks = normalizeSubtasksNoConflict(result.subtasks || []);
                     goalDiscussState.isComplete = true;
                     showDiscussResults();
                 } else {
@@ -4346,6 +4403,7 @@
                         <div class="discuss-subtask-num">${i + 1}</div>
                         <div class="discuss-subtask-content">
                             <div class="discuss-subtask-title">${escapeHtml(st.title)}</div>
+                            ${(st.date && st.start_time && st.end_time) ? `<div class="discuss-subtask-hint">🗓️ ${escapeHtml(st.date)} ${escapeHtml(st.start_time)} - ${escapeHtml(st.end_time)}</div>` : ''}
                             ${st.duration_hint ? `<div class="discuss-subtask-hint">⏱️ ${escapeHtml(st.duration_hint)}</div>` : ''}
                         </div>
                         <label class="discuss-subtask-select">
@@ -4393,6 +4451,14 @@
             showToast('请选择要导入的任务');
             return;
         }
+
+        const toDateTimeLocal = (dateStr, timeStr) => {
+            if (!dateStr || !timeStr) return '';
+            return `${dateStr}T${timeStr}`;
+        };
+
+        const fallbackStart = new Date().toISOString().slice(0, 16);
+        const fallbackEnd = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16);
         
         const importHtml = `
             <div class="modal" id="importModal">
@@ -4409,9 +4475,9 @@
                                 <div class="import-task-item" data-index="${i}">
                                     <div class="import-task-title">${escapeHtml(st.title)}</div>
                                     <div class="import-task-time">
-                                        <input type="datetime-local" class="import-start-time" value="${new Date().toISOString().slice(0, 16)}">
+                                        <input type="datetime-local" class="import-start-time" value="${toDateTimeLocal(st.date, st.start_time) || fallbackStart}">
                                         <span>至</span>
-                                        <input type="datetime-local" class="import-end-time">
+                                        <input type="datetime-local" class="import-end-time" value="${toDateTimeLocal(st.date, st.end_time) || fallbackEnd}">
                                     </div>
                                 </div>
                             `).join('')}
@@ -4435,6 +4501,7 @@
         const closeBtn = document.getElementById('importClose');
         const cancelBtn = document.getElementById('importCancel');
         const confirmBtn = document.getElementById('importConfirm');
+        let isImporting = false;
         
         const closeModal = () => modal.remove();
         backdrop.addEventListener('click', closeModal);
@@ -4442,35 +4509,163 @@
         cancelBtn.addEventListener('click', closeModal);
         
         confirmBtn.addEventListener('click', async () => {
-            let imported = 0;
+            if (isImporting) return;
+
+            const parseLocal = (v) => (v ? new Date(v) : null);
+            const toLocalInputValue = (d) => {
+                const pad = (n) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            };
+            const existingPending = state.events.filter(e => e.status !== 'done' && e.start_time);
+            const draftItems = [];
+            const draftKeys = new Set();
+
             for (let i = 0; i < selectedSubtasks.length; i++) {
                 const item = document.querySelector(`.import-task-item[data-index="${i}"]`);
+                if (!item) continue;
                 const startTime = item.querySelector('.import-start-time').value;
                 const endTime = item.querySelector('.import-end-time').value;
+                if (!startTime) continue;
 
-                if (startTime) {
-                    await createEvent({
-                        title: selectedSubtasks[i].title,
-                        start_time: startTime,
-                        end_time: endTime || null,
-                        category_id: 'work'
-                    });
-                    imported++;
+                const startDt = parseLocal(startTime);
+                const endDt = parseLocal(endTime) || startDt;
+                if (endDt < startDt) {
+                    showToast(`任务「${selectedSubtasks[i].title}」结束时间不能早于开始时间`);
+                    return;
+                }
+
+                const dedupeKey = `${selectedSubtasks[i].title}||${startTime}||${endTime || ''}`;
+                if (draftKeys.has(dedupeKey)) {
+                    continue;
+                }
+                draftKeys.add(dedupeKey);
+
+                draftItems.push({
+                    title: selectedSubtasks[i].title,
+                    start_time: startTime,
+                    end_time: endTime || null,
+                    startDt,
+                    endDt,
+                });
+            }
+
+            if (draftItems.length === 0) {
+                showToast('请至少设置一个开始时间');
+                return;
+            }
+
+            // Conflict checks against existing pending events and within this batch
+            const conflicts = [];
+            for (let i = 0; i < draftItems.length; i++) {
+                const cur = draftItems[i];
+
+                for (const e of existingPending) {
+                    const eStart = parseLocal(toLocalDatetime(e.start_time));
+                    const eEnd = e.end_time ? parseLocal(toLocalDatetime(e.end_time)) : eStart;
+                    if (!eStart || !eEnd) continue;
+
+                    const overlap = !(eEnd <= cur.startDt || eStart >= cur.endDt);
+                    if (overlap) {
+                        conflicts.push(`「${cur.title}」与「${e.title}」时间冲突`);
+                        break;
+                    }
+                }
+
+                for (let j = i + 1; j < draftItems.length; j++) {
+                    const other = draftItems[j];
+                    const overlap = !(other.endDt <= cur.startDt || other.startDt >= cur.endDt);
+                    if (overlap) {
+                        conflicts.push(`导入项内部冲突：「${cur.title}」与「${other.title}」`);
+                    }
                 }
             }
 
-            if (imported > 0) {
-                showToast(`已导入 ${imported} 个日程`);
-                closeModal();
-                // In discuss mode (new goal), also save the goal/subtasks.
-                // In history mode, the goal already exists - just close.
-                if (goalDiscussState.mode !== 'history') {
-                    await saveGoalDiscuss();
-                } else {
-                    closeGoalDiscussModal();
+            if (conflicts.length > 0) {
+                const shouldAutoResolve = window.confirm(`发现 ${conflicts.length} 个时间冲突。是否自动顺延到最近可用时段？`);
+                if (!shouldAutoResolve) {
+                    showToast(conflicts[0]);
+                    return;
                 }
-            } else {
-                showToast('请至少设置一个开始时间');
+
+                const fixedIntervals = existingPending.map((e) => {
+                    const s = parseLocal(toLocalDatetime(e.start_time));
+                    const t = e.end_time ? parseLocal(toLocalDatetime(e.end_time)) : s;
+                    return s && t ? { start: s, end: t } : null;
+                }).filter(Boolean);
+
+                const hasOverlap = (start, end, intervals) => {
+                    for (const iv of intervals) {
+                        if (!(iv.end <= start || iv.start >= end)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+
+                for (let i = 0; i < draftItems.length; i++) {
+                    const cur = draftItems[i];
+                    const durationMs = Math.max(30 * 60 * 1000, cur.endDt.getTime() - cur.startDt.getTime());
+                    let probeStart = new Date(cur.startDt);
+                    let probeEnd = new Date(probeStart.getTime() + durationMs);
+                    let attempts = 0;
+                    while (hasOverlap(probeStart, probeEnd, fixedIntervals) && attempts < 24 * 7) {
+                        probeStart = new Date(probeStart.getTime() + 60 * 60 * 1000);
+                        probeEnd = new Date(probeStart.getTime() + durationMs);
+                        attempts += 1;
+                    }
+                    cur.startDt = probeStart;
+                    cur.endDt = probeEnd;
+                    cur.start_time = toLocalInputValue(probeStart);
+                    cur.end_time = toLocalInputValue(probeEnd);
+                    fixedIntervals.push({ start: probeStart, end: probeEnd });
+
+                    const row = document.querySelector(`.import-task-item[data-index="${i}"]`);
+                    if (row) {
+                        const sInput = row.querySelector('.import-start-time');
+                        const eInput = row.querySelector('.import-end-time');
+                        if (sInput) sInput.value = cur.start_time;
+                        if (eInput) eInput.value = cur.end_time;
+                    }
+                }
+
+                showToast('已自动顺延冲突任务，请确认时间后再导入');
+                return;
+            }
+
+            isImporting = true;
+            confirmBtn.disabled = true;
+
+            try {
+                let imported = 0;
+                let failed = 0;
+                for (const item of draftItems) {
+                    const result = await createEvent({
+                        title: item.title,
+                        start_time: item.start_time,
+                        end_time: item.end_time,
+                        category_id: 'work'
+                    });
+                    if (result) imported++;
+                    else failed++;
+                }
+
+                if (imported > 0) {
+                    showToast(`已导入 ${imported} 个日程${failed ? `，失败${failed}个` : ''}`);
+                    closeModal();
+                    await loadData();
+                    // In discuss mode (new goal), also save the goal/subtasks.
+                    // In history mode, the goal already exists - just close.
+                    if (goalDiscussState.mode !== 'history') {
+                        await saveGoalDiscuss();
+                    } else {
+                        closeGoalDiscussModal();
+                    }
+                } else {
+                    showToast('未成功导入，请检查时间冲突或网络状态');
+                }
+            } finally {
+                isImporting = false;
+                confirmBtn.disabled = false;
             }
         });
         

@@ -103,41 +103,21 @@
             </div>
         </main>
 
-        <!-- AI Chat Floating Button (visible in notepad view) -->
-        <button class="ai-chat-float-btn hidden" id="aiChatFloatBtn" title="AI 对话">🤖</button>
-
-        <!-- AI Chat Backdrop -->
-        <div class="ai-chat-backdrop" id="aiChatBackdrop"></div>
-
-        <!-- AI Chat Panel -->
-        <div class="ai-chat-panel" id="aiChatPanel">
-            <div class="ai-chat-panel-header">
-                <div class="ai-chat-panel-title">
-                    <span>💬</span>
-                    <span>笔记 AI 对话</span>
-                </div>
-                <button class="ai-chat-panel-close" id="aiChatPanelClose">×</button>
+        <!-- AI Chat Floating Window -->
+        <div class="ai-floating-window" id="aiFloatingWindow">
+            <div class="ai-floating-header" id="aiFloatingHeader">
+                <span>🤖 AI 助手</span>
+                <button class="ai-floating-minimize" id="aiFloatingMinimize">─</button>
             </div>
-            <div class="ai-chat-context">
-                <div class="ai-chat-context-title">📄 当前笔记上下文</div>
-                <div class="ai-chat-context-content" id="aiChatContextContent">选择一个笔记开始对话</div>
+            <div class="ai-floating-context" id="aiFloatingContext">选择一个笔记开始对话</div>
+            <div class="ai-floating-history" id="aiFloatingHistory">
+                <div class="ai-floating-empty">发送消息开始对话</div>
             </div>
-            <div class="ai-chat-history" id="aiChatHistory">
-                <div class="ai-chat-empty">发送消息开始对话</div>
-            </div>
-            <div class="ai-chat-input-area">
-                <div class="ai-chat-selected-preview" id="aiChatSelectedPreview">
-                    选中: <span></span>
-                </div>
-                <div class="ai-chat-input-row">
-                    <input type="text" class="ai-chat-input" id="aiChatInput" placeholder="输入问题..." autocomplete="off">
-                    <button class="ai-chat-send-btn" id="aiChatSendBtn">➤</button>
-                </div>
+            <div class="ai-floating-input-area">
+                <input type="text" class="ai-floating-input" id="aiFloatingInput" placeholder="输入问题..." autocomplete="off">
+                <button class="ai-floating-send" id="aiFloatingSend">➤</button>
             </div>
         </div>
-
-        <!-- Ask AI Floating Button (when text selected) -->
-        <button class="ask-ai-float-btn" id="askAiFloatBtn">💬 问 AI</button>
 
         <!-- Event Creation Modal -->
         <div class="modal hidden" id="eventModal">
@@ -389,7 +369,7 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260410-02"></script>
+    <script src="/static/app.js?v=20260411-01"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {
