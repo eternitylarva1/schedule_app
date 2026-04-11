@@ -401,6 +401,86 @@ async def batch_complete_events(start: datetime | None = None, end: datetime | N
         return cursor.rowcount or 0
 
 
+async def find_duplicate_event(title: str, start_time: datetime | None, end_time: datetime | None, status: str = "pending") -> Optional[Event]:
+    """Find an exact duplicate event by title/start/end/status."""
+    if not title or not start_time:
+        return None
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM events
+               WHERE title = ?
+                 AND start_time = ?
+                 AND ((end_time IS NULL AND ? IS NULL) OR end_time = ?)
+                 AND status = ?
+               ORDER BY id ASC
+               LIMIT 1""",
+            (
+                title,
+                start_time.isoformat(),
+                end_time.isoformat() if end_time else None,
+                end_time.isoformat() if end_time else None,
+                status,
+            ),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return Event(
+                id=row["id"],
+                title=row["title"],
+                start_time=datetime.fromisoformat(row["start_time"]) if row["start_time"] else None,
+                end_time=datetime.fromisoformat(row["end_time"]) if row["end_time"] else None,
+                category_id=row["category_id"],
+                all_day=bool(row["all_day"]),
+                recurrence=row["recurrence"],
+                status=row["status"],
+                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
+                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
+                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
+            )
+
+
+async def find_overlapping_events(start_time: datetime, end_time: datetime, status: str = "pending") -> List[Event]:
+    """Find events that overlap with [start_time, end_time)."""
+    if not start_time:
+        return []
+    if not end_time:
+        end_time = start_time
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM events
+               WHERE start_time IS NOT NULL
+                 AND status = ?
+                 AND NOT (COALESCE(end_time, start_time) <= ? OR start_time >= ?)
+               ORDER BY start_time ASC""",
+            (status, start_time.isoformat(), end_time.isoformat()),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            result: List[Event] = []
+            for row in rows:
+                result.append(Event(
+                    id=row["id"],
+                    title=row["title"],
+                    start_time=datetime.fromisoformat(row["start_time"]) if row["start_time"] else None,
+                    end_time=datetime.fromisoformat(row["end_time"]) if row["end_time"] else None,
+                    category_id=row["category_id"],
+                    all_day=bool(row["all_day"]),
+                    recurrence=row["recurrence"],
+                    status=row["status"],
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                    updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                    reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
+                    reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
+                    reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
+                ))
+            return result
+
+
 async def batch_uncomplete_events(start: datetime | None = None, end: datetime | None = None) -> int:
     """Batch mark done events back to pending. Returns affected row count."""
     async with aiosqlite.connect(DB_PATH) as db:

@@ -226,6 +226,9 @@ class LLMService:
         
         # Build context
         context = f"""
+## 当前时间
+{current_date} {current_time}
+
 ## 用户背景
 {self_description if self_description else "用户未提供背景介绍"}
 
@@ -244,9 +247,9 @@ class LLMService:
             # First message - user just shared their goal
             user_message = f"""用户的初步目标：{goal_content}
 
-请分析这个目标，判断信息是否足够拆解。
-如果需要更多信息（比如目的、时间范围、投入时间等），请提出1-2个最关键的问题。
-如果信息已经足够，直接返回子任务拆解方案。
+请先判断信息是否足够给每个子任务分配“具体日期+开始时间+结束时间”。
+如果不够（例如缺截止日、每日可投入时段、是否固定空档），先提出1-2个关键问题。
+如果足够，直接返回可导入日程的子任务JSON。
 
 回复格式：
 - 如果需要提问：直接问问题，不要其他内容
@@ -257,10 +260,10 @@ class LLMService:
 
 用户回答：{user_input}
 
-请根据用户的回答：
-1. 判断信息是否足够
-2. 如果还需要更多细节，再问1个问题
-3. 如果信息足够，返回子任务拆解方案
+请根据用户回答继续判断：
+1) 是否已经足够进行“按天+按时段”的任务分配
+2) 如果还不够，只再问1个关键问题
+3) 如果足够，返回可直接导入日程的子任务JSON
 
 回复格式：
 - 如果继续提问：直接问问题
@@ -271,7 +274,11 @@ class LLMService:
     "subtasks": [
         {{
             "title": "子任务名称",
-            "duration_hint": "预计时长提示，如'2-3小时'或'1天'"
+            "date": "YYYY-MM-DD",
+            "start_time": "HH:MM",
+            "end_time": "HH:MM",
+            "duration_minutes": 90,
+            "duration_hint": "预计时长提示，如'1.5小时'"
         }},
         ...
     ],
@@ -279,23 +286,29 @@ class LLMService:
 }}
 """
         
-        system_prompt = """你是一个任务规划助手，通过友好对话帮助用户拆解目标。
+        system_prompt = """你是一个任务规划助手，通过友好对话帮助用户拆解目标并分配具体时间。
 
 你的工作方式：
 1. 先通过1-2个关键问题了解用户的目标背景
 2. 根据回答继续提问或生成拆解方案
 3. 拆解时要考虑用户的时间安排，避免与已有日程冲突
+4. 目标是输出可直接导入日程的时间化子任务（不是只有标题）
 
 提问原则：
 - 只问最关键的问题，不要一次性问太多
 - 问题要具体、有意义
 - 用户背景和日程会作为参考，但要针对性提问
+- 若无法确定日期/时段，必须先问清，不要硬编同一天时间
 
 拆解原则：
 - 子任务要具体可执行
-- 标注每个任务的预计时长
-- 3层结构：目标 -> 子任务 -> 子子任务（最多3层）
-- 子任务数量控制在3-8个"""
+- 子任务数量控制在3-8个
+- 默认输出字段必须包含：title/date/start_time/end_time/duration_minutes/duration_hint
+- date 使用 YYYY-MM-DD；start_time/end_time 使用 HH:MM（24小时制）
+- 时间分配要跨天合理分布，不要全部同一天
+- 子任务之间时间不得重叠
+- 尽量避开“本周日程”里已存在的时间段
+- 若用户给了可投入时段（如工作日20:00-23:00、周末14:00-20:00），必须遵循"""
 
         response = await self.chat([
             {"role": "system", "content": system_prompt},
@@ -308,6 +321,21 @@ class LLMService:
         
         # Check if response is a question or subtasks
         response = response.strip()
+
+        def _normalize_subtasks(raw_subtasks):
+            normalized_local = []
+            for st in raw_subtasks or []:
+                if not isinstance(st, dict):
+                    continue
+                normalized_local.append({
+                    "title": (st.get("title") or "").strip(),
+                    "date": (st.get("date") or "").strip(),
+                    "start_time": (st.get("start_time") or "").strip(),
+                    "end_time": (st.get("end_time") or "").strip(),
+                    "duration_minutes": st.get("duration_minutes"),
+                    "duration_hint": (st.get("duration_hint") or "").strip(),
+                })
+            return [x for x in normalized_local if x.get("title")][:8]
         
         # If response contains JSON, it's subtasks
         if '{' in response and 'subtasks' in response.lower():
@@ -317,10 +345,75 @@ class LLMService:
                 if json_start >= 0 and json_end > json_start:
                     json_str = response[json_start:json_end]
                     result = json.loads(json_str)
+                    subtasks = result.get("subtasks", []) if isinstance(result, dict) else []
+                    normalized = _normalize_subtasks(subtasks)
+
+                    def _has_complete_time_fields(items):
+                        return len(items) > 0 and all(i.get("date") and i.get("start_time") and i.get("end_time") for i in items)
+
+                    if normalized and not _has_complete_time_fields(normalized):
+                        # Second-pass scheduling: force concrete date/time assignment
+                        scheduling_prompt = f"""请将下列子任务补全为可直接导入日程的时间化任务。
+
+当前时间：{current_date} {current_time}
+目标：{goal_content}
+用户最新补充：{user_input if user_input else '（无）'}
+历史上下文：
+{history_context if history_context else '（无）'}
+
+待补全子任务：
+{json.dumps(normalized, ensure_ascii=False)}
+
+输出严格JSON：
+{{
+  "subtasks": [
+    {{
+      "title": "...",
+      "date": "YYYY-MM-DD",
+      "start_time": "HH:MM",
+      "end_time": "HH:MM",
+      "duration_minutes": 90,
+      "duration_hint": "1.5小时"
+    }}
+  ],
+  "summary": "..."
+}}
+
+规则：
+1) 必须给每个任务分配具体日期和时间段。
+2) 时间要跨天合理分布，不要全部同一天。
+3) 子任务之间时间不得重叠，且尽量避开本周已存在日程。
+3) 若用户给了可投入时段，必须优先遵循。
+4) 只返回JSON，不要解释。"""
+
+                        scheduled_response = await self.chat([
+                            {"role": "system", "content": "你是任务排程助手，只返回严格JSON。"},
+                            {"role": "user", "content": scheduling_prompt}
+                        ], temperature=0.3)
+
+                        if scheduled_response:
+                            try:
+                                s_start = scheduled_response.find('{')
+                                s_end = scheduled_response.rfind('}') + 1
+                                if s_start >= 0 and s_end > s_start:
+                                    scheduled_json = json.loads(scheduled_response[s_start:s_end])
+                                    normalized2 = _normalize_subtasks(scheduled_json.get("subtasks", []))
+                                    if _has_complete_time_fields(normalized2):
+                                        normalized = normalized2
+                            except json.JSONDecodeError:
+                                pass
+
+                    if normalized and not _has_complete_time_fields(normalized):
+                        return {
+                            "type": "question",
+                            "message": "为了给你分配到具体哪一天和几点，我还需要确认：你的截止日期与每天可投入时段分别是什么？（例如：4月20日前，工作日20:00-23:00，周末14:00-20:00）",
+                            "subtasks": []
+                        }
+
                     return {
                         "type": "subtasks",
                         "message": result.get("summary", "任务拆解完成"),
-                        "subtasks": result.get("subtasks", [])
+                        "subtasks": normalized
                     }
             except json.JSONDecodeError:
                 pass

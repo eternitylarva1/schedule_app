@@ -74,6 +74,28 @@ async def create_event(request: web.Request) -> web.Response:
             reminder_sent=data.get("reminder_sent", False),
         )
 
+        # Idempotency guard: if exact same pending event exists, return it directly
+        duplicate = await db.find_duplicate_event(
+            title=event.title,
+            start_time=event.start_time,
+            end_time=event.end_time,
+            status=event.status or "pending",
+        )
+        if duplicate:
+            return json_response(duplicate.to_dict())
+
+        # Conflict guard: block overlapping pending events by default
+        skip_conflict_check = bool(data.get("skip_conflict_check", False))
+        if event.start_time and not skip_conflict_check:
+            overlap_end = event.end_time or event.start_time
+            overlaps = await db.find_overlapping_events(event.start_time, overlap_end, status="pending")
+            # Exclude exact duplicate match (already handled), any remaining overlap blocks create
+            overlaps = [o for o in overlaps if not (o.title == event.title and o.start_time == event.start_time and o.end_time == event.end_time)]
+            if overlaps:
+                first = overlaps[0]
+                conflict_label = first.title
+                return error_response(f"时间冲突：与已存在任务“{conflict_label}”重叠", code=409)
+
         event = await db.create_event(event)
         return json_response(event.to_dict())
     except Exception as e:
