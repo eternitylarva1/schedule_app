@@ -2088,7 +2088,7 @@
                     aiFloatBtn.classList.remove('hidden');
                 } else {
                     aiFloatBtn.classList.add('hidden');
-                    closeAIChatPanel();
+                    hideAIFloatingWindow();
                 }
             }
         } catch (err) {
@@ -3565,7 +3565,7 @@
 
         // Close AI chat panel when switching away from notepad
         if (view !== 'notepad') {
-            closeAIChatPanel();
+            hideAIFloatingWindow();
             const aiFloatBtn = document.getElementById('aiChatFloatBtn');
             if (aiFloatBtn) aiFloatBtn.classList.add('hidden');
         }
