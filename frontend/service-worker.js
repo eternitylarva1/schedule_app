@@ -1,9 +1,9 @@
-const CACHE_NAME = 'schedule-app-v9';
+const CACHE_NAME = 'schedule-app-v12';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/static/style.css?v=20260405-2',
-  '/static/app.js?v=20260408-05',
+  '/static/style.css?v=20260411-01',
+  '/static/app.js?v=20260411-05',
   '/manifest.json'
 ];
 
