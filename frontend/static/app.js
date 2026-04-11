@@ -86,6 +86,16 @@
         noteGroups: [],
         expandedGroups: new Set(),
         expenses: [],
+        selectionMode: {
+            active: false,
+            type: null, // 'todo' | 'goals'
+            todoIds: new Set(),
+            goalIds: new Set(),
+            longPressTimer: null,
+            longPressTriggered: false,
+            startX: 0,
+            startY: 0,
+        },
         expenseCategories: [
             { id: 'food', name: '餐饮', color: '#F97316' },
             { id: 'transport', name: '交通', color: '#3B82F6' },
@@ -327,6 +337,147 @@
         await loadData();
         if (state.currentView === 'todo') await renderTodoView();
         else if (state.currentView === 'goals') await renderGoalsView();
+    }
+
+    function getSelectionSet(type) {
+        return type === 'goals' ? state.selectionMode.goalIds : state.selectionMode.todoIds;
+    }
+
+    function exitSelectionMode() {
+        state.selectionMode.active = false;
+        state.selectionMode.type = null;
+        state.selectionMode.todoIds.clear();
+        state.selectionMode.goalIds.clear();
+        const bar = document.getElementById('selectionBar');
+        if (bar) bar.classList.add('hidden');
+    }
+
+    function enterSelectionMode(type, seedId = null) {
+        state.selectionMode.active = true;
+        state.selectionMode.type = type;
+        if (type === 'todo') state.selectionMode.goalIds.clear();
+        if (type === 'goals') state.selectionMode.todoIds.clear();
+        const set = getSelectionSet(type);
+        if (seedId !== null && seedId !== undefined) set.add(String(seedId));
+        renderSelectionBar(type);
+    }
+
+    function toggleSelection(type, id) {
+        const set = getSelectionSet(type);
+        const key = String(id);
+        if (set.has(key)) set.delete(key);
+        else set.add(key);
+        renderSelectionBar(type);
+    }
+
+    function ensureSelectionBar() {
+        let bar = document.getElementById('selectionBar');
+        if (bar) return bar;
+        bar = document.createElement('div');
+        bar.id = 'selectionBar';
+        bar.className = 'selection-bar hidden';
+        bar.innerHTML = `
+            <div class="selection-count" id="selectionCount">已选择 0 项</div>
+            <div class="selection-actions">
+                <button class="btn btn-secondary" id="selectionSelectAll">全选</button>
+                <button class="btn btn-secondary" id="selectionComplete">完成</button>
+                <button class="btn btn-danger" id="selectionDelete">删除</button>
+                <button class="btn" id="selectionExit">退出</button>
+            </div>
+        `;
+        const appEl = document.getElementById('app') || document.body;
+        appEl.appendChild(bar);
+
+        document.getElementById('selectionExit')?.addEventListener('click', async () => {
+            exitSelectionMode();
+            if (state.currentView === 'todo') await renderTodoView();
+            if (state.currentView === 'goals') await renderGoalsView();
+        });
+
+        document.getElementById('selectionSelectAll')?.addEventListener('click', async () => {
+            const type = state.selectionMode.type;
+            if (!type) return;
+            const set = getSelectionSet(type);
+            set.clear();
+            if (type === 'todo') {
+                state.events.forEach((e) => {
+                    set.add(String(e.id));
+                });
+                await renderTodoView();
+            } else {
+                const allIds = new Set();
+                const collect = (gs) => {
+                    (gs || []).forEach(g => {
+                        allIds.add(String(g.id));
+                        if (g.subtasks && g.subtasks.length) collect(g.subtasks);
+                    });
+                };
+                collect(state.goals || []);
+                allIds.forEach((id) => {
+                    set.add(id);
+                });
+                await renderGoalsView();
+            }
+            renderSelectionBar(type);
+        });
+
+        document.getElementById('selectionComplete')?.addEventListener('click', async () => {
+            const type = state.selectionMode.type;
+            if (!type) return;
+            const ids = Array.from(getSelectionSet(type));
+            if (ids.length === 0) return;
+            if (type === 'todo') {
+                for (const id of ids) {
+                    await completeEvent(id);
+                }
+                showToast(`已完成 ${ids.length} 项`);
+                await loadData();
+                await renderTodoView();
+            } else {
+                for (const id of ids) {
+                    await updateGoal(id, { status: 'done' });
+                }
+                showToast(`已完成 ${ids.length} 项目标`);
+                await renderGoalsView();
+            }
+            exitSelectionMode();
+        });
+
+        document.getElementById('selectionDelete')?.addEventListener('click', async () => {
+            const type = state.selectionMode.type;
+            if (!type) return;
+            const ids = Array.from(getSelectionSet(type));
+            if (ids.length === 0) return;
+            const ok = window.confirm(`确定删除选中的 ${ids.length} 项吗？`);
+            if (!ok) return;
+            if (type === 'todo') {
+                for (const id of ids) {
+                    await deleteEvent(id);
+                }
+                showToast(`已删除 ${ids.length} 项`);
+                await loadData();
+                await renderTodoView();
+            } else {
+                for (const id of ids) {
+                    await deleteGoal(id);
+                }
+                showToast(`已删除 ${ids.length} 项目标`);
+                await renderGoalsView();
+            }
+            exitSelectionMode();
+        });
+
+        return bar;
+    }
+
+    function renderSelectionBar(type) {
+        const bar = ensureSelectionBar();
+        const set = getSelectionSet(type);
+        const countEl = document.getElementById('selectionCount');
+        const completeBtn = document.getElementById('selectionComplete');
+        if (countEl) countEl.textContent = `已选择 ${set.size} 项`;
+        if (completeBtn) completeBtn.textContent = type === 'goals' ? '完成目标' : '完成';
+        bar.classList.remove('hidden');
     }
 
     // ============================================
@@ -1548,6 +1699,11 @@
             `;
             return;
         }
+
+        const todoSelectionActive = state.selectionMode.active && state.selectionMode.type === 'todo';
+        if (todoSelectionActive) {
+            renderSelectionBar('todo');
+        }
         
         // Group by date (+ one special group for no-time tasks)
         const NO_TIME_KEY = '__no_time__';
@@ -1613,8 +1769,12 @@
             groupEl.innerHTML = `<div class="todo-date-header">${dateLabel}</div>`;
             
             events.forEach(event => {
+                const isSelected = state.selectionMode.todoIds.has(String(event.id));
                 const eventEl = document.createElement('div');
-                eventEl.className = 'todo-item' + (event.status === 'done' ? ' done' : '');
+                eventEl.className = 'todo-item'
+                    + (event.status === 'done' ? ' done' : '')
+                    + (todoSelectionActive ? ' selection-mode' : '')
+                    + (isSelected ? ' selected' : '');
                 eventEl.dataset.eventId = event.id;
                 
                 let timeStr = '无明确时间';
@@ -1643,12 +1803,20 @@
                 
                 // Checkbox click handler - TOGGLE: pending->done, done->pending
                 const checkbox = eventEl.querySelector('.todo-checkbox');
-                if (event.status === 'done') {
+                if (todoSelectionActive && isSelected) {
+                    checkbox.classList.add('checked');
+                } else if (event.status === 'done') {
                     checkbox.classList.add('checked');
                 }
                 checkbox.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     e.preventDefault();
+
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') {
+                        toggleSelection('todo', event.id);
+                        await renderTodoView();
+                        return;
+                    }
                     
                     if (event.status === 'done') {
                         // Already done - undo (uncomplete)
@@ -1674,8 +1842,22 @@
                 let isHorizontalSwipe = null;
                 let swipeDeltaX = 0;
                 let mainContent = null; // Cache reference
+                let longPressTimer = null;
                 
                 eventEl.addEventListener('touchstart', (e) => {
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') {
+                        return;
+                    }
+
+                    const touchX = e.touches[0].clientX;
+                    const touchY = e.touches[0].clientY;
+                    longPressTimer = setTimeout(async () => {
+                        state.selectionMode.longPressTriggered = true;
+                        enterSelectionMode('todo', event.id);
+                        if (navigator.vibrate) navigator.vibrate(20);
+                        await renderTodoView();
+                    }, 450);
+
                     swipeStartX = e.touches[0].clientX;
                     swipeStartY = e.touches[0].clientY;
                     swiping = true;
@@ -1695,6 +1877,15 @@
                     const deltaX = e.touches[0].clientX - swipeStartX;
                     const deltaY = e.touches[0].clientY - swipeStartY;
                     swipeDeltaX = deltaX;
+
+                    if (longPressTimer && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') {
+                        return;
+                    }
                     
                     // Determine swipe direction on first significant move
                     if (isHorizontalSwipe === null && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
@@ -1721,6 +1912,19 @@
                 }, { passive: false });
                 
                 eventEl.addEventListener('touchend', async () => {
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                    if (state.selectionMode.longPressTriggered) {
+                        state.selectionMode.longPressTriggered = false;
+                        swiping = false;
+                        return;
+                    }
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') {
+                        return;
+                    }
+
                     if (!swiping) return;
                     
                     if (mainContent) {
@@ -1765,11 +1969,13 @@
                 // Action button handlers
                 eventEl.querySelector('.edit-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') return;
                     openEventModal(event); // Edit existing event
                 });
                 
                 eventEl.querySelector('.delete-btn').addEventListener('click', async (e) => {
                     e.stopPropagation();
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') return;
                     const confirmed = await showConfirm('确定删除这个日程吗？');
                     if (confirmed) {
                         await deleteEvent(event.id);
@@ -1780,6 +1986,11 @@
                 
                 // Click on item (not checkbox or actions) - direct edit (including time)
                 eventEl.addEventListener('click', (e) => {
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') {
+                        toggleSelection('todo', event.id);
+                        renderTodoView();
+                        return;
+                    }
                     // Don't trigger if clicking on actions or checkbox
                     if (e.target.closest('.todo-actions') || e.target.closest('.todo-checkbox')) return;
                     openEventModal(event);
@@ -1893,6 +2104,10 @@
         if (!listEl) return;
         
         const goals = await fetchGoals(state.goalsHorizon);
+        const goalsSelectionActive = state.selectionMode.active && state.selectionMode.type === 'goals';
+        if (goalsSelectionActive) {
+            renderSelectionBar('goals');
+        }
         
         if (!goals || goals.length === 0) {
             listEl.innerHTML = `
@@ -1926,7 +2141,7 @@
             return `
                 <div class="goal-subtasks depth-${depth}">
                     ${subtasks.map(st => `
-                        <div class="goal-card goal-subtask" data-goal-id="${st.id}">
+                        <div class="goal-card goal-subtask${goalsSelectionActive ? ' selection-mode' : ''}${(goalsSelectionActive && state.selectionMode.goalIds.has(String(st.id))) ? ' selected' : ''}" data-goal-id="${st.id}">
                             <div class="goal-card-head">
                                 <div class="goal-title-wrap">
                                     <div class="goal-title">${escapeHtml(st.title)}</div>
@@ -1947,8 +2162,10 @@
         
         listEl.innerHTML = goals.map(goal => {
             const subtaskCount = countSubtasks(goal);
+            const selectedClass = goalsSelectionActive && state.selectionMode.goalIds.has(String(goal.id)) ? ' selected' : '';
+            const selectionClass = goalsSelectionActive ? ' selection-mode' : '';
             return `
-                <div class="goal-card" data-goal-id="${goal.id}">
+                <div class="goal-card${selectionClass}${selectedClass}" data-goal-id="${goal.id}">
                     <div class="goal-card-head">
                         <div class="goal-title-wrap">
                             <div class="goal-title">${escapeHtml(goal.title)}</div>
@@ -1974,6 +2191,7 @@
         listEl.querySelectorAll('.goal-action-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
                 const action = btn.dataset.action;
                 const goalId = btn.dataset.goalId;
                 
@@ -2013,6 +2231,7 @@
         // Bind add subtask buttons
         listEl.querySelectorAll('.goal-add-subtask-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
+                if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
                 const parentId = parseInt(btn.dataset.parentId);
                 const title = prompt('输入子任务名称：');
                 if (title && title.trim()) {
@@ -2022,6 +2241,55 @@
                         horizon: state.goalsHorizon
                     });
                     await renderGoalsList();
+                }
+            });
+        });
+
+        // Long-press/click selection for goal cards (mobile UX)
+        listEl.querySelectorAll('.goal-card[data-goal-id]').forEach((card) => {
+            const goalId = card.dataset.goalId;
+            let timer = null;
+            let startX = 0;
+            let startY = 0;
+
+            card.addEventListener('touchstart', (e) => {
+                if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                timer = setTimeout(async () => {
+                    state.selectionMode.longPressTriggered = true;
+                    enterSelectionMode('goals', goalId);
+                    if (navigator.vibrate) navigator.vibrate(20);
+                    await renderGoalsView();
+                }, 450);
+            }, { passive: true });
+
+            card.addEventListener('touchmove', (e) => {
+                if (!timer) return;
+                const dx = e.touches[0].clientX - startX;
+                const dy = e.touches[0].clientY - startY;
+                if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+                    clearTimeout(timer);
+                    timer = null;
+                }
+            }, { passive: true });
+
+            card.addEventListener('touchend', () => {
+                if (timer) {
+                    clearTimeout(timer);
+                    timer = null;
+                }
+            }, { passive: true });
+
+            card.addEventListener('click', async (e) => {
+                if (state.selectionMode.longPressTriggered) {
+                    state.selectionMode.longPressTriggered = false;
+                    return;
+                }
+                if (state.selectionMode.active && state.selectionMode.type === 'goals') {
+                    if (e.target.closest('.goal-action-btn') || e.target.closest('.goal-add-subtask-btn')) return;
+                    toggleSelection('goals', goalId);
+                    await renderGoalsView();
                 }
             });
         });
@@ -2656,6 +2924,13 @@
         try {
             await updateNote(aiChatState.currentNote.id, { content: newContent });
             aiChatState.currentNote.content = newContent;
+
+            // Update the textarea in the edit modal (use last one to avoid duplicate modal issues)
+            const textareas = document.querySelectorAll('#noteEditTextarea');
+            const textarea = textareas[textareas.length - 1];
+            if (textarea) {
+                textarea.value = newContent;
+            }
 
             // Update context display
             const context = document.getElementById('aiFloatingContext');
@@ -3523,6 +3798,9 @@
     // View Switching
     // ============================================
     async function switchView(view) {
+        if (state.selectionMode.active && !['todo', 'goals'].includes(view)) {
+            exitSelectionMode();
+        }
         state.currentView = view;
         
         // Save to localStorage
