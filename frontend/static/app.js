@@ -1704,6 +1704,15 @@
         if (todoSelectionActive) {
             renderSelectionBar('todo');
         }
+
+        const applyTodoSelectionVisual = (itemEl, eventId) => {
+            const selected = state.selectionMode.todoIds.has(String(eventId));
+            itemEl.classList.add('selection-mode');
+            itemEl.classList.toggle('selected', selected);
+            const cb = itemEl.querySelector('.todo-checkbox');
+            if (cb) cb.classList.toggle('checked', selected);
+            renderSelectionBar('todo');
+        };
         
         // Group by date (+ one special group for no-time tasks)
         const NO_TIME_KEY = '__no_time__';
@@ -1814,7 +1823,7 @@
 
                     if (state.selectionMode.active && state.selectionMode.type === 'todo') {
                         toggleSelection('todo', event.id);
-                        await renderTodoView();
+                        applyTodoSelectionVisual(eventEl, event.id);
                         return;
                     }
                     
@@ -1855,7 +1864,10 @@
                         state.selectionMode.longPressTriggered = true;
                         enterSelectionMode('todo', event.id);
                         if (navigator.vibrate) navigator.vibrate(20);
-                        await renderTodoView();
+                        container.querySelectorAll('.todo-item').forEach((el) => {
+                            el.classList.add('selection-mode');
+                        });
+                        applyTodoSelectionVisual(eventEl, event.id);
                     }, 450);
 
                     swipeStartX = e.touches[0].clientX;
@@ -1988,7 +2000,7 @@
                 eventEl.addEventListener('click', (e) => {
                     if (state.selectionMode.active && state.selectionMode.type === 'todo') {
                         toggleSelection('todo', event.id);
-                        renderTodoView();
+                        applyTodoSelectionVisual(eventEl, event.id);
                         return;
                     }
                     // Don't trigger if clicking on actions or checkbox
@@ -2252,6 +2264,12 @@
             let startX = 0;
             let startY = 0;
 
+            const applyGoalSelectionVisual = () => {
+                card.classList.add('selection-mode');
+                card.classList.toggle('selected', state.selectionMode.goalIds.has(String(goalId)));
+                renderSelectionBar('goals');
+            };
+
             card.addEventListener('touchstart', (e) => {
                 if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
                 startX = e.touches[0].clientX;
@@ -2260,7 +2278,10 @@
                     state.selectionMode.longPressTriggered = true;
                     enterSelectionMode('goals', goalId);
                     if (navigator.vibrate) navigator.vibrate(20);
-                    await renderGoalsView();
+                    listEl.querySelectorAll('.goal-card[data-goal-id]').forEach((el) => {
+                        el.classList.add('selection-mode');
+                    });
+                    applyGoalSelectionVisual();
                 }, 450);
             }, { passive: true });
 
@@ -2289,7 +2310,7 @@
                 if (state.selectionMode.active && state.selectionMode.type === 'goals') {
                     if (e.target.closest('.goal-action-btn') || e.target.closest('.goal-add-subtask-btn')) return;
                     toggleSelection('goals', goalId);
-                    await renderGoalsView();
+                    applyGoalSelectionVisual();
                 }
             });
         });
@@ -2603,6 +2624,18 @@
     }
     
     function renderNoteItem(note) {
+        // Truncate content to 2 lines (approx 100 chars)
+        const truncate2Lines = (text) => {
+            if (!text) return '';
+            const lines = text.split('\n').slice(0, 2);
+            let result = lines.join('\n');
+            if (result.length > 100) {
+                result = result.substring(0, 100) + '...';
+            } else if (text.split('\n').length > 2) {
+                result += '...';
+            }
+            return result;
+        };
         return `
             <div class="swipe-item note-swipe" data-note-id="${note.id}" draggable="true">
                 <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">✏️ 编辑</div>
@@ -2611,7 +2644,7 @@
                     <div class="note-item" data-note-id="${note.id}">
                         <div class="note-drag-handle" title="拖动排序">⋮⋮</div>
                         ${note.title ? `<div class="note-title">${escapeHtml(note.title)}</div>` : ''}
-                        <div class="note-content">${escapeHtml(note.content)}</div>
+                        <div class="note-content">${escapeHtml(truncate2Lines(note.content))}</div>
                         <div class="note-meta">
                             <span class="note-time">${formatNoteTime(note.created_at)}</span>
                         </div>
