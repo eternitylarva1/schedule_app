@@ -992,11 +992,17 @@
                         <div class="todo-item-category" style="background: ${getCategoryColor(event.category_id)}"></div>
                     </div>
                 `;
-                
+                 
                 // Checkbox click handler - TOGGLE: pending->done, done->pending
                 const checkbox = eventEl.querySelector('.todo-checkbox');
-                if (todoSelectionActive && isSelected) {
-                    checkbox.classList.add('checked');
+                if (todoSelectionActive) {
+                    // In selection mode, don't show completion status - use .selected for selection
+                    checkbox.classList.remove('checked');
+                    if (isSelected) {
+                        checkbox.classList.add('selected');
+                    } else {
+                        checkbox.classList.remove('selected');
+                    }
                 } else if (event.status === 'done') {
                     checkbox.classList.add('checked');
                 }

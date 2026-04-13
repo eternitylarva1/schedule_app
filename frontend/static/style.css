@@ -1156,6 +1156,20 @@ body {
     font-size: 14px;
 }
 
+/* Selection mode checkbox - blue dot to distinguish from completion */
+.todo-checkbox.selected {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.todo-checkbox.selected::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: white;
+    border-radius: 50%;
+}
+
 .todo-item-content {
     flex: 1;
     min-width: 0;
