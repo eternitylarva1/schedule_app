@@ -1147,6 +1147,97 @@
                     mainContent = null;
                 }, { passive: true });
                 
+                // Also handle mouse events for desktop - mousedown to start long press
+                eventEl.addEventListener('mousedown', (e) => {
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') {
+                        return;
+                    }
+
+                    longPressTimer = setTimeout(async () => {
+                        state.selectionMode.longPressTriggered = true;
+                        enterSelectionMode('todo', event.id);
+                        container.querySelectorAll('.todo-item').forEach((el) => {
+                            el.classList.add('selection-mode');
+                        });
+                        applyTodoSelectionVisual(eventEl, event.id);
+                    }, 450);
+
+                    swipeStartX = e.clientX;
+                    swipeStartY = e.clientY;
+                    swiping = true;
+                    isHorizontalSwipe = null;
+                    swipeDeltaX = 0;
+                    eventEl.classList.remove('swiped');
+                    mainContent = eventEl.querySelector('.todo-main-content');
+                    if (mainContent) {
+                        mainContent.style.transition = 'none';
+                    }
+                });
+                
+                eventEl.addEventListener('mousemove', (e) => {
+                    if (!swiping) return;
+                    
+                    const deltaX = e.clientX - swipeStartX;
+                    const deltaY = e.clientY - swipeStartY;
+                    swipeDeltaX = deltaX;
+
+                    if (longPressTimer && (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8)) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                    
+                    if (isHorizontalSwipe === null && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
+                        isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+                    }
+                    
+                    if (isHorizontalSwipe && mainContent) {
+                        if (deltaX < 0) {
+                            const moveX = Math.max(deltaX, -90);
+                            mainContent.style.transform = `translateX(${moveX}px)`;
+                        } else if (deltaX > 0) {
+                            const moveX = Math.min(deltaX, 150);
+                            mainContent.style.transform = `translateX(${moveX}px)`;
+                        }
+                    }
+                });
+                
+                eventEl.addEventListener('mouseup', async (e) => {
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                    if (state.selectionMode.longPressTriggered) {
+                        state.selectionMode.longPressTriggered = false;
+                        swiping = false;
+                        return;
+                    }
+                    if (state.selectionMode.active && state.selectionMode.type === 'todo') {
+                        return;
+                    }
+
+                    if (!swiping) return;
+                    
+                    if (mainContent) {
+                        mainContent.style.transition = 'none';
+                        mainContent.style.transform = '';
+                    }
+                    
+                    if (swipeDeltaX < -90) {
+                        eventEl.classList.add('swiped');
+                    } else if (swipeDeltaX > 100) {
+                        await deleteEvent(event.id);
+                        showToast('已删除');
+                        renderTodoView();
+                    } else {
+                        eventEl.classList.remove('swiped');
+                    }
+                    
+                    swiping = false;
+                    isHorizontalSwipe = null;
+                    swipeDeltaX = 0;
+                    mainContent = null;
+                });
+                
                 // Also handle mouse events for desktop testing
                 eventEl.addEventListener('mouseleave', () => {
                     if (swiping && mainContent) {
