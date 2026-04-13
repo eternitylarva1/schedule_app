@@ -1055,6 +1055,12 @@
                         if (navigator.vibrate) navigator.vibrate(20);
                         container.querySelectorAll('.todo-item').forEach((el) => {
                             el.classList.add('selection-mode');
+                            // Hide completion checkmark in selection mode
+                            const cb = el.querySelector('.todo-checkbox');
+                            if (cb) {
+                                cb.classList.remove('checked');
+                                cb.classList.remove('selected');
+                            }
                         });
                         applyTodoSelectionVisual(eventEl, event.id);
                     }, 450);
@@ -1164,6 +1170,12 @@
                         enterSelectionMode('todo', event.id);
                         container.querySelectorAll('.todo-item').forEach((el) => {
                             el.classList.add('selection-mode');
+                            // Hide completion checkmark in selection mode
+                            const cb = el.querySelector('.todo-checkbox');
+                            if (cb) {
+                                cb.classList.remove('checked');
+                                cb.classList.remove('selected');
+                            }
                         });
                         applyTodoSelectionVisual(eventEl, event.id);
                     }, 450);
