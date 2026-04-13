@@ -896,14 +896,15 @@
             if (cb) cb.classList.toggle('checked', selected);
             renderSelectionBar('todo');
         };
-        
+         
         // Group by date (+ one special group for no-time tasks)
         const NO_TIME_KEY = '__no_time__';
         const grouped = {};
         allEvents.forEach(event => {
             let dateKey;
-            const meta = deadlineMeta(event);
-            if (!event.start_time || meta.treatAsDeadlineWarning) {
+            // Only put items with NO start_time in NO_TIME_KEY
+            // (deadline warnings with actual times should stay in their date group)
+            if (!event.start_time) {
                 dateKey = NO_TIME_KEY;
             } else {
                 const date = new Date(event.start_time);
