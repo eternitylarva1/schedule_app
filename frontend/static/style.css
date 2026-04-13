@@ -299,6 +299,25 @@ body {
     color: var(--text-secondary);
 }
 
+.llm-queue-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.llm-queue-cancel-btn {
+    border: 1px solid rgba(239, 68, 68, 0.6);
+    color: #fca5a5;
+    background: transparent;
+    border-radius: 999px;
+    font-size: 11px;
+    padding: 2px 8px;
+}
+
+.llm-queue-cancel-btn.hidden {
+    display: none;
+}
+
 .llm-queue-progress-track {
     width: 100%;
     height: 4px;

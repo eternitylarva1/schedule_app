@@ -41,7 +41,10 @@
             <div class="llm-queue-status hidden" id="llmQueueStatus" aria-live="polite">
                 <div class="llm-queue-main">
                     <span class="llm-queue-text" id="llmQueueText">AI处理中...</span>
-                    <span class="llm-queue-meta" id="llmQueueMeta">进行中</span>
+                    <div class="llm-queue-right">
+                        <span class="llm-queue-meta" id="llmQueueMeta">进行中</span>
+                        <button class="llm-queue-cancel-btn hidden" id="llmQueueCancelBtn" type="button">取消</button>
+                    </div>
                 </div>
                 <div class="llm-queue-progress-track">
                     <div class="llm-queue-progress-bar" id="llmQueueProgressBar"></div>
@@ -369,7 +372,11 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20260411-05"></script>
+    <script src="/static/js/core/state-elements.js?v=20260412-03"></script>
+    <script src="/static/js/core/utils.js?v=20260412-04"></script>
+    <script src="/static/js/core/api-toast.js?v=20260412-04"></script>
+    <script src="/static/js/core/drag.js?v=20260412-05"></script>
+    <script src="/static/js/main.js?v=20260412-06"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {

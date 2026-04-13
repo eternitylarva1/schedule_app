@@ -1,9 +1,13 @@
-const CACHE_NAME = 'schedule-app-v12';
+const CACHE_NAME = 'schedule-app-v18';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/static/style.css?v=20260411-01',
-  '/static/app.js?v=20260411-05',
+  '/static/js/core/state-elements.js?v=20260412-03',
+  '/static/js/core/utils.js?v=20260412-04',
+  '/static/js/core/api-toast.js?v=20260412-04',
+  '/static/js/core/drag.js?v=20260412-05',
+  '/static/js/main.js?v=20260412-06',
   '/manifest.json'
 ];
 
