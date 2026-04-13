@@ -3345,15 +3345,14 @@
         if (elements.eventModalTitle) {
             elements.eventModalTitle.textContent = event ? '编辑日程' : '新建日程';
         }
-        
+         
         // Reset form
         elements.eventTitle.value = event ? event.title : '';
         const defaultTimes = getDefaultEditableTimes();
         elements.startTime.value = event && event.start_time ? toLocalDatetime(event.start_time) : defaultTimes.start;
         elements.endTime.value = event && event.end_time ? toLocalDatetime(event.end_time) : defaultTimes.end;
-        // Keep time fields directly editable when opening a todo item.
-        // Users can still manually mark "pending time" if needed.
-        elements.pendingTimeCheck.checked = false;
+        // If event has no start_time, mark as pending time
+        elements.pendingTimeCheck.checked = !event || !event.start_time;
         elements.allDayCheck.checked = event ? event.all_day : false;
         
         // Reset reminder fields
