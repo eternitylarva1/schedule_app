@@ -366,17 +366,41 @@
                             </div>
                             <button class="btn btn-danger settings-cleanup-btn" id="cleanupTestEntriesBtn">一键清理</button>
                         </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <span class="settings-item-title">垃圾桶</span>
+                                <span class="settings-item-desc" id="trashCount">已删除 0 个项目</span>
+                            </div>
+                            <button class="btn btn-secondary" id="openTrashBtn">查看</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Trash Modal -->
+    <div class="modal hidden" id="trashModal">
+        <div class="modal-backdrop" id="trashBackdrop"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2>垃圾桶</h2>
+                <button class="modal-close" id="trashClose">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="trash-actions">
+                    <button class="btn btn-secondary" id="trashEmptyBtn">清空垃圾桶</button>
+                </div>
+                <div class="trash-list" id="trashList"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/core/state-elements.js?v=20260412-03"></script>
     <script src="/static/js/core/utils.js?v=20260412-04"></script>
-    <script src="/static/js/core/api-toast.js?v=20260412-04"></script>
+    <script src="/static/js/core/api-toast.js?v=20260419-01"></script>
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
-    <script src="/static/js/main.js?v=20260412-11"></script>
+    <script src="/static/js/main.js?v=20260419-04"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {

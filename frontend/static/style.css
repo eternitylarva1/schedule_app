@@ -3893,3 +3893,65 @@ textarea {
     transform: scale(1.05);
 }
 
+/* ============ Trash Modal Styles ============ */
+.trash-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-sm);
+}
+
+.trash-list {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.trash-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-xs);
+}
+
+.trash-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.trash-item-title {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.trash-item-meta {
+    display: flex;
+    gap: var(--space-sm);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.trash-item-type {
+    color: var(--accent-primary);
+}
+
+.trash-item-date {
+    color: var(--text-secondary);
+}
+
+.trash-item-actions {
+    display: flex;
+    gap: var(--space-xs);
+    flex-shrink: 0;
+}
+
+.trash-item-actions .btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-size-xs);
+}
+

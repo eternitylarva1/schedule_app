@@ -186,6 +186,17 @@ async def init_db() -> None:
         except Exception:
             pass
         
+        # Trash/soft-delete: add is_deleted and deleted_at columns to all deletable tables
+        for table in ["events", "goals", "notes", "expenses"]:
+            try:
+                await db.execute(f"ALTER TABLE {table} ADD COLUMN is_deleted INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                await db.execute(f"ALTER TABLE {table} ADD COLUMN deleted_at TEXT")
+            except Exception:
+                pass
+        
         await db.commit()
 
 
@@ -278,11 +289,11 @@ async def get_events(date_filter: str = "today") -> List[Event]:
         db.row_factory = aiosqlite.Row
         if include_no_time:
             query = """SELECT * FROM events
-                       WHERE (start_time >= ? AND start_time < ?) OR start_time IS NULL
+                       WHERE is_deleted = 0 AND ((start_time >= ? AND start_time < ?) OR start_time IS NULL)
                        ORDER BY CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time"""
         else:
             query = """SELECT * FROM events
-                       WHERE start_time >= ? AND start_time < ?
+                       WHERE is_deleted = 0 AND start_time >= ? AND start_time < ?
                        ORDER BY start_time"""
 
         async with db.execute(
@@ -311,10 +322,10 @@ async def get_events(date_filter: str = "today") -> List[Event]:
 
 
 async def get_event(event_id: int) -> Optional[Event]:
-    """Get a single event by ID."""
+    """Get a single event by ID (excludes soft-deleted)."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM events WHERE id = ?", (event_id,)) as cursor:
+        async with db.execute("SELECT * FROM events WHERE id = ? AND is_deleted = 0", (event_id,)) as cursor:
             row = await cursor.fetchone()
             if not row:
                 return None
@@ -365,9 +376,32 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
 
 
 async def delete_event(event_id: int) -> bool:
-    """Delete an event."""
+    """Soft-delete an event (move to trash)."""
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("DELETE FROM events WHERE id = ?", (event_id,))
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            "UPDATE events SET is_deleted = 1, deleted_at = ? WHERE id = ? AND is_deleted = 0",
+            (now, event_id)
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def permanently_delete_event(event_id: int) -> bool:
+    """Permanently delete an event from trash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM events WHERE id = ? AND is_deleted = 1", (event_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def restore_event(event_id: int) -> bool:
+    """Restore a soft-deleted event from trash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE events SET is_deleted = 0, deleted_at = NULL WHERE id = ? AND is_deleted = 1",
+            (event_id,)
+        )
         await db.commit()
         return cursor.rowcount > 0
 
@@ -513,15 +547,19 @@ async def batch_uncomplete_events(start: datetime | None = None, end: datetime |
 
 
 async def batch_delete_events(start: datetime | None = None, end: datetime | None = None) -> int:
-    """Batch delete events. Returns affected row count."""
+    """Batch soft-delete events (move to trash). Returns affected row count."""
+    now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         if start and end:
             cursor = await db.execute(
-                "DELETE FROM events WHERE start_time >= ? AND start_time < ?",
-                (start.isoformat(), end.isoformat()),
+                "UPDATE events SET is_deleted = 1, deleted_at = ? WHERE is_deleted = 0 AND start_time >= ? AND start_time < ?",
+                (now, start.isoformat(), end.isoformat()),
             )
         else:
-            cursor = await db.execute("DELETE FROM events")
+            cursor = await db.execute(
+                "UPDATE events SET is_deleted = 1, deleted_at = ? WHERE is_deleted = 0",
+                (now,)
+            )
         await db.commit()
         return cursor.rowcount or 0
 
@@ -819,9 +857,11 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
 
 
 async def delete_goal(goal_id: int) -> bool:
-    """Delete a goal, its subtasks, and unlink its events."""
+    """Soft-delete a goal and its subtasks (move to trash)."""
     async with aiosqlite.connect(DB_PATH) as db:
-        # First get all descendant goal IDs (recursive delete)
+        now = datetime.now().isoformat()
+        
+        # First get all descendant goal IDs (recursive)
         async def get_descendant_ids(parent_id: int) -> List[int]:
             ids = []
             db.row_factory = aiosqlite.Row
@@ -832,12 +872,40 @@ async def delete_goal(goal_id: int) -> bool:
                 for row in rows:
                     child_id = row["id"]
                     ids.append(child_id)
-                    # Recursively get children
                     child_descendants = await get_descendant_ids(child_id)
                     ids.extend(child_descendants)
             return ids
         
         # Get all descendant IDs
+        all_ids = [goal_id] + await get_descendant_ids(goal_id)
+        
+        # Soft-delete goals and subtasks
+        placeholders = ",".join("?" * len(all_ids))
+        await db.execute(
+            f"UPDATE goals SET is_deleted = 1, deleted_at = ? WHERE id IN ({placeholders}) AND is_deleted = 0",
+            [now] + all_ids
+        )
+        await db.commit()
+        return True
+
+
+async def permanently_delete_goal(goal_id: int) -> bool:
+    """Permanently delete a goal from trash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async def get_descendant_ids(parent_id: int) -> List[int]:
+            ids = []
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT id FROM goals WHERE parent_id = ?", (parent_id,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+                for row in rows:
+                    child_id = row["id"]
+                    ids.append(child_id)
+                    child_descendants = await get_descendant_ids(child_id)
+                    ids.extend(child_descendants)
+            return ids
+        
         all_ids = [goal_id] + await get_descendant_ids(goal_id)
         
         # Unlink events
@@ -847,8 +915,36 @@ async def delete_goal(goal_id: int) -> bool:
         # Delete conversations first
         await db.execute(f"DELETE FROM goal_conversations WHERE goal_id IN ({placeholders})", all_ids)
         
-        # Delete goals
-        await db.execute(f"DELETE FROM goals WHERE id IN ({placeholders})", all_ids)
+        # Permanently delete goals
+        await db.execute(f"DELETE FROM goals WHERE id IN ({placeholders}) AND is_deleted = 1", all_ids)
+        await db.commit()
+        return True
+
+
+async def restore_goal(goal_id: int) -> bool:
+    """Restore a soft-deleted goal and its subtasks from trash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async def get_descendant_ids(parent_id: int) -> List[int]:
+            ids = []
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT id FROM goals WHERE parent_id = ?", (parent_id,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+                for row in rows:
+                    child_id = row["id"]
+                    ids.append(child_id)
+                    child_descendants = await get_descendant_ids(child_id)
+                    ids.extend(child_descendants)
+            return ids
+        
+        all_ids = [goal_id] + await get_descendant_ids(goal_id)
+        
+        placeholders = ",".join("?" * len(all_ids))
+        await db.execute(
+            f"UPDATE goals SET is_deleted = 0, deleted_at = NULL WHERE id IN ({placeholders}) AND is_deleted = 1",
+            all_ids
+        )
         await db.commit()
         return True
 
@@ -984,9 +1080,32 @@ async def update_note(note_id: int, note: Note) -> Optional[Note]:
 
 
 async def delete_note(note_id: int) -> bool:
-    """Delete a note."""
+    """Soft-delete a note (move to trash)."""
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            "UPDATE notes SET is_deleted = 1, deleted_at = ? WHERE id = ? AND is_deleted = 0",
+            (now, note_id)
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def permanently_delete_note(note_id: int) -> bool:
+    """Permanently delete a note from trash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM notes WHERE id = ? AND is_deleted = 1", (note_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def restore_note(note_id: int) -> bool:
+    """Restore a soft-deleted note from trash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE notes SET is_deleted = 0, deleted_at = NULL WHERE id = ? AND is_deleted = 1",
+            (note_id,)
+        )
         await db.commit()
         return cursor.rowcount > 0
 
@@ -1218,9 +1337,32 @@ async def update_expense(expense_id: int, expense: Expense) -> Optional[Expense]
 
 
 async def delete_expense(expense_id: int) -> bool:
-    """Delete an expense."""
+    """Soft-delete an expense (move to trash)."""
     async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            "UPDATE expenses SET is_deleted = 1, deleted_at = ? WHERE id = ? AND is_deleted = 0",
+            (now, expense_id)
+        )
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def permanently_delete_expense(expense_id: int) -> bool:
+    """Permanently delete an expense from trash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM expenses WHERE id = ? AND is_deleted = 1", (expense_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def restore_expense(expense_id: int) -> bool:
+    """Restore a soft-deleted expense from trash."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE expenses SET is_deleted = 0, deleted_at = NULL WHERE id = ? AND is_deleted = 1",
+            (expense_id,)
+        )
         await db.commit()
         return cursor.rowcount > 0
 
@@ -1503,3 +1645,144 @@ async def cleanup_test_entries() -> dict[str, int]:
         "notes_deleted": note_result.rowcount or 0,
         "expenses_deleted": expense_result.rowcount or 0,
     }
+
+
+# ============ Trash Functions ============
+
+async def get_trash() -> dict[str, list]:
+    """Get all soft-deleted items from all tables."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        
+        # Get deleted events
+        async with db.execute(
+            "SELECT * FROM events WHERE is_deleted = 1 ORDER BY deleted_at DESC"
+        ) as cursor:
+            events = []
+            async for row in cursor:
+                events.append({
+                    "id": row["id"],
+                    "type": "event",
+                    "title": row["title"],
+                    "deleted_at": row["deleted_at"],
+                    "data": dict(row),
+                })
+        
+        # Get deleted goals
+        async with db.execute(
+            "SELECT * FROM goals WHERE is_deleted = 1 ORDER BY deleted_at DESC"
+        ) as cursor:
+            goals = []
+            async for row in cursor:
+                goals.append({
+                    "id": row["id"],
+                    "type": "goal",
+                    "title": row["title"],
+                    "deleted_at": row["deleted_at"],
+                    "data": dict(row),
+                })
+        
+        # Get deleted notes
+        async with db.execute(
+            "SELECT * FROM notes WHERE is_deleted = 1 ORDER BY deleted_at DESC"
+        ) as cursor:
+            notes = []
+            async for row in cursor:
+                notes.append({
+                    "id": row["id"],
+                    "type": "note",
+                    "title": row["title"],
+                    "deleted_at": row["deleted_at"],
+                    "data": dict(row),
+                })
+        
+        # Get deleted expenses
+        async with db.execute(
+            "SELECT * FROM expenses WHERE is_deleted = 1 ORDER BY deleted_at DESC"
+        ) as cursor:
+            expenses = []
+            async for row in cursor:
+                expenses.append({
+                    "id": row["id"],
+                    "type": "expense",
+                    "title": f"{row['amount']}元 - {row['note'][:20] if row['note'] else row['category']}",
+                    "deleted_at": row["deleted_at"],
+                    "data": dict(row),
+                })
+        
+        return {
+            "events": events,
+            "goals": goals,
+            "notes": notes,
+            "expenses": expenses,
+        }
+
+
+async def get_trash_count() -> dict[str, int]:
+    """Get count of items in trash by type."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        
+        events_count = 0
+        goals_count = 0
+        notes_count = 0
+        expenses_count = 0
+        
+        async with db.execute("SELECT COUNT(*) as cnt FROM events WHERE is_deleted = 1") as cursor:
+            row = await cursor.fetchone()
+            events_count = row["cnt"] if row else 0
+        
+        async with db.execute("SELECT COUNT(*) as cnt FROM goals WHERE is_deleted = 1") as cursor:
+            row = await cursor.fetchone()
+            goals_count = row["cnt"] if row else 0
+        
+        async with db.execute("SELECT COUNT(*) as cnt FROM notes WHERE is_deleted = 1") as cursor:
+            row = await cursor.fetchone()
+            notes_count = row["cnt"] if row else 0
+        
+        async with db.execute("SELECT COUNT(*) as cnt FROM expenses WHERE is_deleted = 1") as cursor:
+            row = await cursor.fetchone()
+            expenses_count = row["cnt"] if row else 0
+        
+        return {
+            "events": events_count,
+            "goals": goals_count,
+            "notes": notes_count,
+            "expenses": expenses_count,
+            "total": events_count + goals_count + notes_count + expenses_count,
+        }
+
+
+async def empty_trash() -> dict[str, int]:
+    """Permanently delete all items in trash. Returns counts of deleted items."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Get counts before deletion
+        async with db.execute("SELECT COUNT(*) as cnt FROM events WHERE is_deleted = 1") as cursor:
+            row = await cursor.fetchone()
+            events_count = row["cnt"] if row else 0
+        
+        async with db.execute("SELECT COUNT(*) as cnt FROM goals WHERE is_deleted = 1") as cursor:
+            row = await cursor.fetchone()
+            goals_count = row["cnt"] if row else 0
+        
+        async with db.execute("SELECT COUNT(*) as cnt FROM notes WHERE is_deleted = 1") as cursor:
+            row = await cursor.fetchone()
+            notes_count = row["cnt"] if row else 0
+        
+        async with db.execute("SELECT COUNT(*) as cnt FROM expenses WHERE is_deleted = 1") as cursor:
+            row = await cursor.fetchone()
+            expenses_count = row["cnt"] if row else 0
+        
+        # Permanently delete
+        await db.execute("DELETE FROM events WHERE is_deleted = 1")
+        await db.execute("DELETE FROM goals WHERE is_deleted = 1")
+        await db.execute("DELETE FROM notes WHERE is_deleted = 1")
+        await db.execute("DELETE FROM expenses WHERE is_deleted = 1")
+        await db.commit()
+        
+        return {
+            "events_deleted": events_count,
+            "goals_deleted": goals_count,
+            "notes_deleted": notes_count,
+            "expenses_deleted": expenses_count,
+        }

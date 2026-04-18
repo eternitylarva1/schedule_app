@@ -1440,6 +1440,87 @@ def _parse_date_range(date_str: str):
     return start, end
 
 
+# ============ Trash Endpoints ============
+
+async def get_trash(request: web.Request) -> web.Response:
+    """GET /api/trash - Get all items in trash."""
+    try:
+        trash = await db.get_trash()
+        return json_response(trash)
+    except Exception as e:
+        return error_response(f"获取垃圾桶失败: {str(e)}")
+
+
+async def get_trash_count(request: web.Request) -> web.Response:
+    """GET /api/trash/count - Get count of items in trash."""
+    try:
+        count = await db.get_trash_count()
+        return json_response(count)
+    except Exception as e:
+        return error_response(f"获取垃圾桶数量失败: {str(e)}")
+
+
+async def restore_trash_item(request: web.Request) -> web.Response:
+    """POST /api/trash/{type}/{id}/restore - Restore an item from trash."""
+    item_type = request.match_info["type"]
+    item_id = int(request.match_info["id"])
+    
+    try:
+        restored = False
+        if item_type == "event":
+            restored = await db.restore_event(item_id)
+        elif item_type == "goal":
+            restored = await db.restore_goal(item_id)
+        elif item_type == "note":
+            restored = await db.restore_note(item_id)
+        elif item_type == "expense":
+            restored = await db.restore_expense(item_id)
+        else:
+            return error_response(f"无效的类型: {item_type}")
+        
+        if restored:
+            return json_response({"restored": True})
+        else:
+            return error_response("恢复失败，可能已不存在", code=404)
+    except Exception as e:
+        return error_response(f"恢复失败: {str(e)}")
+
+
+async def permanently_delete_trash_item(request: web.Request) -> web.Response:
+    """DELETE /api/trash/{type}/{id} - Permanently delete an item from trash."""
+    item_type = request.match_info["type"]
+    item_id = int(request.match_info["id"])
+    
+    try:
+        deleted = False
+        if item_type == "event":
+            deleted = await db.permanently_delete_event(item_id)
+        elif item_type == "goal":
+            deleted = await db.permanently_delete_goal(item_id)
+        elif item_type == "note":
+            deleted = await db.permanently_delete_note(item_id)
+        elif item_type == "expense":
+            deleted = await db.permanently_delete_expense(item_id)
+        else:
+            return error_response(f"无效的类型: {item_type}")
+        
+        if deleted:
+            return json_response({"deleted": True})
+        else:
+            return error_response("删除失败，可能已不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除失败: {str(e)}")
+
+
+async def empty_trash(request: web.Request) -> web.Response:
+    """DELETE /api/trash - Empty the entire trash."""
+    try:
+        result = await db.empty_trash()
+        return json_response(result)
+    except Exception as e:
+        return error_response(f"清空垃圾桶失败: {str(e)}")
+
+
 def setup_routes(app: web.Application) -> None:
     """Setup all routes."""
     app.router.add_get("/api/events", get_events)
@@ -1492,3 +1573,9 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_delete("/api/expenses/{id}", delete_expense)
     app.router.add_get("/api/expenses/stats", get_expense_stats)
     app.router.add_get("/api/expenses/categories", get_expense_categories)
+    # Trash endpoints
+    app.router.add_get("/api/trash", get_trash)
+    app.router.add_get("/api/trash/count", get_trash_count)
+    app.router.add_post("/api/trash/{type}/{id}/restore", restore_trash_item)
+    app.router.add_delete("/api/trash/{type}/{id}", permanently_delete_trash_item)
+    app.router.add_delete("/api/trash", empty_trash)

@@ -354,6 +354,43 @@
     }
 
     // ============================================
+    // Trash API Functions
+    // ============================================
+    async function fetchTrash() {
+        const data = await apiCall('trash');
+        if (data) {
+            return data;
+        }
+        return { events: [], goals: [], notes: [], expenses: [] };
+    }
+
+    async function fetchTrashCount() {
+        const data = await apiCall('trash/count');
+        if (data) {
+            return data;
+        }
+        return { events: 0, goals: 0, notes: 0, expenses: 0, total: 0 };
+    }
+
+    async function restoreTrashItem(type, id) {
+        return await apiCall(`trash/${type}/${id}/restore`, {
+            method: 'POST'
+        });
+    }
+
+    async function permanentlyDeleteTrashItem(type, id) {
+        return await apiCall(`trash/${type}/${id}`, {
+            method: 'DELETE'
+        });
+    }
+
+    async function emptyTrash() {
+        return await apiCall('trash', {
+            method: 'DELETE'
+        });
+    }
+
+    // ============================================
     // Toast Notifications
     // ============================================
     let toastTimeout = null;
@@ -465,6 +502,11 @@
         deleteExpense,
         fetchExpenseStats,
         parseExpenseWithLLM,
+        fetchTrash,
+        fetchTrashCount,
+        restoreTrashItem,
+        permanentlyDeleteTrashItem,
+        emptyTrash,
         showToast,
         showConfirm,
     };

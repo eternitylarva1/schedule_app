@@ -244,6 +244,11 @@
         deleteExpense,
         fetchExpenseStats,
         parseExpenseWithLLM,
+        fetchTrash,
+        fetchTrashCount,
+        restoreTrashItem,
+        permanentlyDeleteTrashItem,
+        emptyTrash,
         showToast,
         showConfirm,
     } = window.ScheduleAppCore;
@@ -4425,6 +4430,139 @@
         elements.settingsModal.classList.remove('hidden');
     }
 
+    async function openTrashModal() {
+        // Close settings modal first
+        closeSettingsModal();
+        
+        // Load trash count to update settings display
+        await updateTrashCount();
+        
+        // Load and render trash list
+        const trash = await fetchTrash();
+        renderTrashList(trash);
+        
+        document.getElementById('trashModal')?.classList.remove('hidden');
+    }
+
+    function closeTrashModal() {
+        document.getElementById('trashModal')?.classList.add('hidden');
+    }
+
+    async function updateTrashCount() {
+        const count = await fetchTrashCount();
+        const trashCountEl = document.getElementById('trashCount');
+        if (trashCountEl) {
+            trashCountEl.textContent = `已删除 ${count.total} 个项目`;
+        }
+    }
+
+    function renderTrashList(trash) {
+        const container = document.getElementById('trashList');
+        if (!container) return;
+        
+        const allItems = [
+            ...(trash.events || []).map(item => ({ ...item, typeLabel: '日程' })),
+            ...(trash.goals || []).map(item => ({ ...item, typeLabel: '目标' })),
+            ...(trash.notes || []).map(item => ({ ...item, typeLabel: '笔记' })),
+            ...(trash.expenses || []).map(item => ({ ...item, typeLabel: '记账' })),
+        ].sort((a, b) => {
+            // Sort by deleted_at descending (newest first)
+            return new Date(b.deleted_at) - new Date(a.deleted_at);
+        });
+        
+        if (allItems.length === 0) {
+            container.innerHTML = '<div class="empty-text">垃圾桶是空的</div>';
+            return;
+        }
+        
+        const formatDate = (dateStr) => {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return `${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+        };
+        
+        container.innerHTML = allItems.map(item => `
+            <div class="trash-item" data-type="${item.type}" data-id="${item.id}">
+                <div class="trash-item-info">
+                    <div class="trash-item-title">${escapeHtml(item.title || '(无标题)')}</div>
+                    <div class="trash-item-meta">
+                        <span class="trash-item-type">${item.typeLabel}</span>
+                        <span class="trash-item-date">删除于 ${formatDate(item.deleted_at)}</span>
+                    </div>
+                </div>
+                <div class="trash-item-actions">
+                    <button class="btn btn-secondary trash-restore-btn">恢复</button>
+                    <button class="btn btn-danger trash-delete-btn">彻底删除</button>
+                </div>
+            </div>
+        `).join('');
+        
+        // Bind restore buttons
+        container.querySelectorAll('.trash-restore-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const item = e.target.closest('.trash-item');
+                const type = item.dataset.type;
+                const id = parseInt(item.dataset.id);
+                
+                const confirmed = await showConfirm('确定恢复这个项目吗？');
+                if (!confirmed) return;
+                
+                const result = await restoreTrashItem(type, id);
+                if (result) {
+                    showToast('已恢复');
+                    await updateTrashCount();
+                    const trash = await fetchTrash();
+                    renderTrashList(trash);
+                    // Refresh current view
+                    await loadData();
+                    if (state.currentView === 'todo') {
+                        await renderTodoView();
+                    } else if (state.currentView === 'goals') {
+                        await renderGoalsView();
+                    }
+                }
+            });
+        });
+
+        // Bind permanently delete buttons
+        container.querySelectorAll('.trash-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const item = e.target.closest('.trash-item');
+                const type = item.dataset.type;
+                const id = parseInt(item.dataset.id);
+                
+                const confirmed = await showConfirm('彻底删除后无法恢复，确定删除吗？');
+                if (!confirmed) return;
+                
+                const result = await permanentlyDeleteTrashItem(type, id);
+                if (result) {
+                    showToast('已彻底删除');
+                    await updateTrashCount();
+                    const trash = await fetchTrash();
+                    renderTrashList(trash);
+                }
+            });
+        });
+    }
+
+    async function handleEmptyTrash() {
+        const count = await fetchTrashCount();
+        if (count.total === 0) {
+            showToast('垃圾桶已经是空的');
+            return;
+        }
+        
+        const confirmed = await showConfirm(`确定清空垃圾桶吗？将永久删除 ${count.total} 个项目，无法恢复。`);
+        if (!confirmed) return;
+        
+        const result = await emptyTrash();
+        if (result) {
+            showToast('垃圾桶已清空');
+            await updateTrashCount();
+            renderTrashList({ events: [], goals: [], notes: [], expenses: [] });
+        }
+    }
+
     function closeSettingsModal() {
         // Save user self description to API
         const desc = elements.userSelfDescription.value.trim();
@@ -5410,6 +5548,10 @@
         elements.defaultTaskReminderEnabled.addEventListener('change', handleDefaultTaskReminderToggle);
         document.getElementById('cleanupTestEntriesBtn')?.addEventListener('click', handleCleanupTestEntries);
         document.getElementById('semanticHelpBtn')?.addEventListener('click', showSemanticHelpModal);
+        document.getElementById('openTrashBtn')?.addEventListener('click', openTrashModal);
+        document.getElementById('trashClose')?.addEventListener('click', closeTrashModal);
+        document.getElementById('trashBackdrop')?.addEventListener('click', closeTrashModal);
+        document.getElementById('trashEmptyBtn')?.addEventListener('click', handleEmptyTrash);
         
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
