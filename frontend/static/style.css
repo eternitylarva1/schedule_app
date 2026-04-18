@@ -2420,6 +2420,14 @@ textarea {
     margin-top: 4px;
 }
 
+.goal-meta-item {
+    margin-right: 8px;
+}
+
+.goal-time {
+    color: var(--accent-primary);
+}
+
 .goal-actions {
     display: flex;
     gap: var(--space-xs);

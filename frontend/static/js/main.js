@@ -1469,12 +1469,23 @@
             const subtaskCount = countSubtasks(goal);
             const selectedClass = goalsSelectionActive && state.selectionMode.goalIds.has(String(goal.id)) ? ' selected' : '';
             const selectionClass = goalsSelectionActive ? ' selection-mode' : '';
+            // Format time display for goal
+            const timeDisplay = (goal.start_time || goal.end_time) ? (
+                goal.start_time && goal.end_time
+                    ? `${formatTime(goal.start_time)} - ${formatTime(goal.end_time)}`
+                    : goal.start_time
+                        ? `从 ${formatTime(goal.start_time)}`
+                        : `至 ${formatTime(goal.end_time)}`
+            ) : '';
             return `
                 <div class="goal-card${selectionClass}${selectedClass}" data-goal-id="${goal.id}">
                     <div class="goal-card-head">
                         <div class="goal-title-wrap">
                             <div class="goal-title">${escapeHtml(goal.title)}</div>
-                            <div class="goal-meta">${subtaskCount > 0 ? subtaskCount + '项' : ''}</div>
+                            <div class="goal-meta">
+                                ${subtaskCount > 0 ? '<span class="goal-meta-item">' + subtaskCount + '项</span>' : ''}
+                                ${timeDisplay ? '<span class="goal-meta-item goal-time">' + timeDisplay + '</span>' : ''}
+                            </div>
                         </div>
                         <div class="goal-actions">
                             <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
@@ -3669,6 +3680,15 @@
     }
     
     async function openGoalEditModal(goal) {
+        // Helper to format time for datetime-local input
+        const toDatetimeLocal = (dt) => {
+            if (!dt) return '';
+            const d = new Date(dt);
+            if (isNaN(d.getTime())) return '';
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        };
+        
         const editHtml = `
             <div class="modal" id="goalEditModal">
                 <div class="modal-backdrop" id="goalEditBackdrop"></div>
@@ -3690,6 +3710,16 @@
                             <div class="form-group">
                                 <label for="goalEditEnd">截止日期</label>
                                 <input type="date" id="goalEditEnd" value="${goal.end_date ? new Date(goal.end_date).toISOString().slice(0, 10) : ''}">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="goalEditStartTime">开始时间</label>
+                                <input type="time" id="goalEditStartTime" value="${goal.start_time ? toDatetimeLocal(goal.start_time).slice(11, 16) : ''}">
+                            </div>
+                            <div class="form-group">
+                                <label for="goalEditEndTime">结束时间</label>
+                                <input type="time" id="goalEditEndTime" value="${goal.end_time ? toDatetimeLocal(goal.end_time).slice(11, 16) : ''}">
                             </div>
                         </div>
                     </div>
@@ -3714,6 +3744,8 @@
         const titleInput = document.getElementById('goalEditTitle');
         const startInput = document.getElementById('goalEditStart');
         const endInput = document.getElementById('goalEditEnd');
+        const startTimeInput = document.getElementById('goalEditStartTime');
+        const endTimeInput = document.getElementById('goalEditEndTime');
         
         const closeModal = () => modal.remove();
         backdrop.addEventListener('click', closeModal);
@@ -3733,6 +3765,13 @@
             }
             if (endInput.value) {
                 updates.end_date = new Date(endInput.value).toISOString();
+            }
+            // Combine date and time for start_time/end_time
+            if (startInput.value && startTimeInput.value) {
+                updates.start_time = new Date(`${startInput.value}T${startTimeInput.value}`).toISOString();
+            }
+            if (endInput.value && endTimeInput.value) {
+                updates.end_time = new Date(`${endInput.value}T${endTimeInput.value}`).toISOString();
             }
             
             const result = await updateGoal(goal.id, updates);

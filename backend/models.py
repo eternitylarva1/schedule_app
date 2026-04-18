@@ -57,8 +57,10 @@ class Goal:
     description: str = ""
     horizon: str = "short"  # short/semester/long
     status: str = "active"  # active/done/cancelled
-    start_date: datetime | None = None
-    end_date: datetime | None = None
+    start_date: datetime | None = None  # Goal start date (e.g., "2024-01-01")
+    end_date: datetime | None = None    # Goal end date (e.g., "2024-06-30")
+    start_time: datetime | None = None  # Specific start time (e.g., "周三 15:00")
+    end_time: datetime | None = None    # Specific end time (e.g., "周三 16:00")
     # Hierarchy support (3 levels: goal -> subtask -> sub-subtask)
     parent_id: int | None = None  # NULL for top-level goals
     root_goal_id: int | None = None  # Reference to root goal for easy tree queries
@@ -71,7 +73,7 @@ class Goal:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         d = asdict(self)
-        for key in ["start_date", "end_date", "created_at", "updated_at"]:
+        for key in ["start_date", "end_date", "start_time", "end_time", "created_at", "updated_at"]:
             if d.get(key) and isinstance(d[key], datetime):
                 d[key] = d[key].isoformat()
         return d
@@ -79,7 +81,7 @@ class Goal:
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Goal":
         """Create Goal from dictionary."""
-        for key in ["start_date", "end_date", "created_at", "updated_at"]:
+        for key in ["start_date", "end_date", "start_time", "end_time", "created_at", "updated_at"]:
             if d.get(key) and isinstance(d[key], str):
                 d[key] = datetime.fromisoformat(d[key])
         d = {k: v for k, v in d.items() if v is not None}

@@ -59,6 +59,8 @@ async def init_db() -> None:
                 status TEXT DEFAULT 'active',
                 start_date TEXT,
                 end_date TEXT,
+                start_time TEXT,
+                end_time TEXT,
                 parent_id INTEGER,
                 root_goal_id INTEGER,
                 goal_order INTEGER DEFAULT 0,
@@ -103,6 +105,14 @@ async def init_db() -> None:
             pass
         try:
             await db.execute("ALTER TABLE goals ADD COLUMN ai_context TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE goals ADD COLUMN start_time TEXT")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE goals ADD COLUMN end_time TEXT")
         except Exception:
             pass
         
@@ -612,8 +622,9 @@ async def create_goal(goal: Goal) -> Goal:
         cursor = await db.execute(
             """INSERT INTO goals
                (title, description, horizon, status, start_date, end_date, 
+                start_time, end_time,
                 parent_id, root_goal_id, goal_order, ai_context, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 goal.title,
                 goal.description,
@@ -621,6 +632,8 @@ async def create_goal(goal: Goal) -> Goal:
                 goal.status,
                 goal.start_date.isoformat() if goal.start_date else None,
                 goal.end_date.isoformat() if goal.end_date else None,
+                goal.start_time.isoformat() if goal.start_time else None,
+                goal.end_time.isoformat() if goal.end_time else None,
                 goal.parent_id,
                 root_goal_id,
                 goal.order,
@@ -674,6 +687,8 @@ async def get_goals(horizon: str | None = None, include_subtasks: bool = True) -
                     status=row["status"] or "active",
                     start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
                     end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                    start_time=datetime.fromisoformat(row["start_time"]) if row["start_time"] else None,
+                    end_time=datetime.fromisoformat(row["end_time"]) if row["end_time"] else None,
                     parent_id=row["parent_id"],
                     root_goal_id=row["root_goal_id"],
                     order=row["goal_order"] or 0,
@@ -700,6 +715,8 @@ async def get_goal(goal_id: int) -> Optional[Goal]:
                 status=row["status"] or "active",
                 start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
                 end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                start_time=datetime.fromisoformat(row["start_time"]) if row["start_time"] else None,
+                end_time=datetime.fromisoformat(row["end_time"]) if row["end_time"] else None,
                 parent_id=row["parent_id"],
                 root_goal_id=row["root_goal_id"],
                 order=row["goal_order"] or 0,
@@ -728,6 +745,8 @@ async def get_goal_subtasks(goal_id: int) -> List[Goal]:
                     status=row["status"] or "active",
                     start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
                     end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                    start_time=datetime.fromisoformat(row["start_time"]) if row["start_time"] else None,
+                    end_time=datetime.fromisoformat(row["end_time"]) if row["end_time"] else None,
                     parent_id=row["parent_id"],
                     root_goal_id=row["root_goal_id"],
                     order=row["goal_order"] or 0,
@@ -774,7 +793,8 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
         await db.execute(
             """UPDATE goals SET
                title = ?, description = ?, horizon = ?, status = ?,
-               start_date = ?, end_date = ?, parent_id = ?, root_goal_id = ?,
+               start_date = ?, end_date = ?, start_time = ?, end_time = ?,
+               parent_id = ?, root_goal_id = ?,
                goal_order = ?, ai_context = ?, updated_at = ?
                WHERE id = ?""",
             (
@@ -784,6 +804,8 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
                 goal.status,
                 goal.start_date.isoformat() if goal.start_date else None,
                 goal.end_date.isoformat() if goal.end_date else None,
+                goal.start_time.isoformat() if goal.start_time else None,
+                goal.end_time.isoformat() if goal.end_time else None,
                 goal.parent_id,
                 goal.root_goal_id,
                 goal.order,
