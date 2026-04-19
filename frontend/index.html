@@ -441,6 +441,12 @@
             </div>
             <div class="modal-body">
                 <div class="trash-actions">
+                    <label class="trash-select-all">
+                        <input type="checkbox" id="trashSelectAll">
+                        <span>全选</span>
+                    </label>
+                    <span class="trash-selected-count" id="trashSelectedCount"></span>
+                    <button class="btn btn-danger" id="trashBatchDeleteBtn" style="display:none">删除选中</button>
                     <button class="btn btn-secondary" id="trashEmptyBtn">清空垃圾桶</button>
                 </div>
                 <div class="trash-list" id="trashList"></div>
@@ -452,7 +458,7 @@
     <script src="/static/js/core/utils.js?v=20260412-04"></script>
     <script src="/static/js/core/api-toast.js?v=20260419-02"></script>
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
-    <script src="/static/js/main.js?v=20260419-05"></script>
+    <script src="/static/js/main.js?v=20260419-06"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {

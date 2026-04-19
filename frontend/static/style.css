@@ -3970,3 +3970,26 @@ textarea {
     font-size: var(--font-size-xs);
 }
 
+.trash-select-all {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.trash-selected-count {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-left: var(--space-sm);
+}
+
+.trash-item.selected {
+    background: var(--bg-hover);
+}
+
+.trash-item-checkbox {
+    margin-right: var(--space-sm);
+}
+

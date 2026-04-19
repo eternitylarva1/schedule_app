@@ -4485,6 +4485,7 @@
         
         container.innerHTML = allItems.map(item => `
             <div class="trash-item" data-type="${item.type}" data-id="${item.id}">
+                <input type="checkbox" class="trash-item-checkbox">
                 <div class="trash-item-info">
                     <div class="trash-item-title">${escapeHtml(item.title || '(无标题)')}</div>
                     <div class="trash-item-meta">
@@ -4563,6 +4564,54 @@
             await updateTrashCount();
             renderTrashList({ events: [], goals: [], notes: [], expenses: [] });
         }
+    }
+
+    function handleTrashSelectAll(e) {
+        const checked = e.target.checked;
+        const checkboxes = document.querySelectorAll('.trash-item-checkbox');
+        checkboxes.forEach(cb => cb.checked = checked);
+        document.querySelectorAll('.trash-item').forEach(item => {
+            item.classList.toggle('selected', checked);
+        });
+        updateTrashSelectedCount();
+    }
+
+    function updateTrashSelectedCount() {
+        const checked = document.querySelectorAll('.trash-item-checkbox:checked');
+        const count = checked.length;
+        const countEl = document.getElementById('trashSelectedCount');
+        const batchBtn = document.getElementById('trashBatchDeleteBtn');
+        if (countEl) {
+            countEl.textContent = count > 0 ? `已选择 ${count} 项` : '';
+        }
+        if (batchBtn) {
+            batchBtn.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+    }
+
+    async function handleTrashBatchDelete() {
+        const checked = document.querySelectorAll('.trash-item-checkbox:checked');
+        if (checked.length === 0) {
+            showToast('请先选择要删除的项目');
+            return;
+        }
+        
+        const confirmed = await showConfirm(`确定彻底删除选中的 ${checked.length} 个项目吗？此操作不可恢复。`);
+        if (!confirmed) return;
+        
+        let deleted = 0;
+        for (const cb of checked) {
+            const item = cb.closest('.trash-item');
+            const type = item.dataset.type;
+            const id = parseInt(item.dataset.id);
+            const result = await permanentlyDeleteTrashItem(type, id);
+            if (result) deleted++;
+        }
+        
+        showToast(`已彻底删除 ${deleted} 个项目`);
+        await updateTrashCount();
+        const trash = await fetchTrash();
+        renderTrashList(trash);
     }
 
     async function openAISettingsModal() {
@@ -5595,11 +5644,8 @@
         document.getElementById('trashClose')?.addEventListener('click', closeTrashModal);
         document.getElementById('trashBackdrop')?.addEventListener('click', closeTrashModal);
         document.getElementById('trashEmptyBtn')?.addEventListener('click', handleEmptyTrash);
-        document.getElementById('openAISettingsBtn')?.addEventListener('click', openAISettingsModal);
-        document.getElementById('aiSettingsClose')?.addEventListener('click', closeAISettingsModal);
-        document.getElementById('aiSettingsBackdrop')?.addEventListener('click', closeAISettingsModal);
-        document.getElementById('aiSettingsCancel')?.addEventListener('click', closeAISettingsModal);
-        document.getElementById('aiSettingsSave')?.addEventListener('click', saveAISettings);
+        document.getElementById('trashSelectAll')?.addEventListener('change', handleTrashSelectAll);
+        document.getElementById('trashBatchDeleteBtn')?.addEventListener('click', handleTrashBatchDelete);
         
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
