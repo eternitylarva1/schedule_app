@@ -182,9 +182,109 @@ curl -s "http://localhost:8080/api/goals?horizon=short"
 
 ## 4.5 LLM 创建与拆解
 
+### 4.5.1 浏览器交互测试
 1. 输入自然语言创建日程。
 2. 任务拆解并导入。
 3. 验证失败时 toast 错误信息可读。
+
+### 4.5.2 API批量测试（后端/LLM无关前端时使用）
+
+当调试后端逻辑、LLM语义解析、或批量测试多种输入时，**直接调用API比刷新浏览器更高效**。
+
+#### 测试LLM语义解析示例
+
+```python
+import json
+import urllib.request
+
+test_cases = [
+    {"input": "今天花两小时学习", "expected_start": "今天某时"},
+    {"input": "今天下午3点开会1小时", "expected_start": "15:00"},
+    {"input": "尽快准备答辩PPT", "expected_start": None},
+]
+
+for tc in test_cases:
+    data = json.dumps({"text": tc["input"]}).encode("utf-8")
+    req = urllib.request.Request(
+        "http://localhost:8080/api/llm/command",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+        ops = result.get("data", {}).get("operations", [])
+        if ops:
+            op = ops[0]
+            print(f"输入: {tc['input']}")
+            print(f"  解析: start={op.get('start_time')}, title={op.get('title')}, duration={op.get('duration_minutes')}min")
+```
+
+#### curl快速测试
+
+```bash
+# 测试LLM命令解析
+curl -s -X POST http://localhost:8080/api/llm/command \
+  -H "Content-Type: application/json" \
+  -d '{"text":"今天花两小时学习"}' | python -m json.tool
+
+# 测试事件创建
+curl -s -X POST http://localhost:8080/api/events \
+  -H "Content-Type: application/json" \
+  -d '{"title":"测试事件","start_time":"2026-04-20T10:00:00","end_time":"2026-04-20T11:00:00"}'
+
+# 查看垃圾桶内容
+curl -s http://localhost:8080/api/trash | python -m json.tool
+```
+
+#### 批量回归测试脚本模板
+
+```python
+#!/usr/bin/env python3
+"""后端API批量回归测试"""
+import json
+import urllib.request
+
+BASE_URL = "http://localhost:8080"
+
+def call_api(endpoint, method="GET", data=None):
+    url = f"{BASE_URL}{endpoint}"
+    req_data = json.dumps(data).encode("utf-8") if data else None
+    req = urllib.request.Request(url, data=req_data, method=method,
+                                headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+def test_llm_parse(input_text, expected_action=None):
+    result = call_api("/api/llm/command", "POST", {"text": input_text})
+    ops = result.get("data", {}).get("operations", [])
+    if not ops:
+        return {"pass": False, "error": "No operations returned"}
+    op = ops[0]
+    if expected_action and op.get("action") != expected_action:
+        return {"pass": False, "error": f"Expected action={expected_action}, got {op.get('action')}"}
+    return {"pass": True, "result": op}
+
+# 测试用例
+tests = [
+    lambda: test_llm_parse("今天花两小时学习", "create"),
+    lambda: test_llm_parse("今天下午3点开会", "create"),
+    lambda: test_llm_parse("完成所有待办", "complete"),
+]
+
+for i, test in enumerate(tests, 1):
+    r = test()
+    status = "✅" if r["pass"] else "❌"
+    print(f"{status} Test {i}: {r}")
+```
+
+#### 适用场景
+- ✅ LLM语义解析规则调试（无需刷新前端）
+- ✅ 批量测试多种输入组合
+- ✅ 后端API逻辑验证
+- ✅ 数据库CRUD操作验证
+- ❌ 需要验证UI渲染时仍需浏览器测试
+- ❌ 需要验证用户交互流程时仍需浏览器测试
 
 ---
 
