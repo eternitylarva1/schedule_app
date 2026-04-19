@@ -1773,6 +1773,67 @@ async def get_trash_count() -> dict[str, int]:
         }
 
 
+async def batch_permanently_delete_items(items: List[dict]) -> dict[str, int]:
+    """Batch permanently delete items from trash.
+    
+    Args:
+        items: List of {"type": "event"|"goal"|"note"|"expense", "id": int}
+    
+    Returns:
+        {"deleted": count of deleted items}
+    """
+    deleted_count = 0
+    async with aiosqlite.connect(DB_PATH) as db:
+        for item in items:
+            item_type = item.get("type")
+            item_id = item.get("id")
+            if not item_type or not item_id:
+                continue
+            
+            try:
+                if item_type == "event":
+                    cursor = await db.execute("DELETE FROM events WHERE id = ? AND is_deleted = 1", (item_id,))
+                elif item_type == "goal":
+                    # Get all descendant goal IDs first
+                    async def get_descendant_ids(parent_id: int) -> List[int]:
+                        ids = []
+                        db.row_factory = aiosqlite.Row
+                        async with db.execute(
+                            "SELECT id FROM goals WHERE parent_id = ?", (parent_id,)
+                        ) as cursor:
+                            rows = await cursor.fetchall()
+                            for row in rows:
+                                child_id = row["id"]
+                                ids.append(child_id)
+                                child_descendants = await get_descendant_ids(child_id)
+                                ids.extend(child_descendants)
+                        return ids
+                    
+                    all_ids = [item_id] + await get_descendant_ids(item_id)
+                    placeholders = ",".join("?" * len(all_ids))
+                    # Unlink events
+                    await db.execute(f"UPDATE events SET goal_id = NULL WHERE goal_id IN ({placeholders})", all_ids)
+                    # Delete conversations
+                    await db.execute(f"DELETE FROM goal_conversations WHERE goal_id IN ({placeholders})", all_ids)
+                    # Delete goals
+                    cursor = await db.execute(f"DELETE FROM goals WHERE id IN ({placeholders}) AND is_deleted = 1", all_ids)
+                elif item_type == "note":
+                    cursor = await db.execute("DELETE FROM notes WHERE id = ? AND is_deleted = 1", (item_id,))
+                elif item_type == "expense":
+                    cursor = await db.execute("DELETE FROM expenses WHERE id = ? AND is_deleted = 1", (item_id,))
+                else:
+                    continue
+                
+                if cursor.rowcount > 0:
+                    deleted_count += 1
+            except Exception:
+                continue
+        
+        await db.commit()
+    
+    return {"deleted": deleted_count}
+
+
 async def empty_trash() -> dict[str, int]:
     """Permanently delete all items in trash. Returns counts of deleted items."""
     async with aiosqlite.connect(DB_PATH) as db:

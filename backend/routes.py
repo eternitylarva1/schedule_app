@@ -1550,6 +1550,27 @@ async def permanently_delete_trash_item(request: web.Request) -> web.Response:
         return error_response(f"删除失败: {str(e)}")
 
 
+async def batch_delete_trash_items(request: web.Request) -> web.Response:
+    """POST /api/trash/batch-delete - Batch permanently delete items from trash.
+    
+    Body: {"items": [{"type": "event"|"goal"|"note"|"expense", "id": int}, ...]}
+    """
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    items = data.get("items", [])
+    if not items or not isinstance(items, list):
+        return error_response("缺少items列表")
+    
+    try:
+        result = await db.batch_permanently_delete_items(items)
+        return json_response(result)
+    except Exception as e:
+        return error_response(f"批量删除失败: {str(e)}")
+
+
 async def empty_trash(request: web.Request) -> web.Response:
     """DELETE /api/trash - Empty the entire trash."""
     try:
@@ -1619,4 +1640,5 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/api/trash/count", get_trash_count)
     app.router.add_post("/api/trash/{type}/{id}/restore", restore_trash_item)
     app.router.add_delete("/api/trash/{type}/{id}", permanently_delete_trash_item)
+    app.router.add_post("/api/trash/batch-delete", batch_delete_trash_items)
     app.router.add_delete("/api/trash", empty_trash)

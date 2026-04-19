@@ -390,6 +390,13 @@
         });
     }
 
+    async function batchPermanentlyDeleteTrashItems(items) {
+        return await apiCall('trash/batch-delete', {
+            method: 'POST',
+            body: JSON.stringify({ items: items })
+        });
+    }
+
     // ============================================
     // AI Settings API Functions
     // ============================================
@@ -520,6 +527,7 @@
         fetchTrashCount,
         restoreTrashItem,
         permanentlyDeleteTrashItem,
+        batchPermanentlyDeleteTrashItems,
         emptyTrash,
         fetchAISettings,
         updateAISettings,

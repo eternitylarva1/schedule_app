@@ -248,6 +248,7 @@
         fetchTrashCount,
         restoreTrashItem,
         permanentlyDeleteTrashItem,
+        batchPermanentlyDeleteTrashItems,
         emptyTrash,
         fetchAISettings,
         updateAISettings,
@@ -4599,16 +4600,19 @@
         const confirmed = await showConfirm(`确定彻底删除选中的 ${checked.length} 个项目吗？此操作不可恢复。`);
         if (!confirmed) return;
         
-        let deleted = 0;
-        for (const cb of checked) {
+        // Collect all selected items
+        const items = [];
+        checked.forEach(cb => {
             const item = cb.closest('.trash-item');
             const type = item.dataset.type;
             const id = parseInt(item.dataset.id);
-            const result = await permanentlyDeleteTrashItem(type, id);
-            if (result) deleted++;
-        }
+            items.push({ type, id });
+        });
         
-        showToast(`已彻底删除 ${deleted} 个项目`);
+        // Call batch delete API
+        const result = await batchPermanentlyDeleteTrashItems(items);
+        
+        showToast(`已彻底删除 ${result?.deleted || 0} 个项目`);
         await updateTrashCount();
         const trash = await fetchTrash();
         renderTrashList(trash);
