@@ -351,6 +351,12 @@
                 ${event.status !== 'done' ? '<button class="event-quick-complete" title="快速完成">✓</button>' : ''}
             `;
             
+            // Track if drag occurred to prevent click from opening detail
+            let didDrag = false;
+            let dragStartX = 0;
+            let dragStartY = 0;
+            const DRAG_THRESHOLD = 10; // pixels
+            
             // Add quick complete handler
             const quickCompleteBtn = eventEl.querySelector('.event-quick-complete');
             if (quickCompleteBtn) {
@@ -359,6 +365,34 @@
                     markEventDoneQuick(event.id);
                 });
             }
+            
+            // Track drag start on event element (for detecting swipes)
+            const handlePointerDown = (e) => {
+                dragStartX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+                dragStartY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+                didDrag = false;
+            };
+            
+            const handlePointerMove = (e) => {
+                const currentX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+                const currentY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+                const deltaX = Math.abs(currentX - dragStartX);
+                const deltaY = Math.abs(currentY - dragStartY);
+                if (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD) {
+                    didDrag = true;
+                }
+            };
+            
+            const handlePointerUp = () => {
+                // didDrag stays true if we moved beyond threshold
+            };
+            
+            eventEl.addEventListener('mousedown', handlePointerDown);
+            eventEl.addEventListener('touchstart', handlePointerDown, { passive: true });
+            eventEl.addEventListener('mousemove', handlePointerMove);
+            eventEl.addEventListener('touchmove', handlePointerMove, { passive: true });
+            eventEl.addEventListener('mouseup', handlePointerUp);
+            eventEl.addEventListener('touchend', handlePointerUp);
             
             // Add resize handles if enabled
             if (state.enableDragResize) {
@@ -373,8 +407,9 @@
             }
             
             eventEl.addEventListener('click', (e) => {
-                // Don't show detail if clicking resize handles
+                // Don't show detail if clicking resize handles or if we were dragging
                 if (e.target.closest('.event-resize-handle')) return;
+                if (didDrag) return;
                 showEventDetail(event);
             });
             timeline.appendChild(eventEl);
