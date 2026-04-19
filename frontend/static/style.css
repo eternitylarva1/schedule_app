@@ -2285,6 +2285,21 @@ textarea {
     color: var(--text-secondary);
 }
 
+.settings-select {
+    width: 100%;
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.settings-select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
 /* Toggle Switch */
 .switch {
     position: relative;

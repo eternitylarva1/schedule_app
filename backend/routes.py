@@ -800,6 +800,44 @@ async def update_setting(request: web.Request) -> web.Response:
         return error_response(f"更新设置失败: {str(e)}")
 
 
+# ============ AI Settings Endpoints ============
+
+async def get_ai_settings(request: web.Request) -> web.Response:
+    """GET /api/ai-settings - get AI settings."""
+    try:
+        settings = await db.get_ai_settings()
+        if settings:
+            return json_response(settings.to_dict())
+        return json_response({
+            "provider": "openai",
+            "api_key": "",
+            "base_url": "",
+            "model": "",
+        })
+    except Exception as e:
+        return error_response(f"获取AI设置失败: {str(e)}")
+
+
+async def update_ai_settings(request: web.Request) -> web.Response:
+    """PUT /api/ai-settings - update AI settings."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        settings = db.AISettings(
+            provider=data.get("provider", "openai"),
+            api_key=data.get("api_key", ""),
+            base_url=data.get("base_url", ""),
+            model=data.get("model", ""),
+        )
+        updated = await db.update_ai_settings(settings)
+        return json_response(updated.to_dict() if updated else {})
+    except Exception as e:
+        return error_response(f"更新AI设置失败: {str(e)}")
+
+
 # ============ Notes Endpoints ============
 
 async def get_notes(request: web.Request) -> web.Response:
@@ -1552,6 +1590,9 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/llm/command", llm_command)
     app.router.add_post("/api/llm/breakdown", llm_breakdown)
     app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
+    # AI Settings endpoints
+    app.router.add_get("/api/ai-settings", get_ai_settings)
+    app.router.add_put("/api/ai-settings", update_ai_settings)
     # Notes endpoints
     app.router.add_get("/api/notes", get_notes)
     app.router.add_post("/api/notes", create_note)

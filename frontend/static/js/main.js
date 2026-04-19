@@ -249,6 +249,8 @@
         restoreTrashItem,
         permanentlyDeleteTrashItem,
         emptyTrash,
+        fetchAISettings,
+        updateAISettings,
         showToast,
         showConfirm,
     } = window.ScheduleAppCore;
@@ -4563,6 +4565,47 @@
         }
     }
 
+    async function openAISettingsModal() {
+        // Close settings modal first
+        closeSettingsModal();
+        
+        // Load current AI settings
+        const settings = await fetchAISettings();
+        if (settings) {
+            document.getElementById('aiProvider').value = settings.provider || 'openai';
+            document.getElementById('aiApiKey').value = settings.api_key || '';
+            document.getElementById('aiBaseUrl').value = settings.base_url || '';
+            document.getElementById('aiModel').value = settings.model || '';
+        }
+        
+        document.getElementById('aiSettingsModal')?.classList.remove('hidden');
+    }
+
+    function closeAISettingsModal() {
+        document.getElementById('aiSettingsModal')?.classList.add('hidden');
+    }
+
+    async function saveAISettings() {
+        const provider = document.getElementById('aiProvider').value;
+        const apiKey = document.getElementById('aiApiKey').value;
+        const baseUrl = document.getElementById('aiBaseUrl').value;
+        const model = document.getElementById('aiModel').value;
+        
+        const result = await updateAISettings({
+            provider,
+            api_key: apiKey,
+            base_url: baseUrl,
+            model,
+        });
+        
+        if (result) {
+            showToast('AI 配置已保存');
+            closeAISettingsModal();
+        } else {
+            showToast('保存失败');
+        }
+    }
+
     function closeSettingsModal() {
         // Save user self description to API
         const desc = elements.userSelfDescription.value.trim();
@@ -5552,6 +5595,11 @@
         document.getElementById('trashClose')?.addEventListener('click', closeTrashModal);
         document.getElementById('trashBackdrop')?.addEventListener('click', closeTrashModal);
         document.getElementById('trashEmptyBtn')?.addEventListener('click', handleEmptyTrash);
+        document.getElementById('openAISettingsBtn')?.addEventListener('click', openAISettingsModal);
+        document.getElementById('aiSettingsClose')?.addEventListener('click', closeAISettingsModal);
+        document.getElementById('aiSettingsBackdrop')?.addEventListener('click', closeAISettingsModal);
+        document.getElementById('aiSettingsCancel')?.addEventListener('click', closeAISettingsModal);
+        document.getElementById('aiSettingsSave')?.addEventListener('click', saveAISettings);
         
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));

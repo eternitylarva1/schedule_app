@@ -391,6 +391,20 @@
     }
 
     // ============================================
+    // AI Settings API Functions
+    // ============================================
+    async function fetchAISettings() {
+        return await apiCall('ai-settings');
+    }
+
+    async function updateAISettings(settings) {
+        return await apiCall('ai-settings', {
+            method: 'PUT',
+            body: JSON.stringify(settings)
+        });
+    }
+
+    // ============================================
     // Toast Notifications
     // ============================================
     let toastTimeout = null;
@@ -507,6 +521,8 @@
         restoreTrashItem,
         permanentlyDeleteTrashItem,
         emptyTrash,
+        fetchAISettings,
+        updateAISettings,
         showToast,
         showConfirm,
     };

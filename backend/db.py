@@ -1,5 +1,6 @@
 """SQLite database operations."""
 import aiosqlite
+from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
@@ -196,6 +197,25 @@ async def init_db() -> None:
                 await db.execute(f"ALTER TABLE {table} ADD COLUMN deleted_at TEXT")
             except Exception:
                 pass
+        
+        # AI Settings table for model configuration
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS ai_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL DEFAULT 'openai',
+                api_key TEXT NOT NULL DEFAULT '',
+                base_url TEXT NOT NULL DEFAULT '',
+                model TEXT NOT NULL DEFAULT '',
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        
+        # Insert default AI settings if not exists
+        try:
+            await db.execute("INSERT INTO ai_settings (id, provider, api_key, base_url, model, created_at, updated_at) VALUES (1, 'openai', '', '', '', NULL, NULL)")
+        except Exception:
+            pass
         
         await db.commit()
 
@@ -1786,3 +1806,64 @@ async def empty_trash() -> dict[str, int]:
             "notes_deleted": notes_count,
             "expenses_deleted": expenses_count,
         }
+
+
+# ============ AI Settings Functions ============
+
+@dataclass
+class AISettings:
+    """AI settings model for LLM provider configuration."""
+    id: int | None = None
+    provider: str = "openai"
+    api_key: str = ""
+    base_url: str = ""
+    model: str = ""
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        for key in ["created_at", "updated_at"]:
+            if d.get(key) and isinstance(d[key], datetime):
+                d[key] = d[key].isoformat()
+        return d
+
+
+async def get_ai_settings() -> Optional[AISettings]:
+    """Get AI settings (single row, id=1)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM ai_settings WHERE id = 1") as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return AISettings(
+                id=row["id"],
+                provider=row["provider"] or "openai",
+                api_key=row["api_key"] or "",
+                base_url=row["base_url"] or "",
+                model=row["model"] or "",
+                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+            )
+
+
+async def update_ai_settings(settings: AISettings) -> Optional[AISettings]:
+    """Update AI settings."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """UPDATE ai_settings SET 
+               provider = ?, api_key = ?, base_url = ?, model = ?, updated_at = ?
+               WHERE id = 1""",
+            (
+                settings.provider,
+                settings.api_key,
+                settings.base_url,
+                settings.model,
+                now,
+            ),
+        )
+        await db.commit()
+    return await get_ai_settings()

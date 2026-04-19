@@ -373,8 +373,60 @@
                             </div>
                             <button class="btn btn-secondary" id="openTrashBtn">查看</button>
                         </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <span class="settings-item-title">AI 模型配置</span>
+                                <span class="settings-item-desc">配置 LLM 提供商和 API Key</span>
+                            </div>
+                            <button class="btn btn-secondary" id="openAISettingsBtn">配置</button>
+                        </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Settings Modal -->
+    <div class="modal hidden" id="aiSettingsModal">
+        <div class="modal-backdrop" id="aiSettingsBackdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>AI 模型配置</h2>
+                <button class="modal-close" id="aiSettingsClose">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="aiProvider">提供商</label>
+                    <select id="aiProvider" class="settings-select">
+                        <option value="openai">OpenAI</option>
+                        <option value="claude">Claude (Anthropic)</option>
+                        <option value="gemini">Google Gemini</option>
+                        <option value="ollama">Ollama (本地)</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="aiApiKey">API Key</label>
+                    <input type="password" id="aiApiKey" placeholder="输入 API Key" autocomplete="off">
+                </div>
+                <div class="form-group" id="aiBaseUrlGroup">
+                    <label for="aiBaseUrl">Base URL</label>
+                    <input type="text" id="aiBaseUrl" placeholder="https://api.openai.com/v1" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="aiModel">模型名称</label>
+                    <input type="text" id="aiModel" placeholder="例如: gpt-4o-mini" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="aiSaveKey">
+                        <span>保存 API Key 到本地</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="aiSettingsCancel">取消</button>
+                <button class="btn btn-primary" id="aiSettingsSave">保存</button>
             </div>
         </div>
     </div>
@@ -398,9 +450,9 @@
 
     <script src="/static/js/core/state-elements.js?v=20260412-03"></script>
     <script src="/static/js/core/utils.js?v=20260412-04"></script>
-    <script src="/static/js/core/api-toast.js?v=20260419-01"></script>
+    <script src="/static/js/core/api-toast.js?v=20260419-02"></script>
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
-    <script src="/static/js/main.js?v=20260419-04"></script>
+    <script src="/static/js/main.js?v=20260419-05"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {
