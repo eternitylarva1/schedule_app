@@ -348,6 +348,25 @@ curl -s http://localhost:8080/api/events?date=today
 
 5. **发送更新通知（QQ）**
 
+> ⚠️ **重要：QQ 消息中文编码问题**
+>
+> 通过 NapCat QQ 机器人发送中文时，必须使用 PowerShell 并确保 UTF-8 编码。使用 bash/curl 直接发送会导致中文乱码。
+
+**正确写法（Git Bash / PowerShell）：**
+```bash
+powershell -Command '$body = @{user_id=2674610176; message="✅ 修复内容"} | ConvertTo-Json -Compress; Invoke-RestMethod -Uri "http://localhost:3000/send_private_msg" -Method Post -ContentType "application/json" -Body ([System.Text.Encoding]::UTF8.GetBytes($body))'
+```
+
+**关键点：**
+1. 外层用单引号 `'...'` 包裹整个 PowerShell 命令
+2. PowerShell 内部字符串用双引号 `"..."`
+3. JSON body 必须转换为 UTF-8 字节：`[System.Text.Encoding]::UTF8.GetBytes($body)`
+
+**禁止使用的方式（会导致乱码）：**
+- `curl` 直接发送中文 JSON
+- bash 中用双引号包裹包含中文的 PowerShell 命令
+- body 未转换为 UTF-8 字节
+
 通知模板：
 
 ```text
