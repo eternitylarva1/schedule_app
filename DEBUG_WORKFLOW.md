@@ -1,6 +1,6 @@
 # Schedule App 功能调试流程（Debug Workflow）
 
-> 目标：建立一套**可重复、可定位、可回归**的调试流程，覆盖本项目主要功能（日历/待办/规划/统计/LLM/提醒）。
+> 目标：建立一套**可重复、可定位、可回归**的调试流程，覆盖本项目主要功能（日历/待办/规划/记事本/LLM/提醒）。
 
 ---
 
@@ -67,6 +67,29 @@ curl -s http://localhost:8080/api/events?date=today
 
 > 若缺任一函数，优先修复结构完整性，再继续功能调试。
 
+### 2.4 OpenCode Browser Console/Error 通道健康检查
+
+当 `browser_console` / `browser_errors` 返回 `Debugger not attached` 时，按下面顺序处理：
+
+1. **确认标签页归属**
+   - 使用 `browser_status`、`browser_list_claims` 检查当前会话是否已 claim 目标 tab。
+   - 若 tab 归属于其他会话，先 release 后重新 claim，或新开 tab 再调试。
+
+2. **排除调试器占用冲突**
+   - 关闭目标页的 DevTools（避免与扩展调试器竞争）。
+   - 避免多个自动化会话同时附加同一个 tab。
+
+3. **重建调试通道**
+   - 新开一个业务页面 tab（如 `http://localhost:8080/?v=debug-reprobe`）。
+   - 在新 tab 上重新执行 `browser_console` 与 `browser_errors`。
+
+4. **恢复扩展宿主（必要时）**
+   - 若仍失败，执行：`npx @different-ai/opencode-browser install` 重新安装 native host。
+   - 重新加载扩展后，再次 claim 新 tab 并复测。
+
+5. **兜底原则**
+   - 若 Console/Error 通道暂时不可用，不得阻塞功能调试；至少保留 DOM 快照与关键交互验证结果。
+
 ---
 
 ## 3. 分层调试清单（定位根因）
@@ -74,7 +97,7 @@ curl -s http://localhost:8080/api/events?date=today
 ## A. 前端事件绑定层
 
 检查 `bindEvents()`：
-- tab 切换：`tabDay/tabTodo/tabGoals/tabStats`
+- tab 切换：`tabDay/tabTodo/tabGoals/tabNotepad`
 - 分段切换：`#calendarSegmented` 点击后更新 `state.calendarSubview`
 
 常见故障：
@@ -173,10 +196,11 @@ curl -s "http://localhost:8080/api/goals?horizon=short"
 
 ---
 
-## 4.4 统计
+## 4.4 记事本
 
-1. 打开统计页面。
-2. 验证：总数/已完成/待完成/完成率 非 undefined。
+1. 打开记事本页面。
+2. 验证：笔记/记账分段可切换。
+3. 验证：分组展开/收起、编辑、删除、拖拽排序交互可用。
 
 ---
 
@@ -213,8 +237,8 @@ curl -s "http://localhost:8080/api/goals?horizon=short"
   - 后端没启动或端口不可达
   - 先 `curl` 验活再看前端
 
-- **统计显示 undefined**
-  - 先看 API 返回字段，再看前端渲染字段名是否一致
+- **记事本数据未渲染或交互失效**
+  - 先看分段状态（notes/bills）是否更新，再看列表渲染与事件绑定是否命中
 
 ---
 
@@ -228,7 +252,7 @@ curl -s "http://localhost:8080/api/goals?horizon=short"
 4. 待办列表可渲染
 5. 待办完成/反悔可用
 6. 规划列表可渲染
-7. 统计页无 undefined
+7. 记事本页可渲染且可交互
 8. 新建日程可保存
 9. 详情弹窗可打开
 10. 刷新后状态保持（lastView 等）

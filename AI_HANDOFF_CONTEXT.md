@@ -11,7 +11,7 @@
   - 日历（单一 tab 内切换：日 / 周 / 月）
   - 待办
   - 规划（短期 / 学期 / 长期）
-  - 统计
+- 记事本
   - AI 创建日程、任务拆解
   - QQ 提醒（任务前 1 分钟）
 
@@ -38,7 +38,7 @@
 ## 3) 近期关键改造（理解现状必读）
 
 1. 底部 tab 从 6 个精简为 4 个：
-   - 日历 / 待办 / 规划 / 统计
+- 日历 / 待办 / 规划 / 记事本
 2. 日历内使用分段控制：`日/周/月`
 3. 解决过的典型问题：
    - API 被 catch-all 路由拦截导致返回 HTML
@@ -74,7 +74,7 @@
 
 ```text
 type: fix/feat/refactor
-scope: calendar|todo|goals|stats|llm|reminder|sw
+scope: calendar|todo|goals|notepad|llm|reminder|sw
 summary: 一句话说明“为什么修”
 ```
 
