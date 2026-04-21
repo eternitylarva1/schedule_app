@@ -11,7 +11,7 @@
 - 前端：`原生 HTML/CSS/JS`
 - 主要入口：
   - 后端：`backend/main.py`
-  - 前端：`frontend/index.html`, `frontend/static/app.js`
+  - 前端：`frontend/index.html`, `frontend/static/js/main.js`（核心逻辑）, `frontend/static/js/core/`（模块）
 
 ---
 

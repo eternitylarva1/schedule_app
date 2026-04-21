@@ -8,10 +8,12 @@
 **仓库**: https://github.com/eternitylarva1/schedule_app
 
 ### 核心功能
-- 日视图、周视图、代办视图
+- 日视图、周视图、**月视图**（日历 Tab 下的子视图切换）
+- **代办视图**（独立 Tab，非日历子视图）
+- **规划视图**（独立 Tab，支持目标设定与 AI 规划对话）
+- **记事本视图**（独立 Tab，支持笔记和记账）
 - LLM 自然语言创建日程
 - 任务拆解功能 (AI 分解复杂任务为子任务)
-- 记事本页面
 
 ---
 
@@ -19,7 +21,7 @@
 
 ### 2.1 提交规范
 - **每次完成后必须提交并推送**: `git add . && git commit -m "描述" && git push origin main`
-- **提交后必须通过 QQ 脚本通知用户**: 使用 `scripts/send_msg.py` 发送更新内容
+- **提交后必须通过 QQ 脚本通知用户**: 使用 `../send_message.py` 发送更新内容
 
 ### 2.2 QQ 通知格式
 ```
@@ -82,9 +84,10 @@
 - **数据同步**: 代办/日/周视图共享同一数据源
 
 ### 3.4 周视图
-- **左侧时间轴**: 显示 0:00, 6:00, 12:00, 18:00, 24:00
+- **左侧时间轴**: 显示 0:00, 2:00, 4:00, ... 24:00（每2小时）
 - **点击事件**: 点击事件应显示详情弹窗
 - **时间位置**: 按实际时间 positioning，不应堆叠
+- **当前时间指示线**: 实时显示当前时间位置
 
 ### 3.5 按钮样式
 - **拆解按钮**: 绿色渐变背景
@@ -99,7 +102,10 @@
 ## 4. 功能优先级
 
 ### 高优先级
-- [x] 日/周/代办视图切换
+- [x] 日/周/**月**视图切换（日历 Tab 内）
+- [x] **代办视图**（独立 Tab）
+- [x] **规划视图**（独立 Tab）
+- [x] **记事本视图**（独立 Tab，含笔记和记账）
 - [x] LLM 自然语言创建日程
 - [x] 记住上一次视图 (localStorage)
 - [x] Pull-to-refresh 优化
@@ -109,6 +115,7 @@
 - [x] 任务拆解功能
 - [x] 周视图时间轴
 - [x] 周视图事件点击详情
+- [x] AI 浮动窗口（记事本笔记对话）
 
 ### 待修复/优化
 - [ ] 拖动调整时间功能 (目前不稳定，默认关闭)
@@ -121,18 +128,27 @@
 ```
 schedule_app/
 ├── backend/
-│   ├── main.py          # aiohttp 服务器入口
-│   ├── routes.py        # API 路由
-│   ├── db.py            # SQLite 操作
-│   ├── models.py        # 数据模型
-│   ├── llm_service.py  # LLM 集成
-│   └── time_parser.py   # 时间解析
+│   ├── main.py              # aiohttp 服务器入口
+│   ├── routes.py            # API 路由
+│   ├── db.py                # SQLite 操作
+│   ├── models.py            # 数据模型
+│   ├── llm_service.py       # LLM 集成
+│   ├── time_parser.py       # 时间解析
+│   └── reminder_service.py  # 提醒服务
 ├── frontend/
-│   ├── index.html       # 主页面 HTML
+│   ├── index.html           # 主页面 HTML
+│   ├── service-worker.js    # PWA Service Worker
 │   └── static/
-│       ├── app.js      # 前端逻辑
-│       └── style.css   # 样式
-├── requirements.txt     # Python 依赖
+│       ├── style.css        # 样式
+│       ├── app.js           # 入口加载器（thin loader）
+│       └── js/
+│           ├── main.js          # 主逻辑（视图渲染、交互）
+│           └── core/
+│               ├── state-elements.js  # 状态与 DOM 元素
+│               ├── utils.js         # 工具函数
+│               ├── api-toast.js     # API 调用与 Toast
+│               └── drag.js          # 拖拽处理
+├── requirements.txt         # Python 依赖
 └── .gitignore
 ```
 
@@ -151,23 +167,18 @@ python backend/main.py
 
 ## 7. 用户通知脚本
 
-位置: `astrbot_plugin_planner/scripts/send_msg.py`
+位置: `../send_message.py`（项目上级目录）
 
 使用方式:
-```bash
-python -c "
-import requests
-import json
+```python
+import sys
+sys.path.insert(0, '..')
+from send_message import send_private_message
 
-payload = {
-    'message_type': 'private',
-    'user_id': 2674610176,
-    'message': '更新内容'
-}
-data = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-requests.post('http://127.0.0.1:3000/send_private_msg', data=data, 
-    headers={'Content-Type': 'application/json; charset=utf-8'})
-"
+send_private_message(
+    user_id=2987345656,
+    message='[计划助手更新通知]\n- 更新内容\n\n仓库: https://github.com/eternitylarva1/schedule_app'
+)
 ```
 
 ---

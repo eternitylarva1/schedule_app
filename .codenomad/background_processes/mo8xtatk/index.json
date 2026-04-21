@@ -1,0 +1,13 @@
+[
+  {
+    "id": "proc_2026-04-21T1811_aaa1f1",
+    "workspaceId": "mo8xtatk",
+    "title": "schedule_app_server",
+    "command": "cd \"C:\\Users\\gaoming\\Downloads\\AI_Planner\\schedule_app\" && python -m backend.main",
+    "cwd": "C:\\Users\\gaoming\\Downloads\\AI_Planner\\schedule_app",
+    "status": "running",
+    "pid": 31644,
+    "startedAt": "2026-04-21T18:11:25.161Z",
+    "outputSizeBytes": 0
+  }
+]

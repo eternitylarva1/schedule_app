@@ -1,0 +1,114 @@
+INFO:root:Request: GET /
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:07 +0800] "GET / HTTP/1.1" 200 239 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /static/style.css
+INFO:root:Response: 200
+INFO:root:Request: GET /static/js/core/state-elements.js
+INFO:root:Response: 200
+INFO:root:Request: GET /static/js/core/utils.js
+INFO:root:Response: 200
+INFO:root:Request: GET /static/js/core/api-toast.js
+INFO:root:Response: 200
+INFO:root:Request: GET /static/js/core/drag.js
+INFO:root:Response: 200
+INFO:root:Request: GET /static/js/main.js
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:07 +0800] "GET /static/js/core/state-elements.js?v=20260412-03 HTTP/1.1" 200 251 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:07 +0800] "GET /static/js/core/utils.js?v=20260412-04 HTTP/1.1" 200 251 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /manifest.json
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:07 +0800] "GET /manifest.json HTTP/1.1" 404 174 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:07 +0800] "GET /static/style.css?v=20260412-01 HTTP/1.1" 200 239 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:07 +0800] "GET /static/js/core/drag.js?v=20260412-05 HTTP/1.1" 200 251 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:07 +0800] "GET /static/js/core/api-toast.js?v=20260412-04 HTTP/1.1" 200 252 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:07 +0800] "GET /static/js/main.js?v=20260412-11 HTTP/1.1" 200 254 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/stats
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /api/events?date=2026-04 HTTP/1.1" 200 8106 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /api/stats?date=today HTTP/1.1" 200 264 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET / HTTP/1.1" 304 179 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 3536 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /api/events?date=2026-04 HTTP/1.1" 200 8106 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /api/stats?date=today HTTP/1.1" 200 264 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /manifest.json
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /manifest.json HTTP/1.1" 404 174 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /favicon.ico
+ERROR:root:Error: Not Found
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /favicon.ico HTTP/1.1" 404 174 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/goals
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:08 +0800] "GET /api/goals?horizon=short HTTP/1.1" 200 3536 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:10 +0800] "GET /api/events?date=month HTTP/1.1" 200 8106 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:14 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/stats
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:14 +0800] "GET /api/events?date=2026-04 HTTP/1.1" 200 8106 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:14 +0800] "GET /api/stats?date=today HTTP/1.1" 200 264 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:15 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:15 +0800] "GET /api/events?date=2026-04 HTTP/1.1" 200 8106 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:15 +0800] "GET /api/stats?date=today HTTP/1.1" 200 264 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:22 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:22 +0800] "GET /api/events?date=2026-04 HTTP/1.1" 200 8106 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:22 +0800] "GET /api/stats?date=today HTTP/1.1" 200 264 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:15:23 +0800] "GET /api/events?date=month HTTP/1.1" 200 8106 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: POST /api/llm/command
+INFO:root:Request: GET /api/settings
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:16:50 +0800] "GET /api/settings HTTP/1.1" 200 845 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/settings
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:16:50 +0800] "GET /api/settings HTTP/1.1" 200 845 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:16:32 +0800] "POST /api/llm/command HTTP/1.1" 200 1393 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: POST /api/llm/command
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:16:51 +0800] "POST /api/llm/command HTTP/1.1" 200 1205 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/categories
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:17:03 +0800] "GET /api/categories HTTP/1.1" 200 424 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:17:03 +0800] "GET /api/events?date=month HTTP/1.1" 200 8474 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/stats
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:17:03 +0800] "GET /api/stats?date=today HTTP/1.1" 200 273 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+INFO:root:Request: GET /api/events
+INFO:root:Response: 200
+INFO:aiohttp.access:100.91.105.21 [22/Apr/2026:02:17:03 +0800] "GET /api/events?date=month HTTP/1.1" 200 8474 "http://100.118.15.70:8080/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
