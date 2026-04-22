@@ -126,7 +126,14 @@ async def send_notification(title: str, start_time: datetime):
     payload = {
         "message_type": "private",
         "user_id": QQ_USER_ID,
-        "message": message,
+        "message": [
+            {
+                "type": "text",
+                "data": {
+                    "text": message
+                }
+            }
+        ],
     }
     
     try:
