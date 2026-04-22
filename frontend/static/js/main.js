@@ -862,6 +862,11 @@
         const allEvents = data
             .filter(e => e.status !== 'hidden')
             .sort((a, b) => {
+                // Done events always at the end
+                if (a.status === 'done' && b.status !== 'done') return 1;
+                if (b.status === 'done' && a.status !== 'done') return -1;
+                if (a.status === 'done' && b.status === 'done') return 0;
+                
                 const aMeta = deadlineMeta(a);
                 const bMeta = deadlineMeta(b);
                 const aNoTimeLike = !a.start_time || aMeta.treatAsDeadlineWarning;
@@ -897,14 +902,17 @@
             renderSelectionBar('todo');
         };
          
-        // Group by date (+ one special group for no-time tasks)
+        // Group by date (+ one special group for no-time tasks and completed)
         const NO_TIME_KEY = '__no_time__';
+        const DONE_KEY = '__done__';
         const grouped = {};
         allEvents.forEach(event => {
             let dateKey;
-            // Only put items with NO start_time in NO_TIME_KEY
-            // (deadline warnings with actual times should stay in their date group)
-            if (!event.start_time) {
+            // Done events go to special DONE_KEY group
+            if (event.status === 'done') {
+                dateKey = DONE_KEY;
+            } else if (!event.start_time) {
+                // Only put items with NO start_time in NO_TIME_KEY
                 dateKey = NO_TIME_KEY;
             } else {
                 const date = new Date(event.start_time);
@@ -916,25 +924,31 @@
             grouped[dateKey].push(event);
         });
         
-        // Render groups
-        Object.keys(grouped)
-            .sort((a, b) => {
-                // Keep no-time/deadline warnings pinned at the top for daily visibility
-                if (a === NO_TIME_KEY) return -1;
-                if (b === NO_TIME_KEY) return 1;
-                return a.localeCompare(b);
-            })
-            .forEach(dateKey => {
+        // Render groups - DONE_KEY always last
+        const sortedKeys = Object.keys(grouped).sort((a, b) => {
+            if (a === DONE_KEY) return 1;
+            if (b === DONE_KEY) return -1;
+            if (a === NO_TIME_KEY) return -1;
+            if (b === NO_TIME_KEY) return 1;
+            return a.localeCompare(b);
+        });
+        
+        let doneCount = 0;
+        sortedKeys.forEach(dateKey => {
             const events = grouped[dateKey];
             const firstEvent = events[0];
             const isNoTimeGroup = dateKey === NO_TIME_KEY;
-            const date = !isNoTimeGroup ? new Date(firstEvent.start_time) : null;
+            const isDoneGroup = dateKey === DONE_KEY;
+            const date = !isNoTimeGroup && !isDoneGroup ? new Date(firstEvent.start_time) : null;
             const today = new Date();
             const tomorrow = new Date(today);
             tomorrow.setDate(tomorrow.getDate() + 1);
             
             let dateLabel;
-            if (isNoTimeGroup) {
+            if (isDoneGroup) {
+                doneCount = events.length;
+                dateLabel = `已完成 (${events.length})`;
+            } else if (isNoTimeGroup) {
                 dateLabel = '截止提醒 / 无明确时间';
             } else if (isSameDay(date, today)) {
                 dateLabel = '今天';
@@ -958,7 +972,7 @@
             }
             
             const groupEl = document.createElement('div');
-            groupEl.className = 'todo-date-group';
+            groupEl.className = 'todo-date-group' + (isDoneGroup ? ' todo-date-group-done' : '');
             groupEl.innerHTML = `<div class="todo-date-header">${dateLabel}</div>`;
             
             events.forEach(event => {

@@ -1079,6 +1079,16 @@ body {
     margin-bottom: var(--space-md);
 }
 
+.todo-date-group-done {
+    margin-top: var(--space-lg);
+    padding-top: var(--space-md);
+    border-top: 1px dashed var(--border-color);
+}
+
+.todo-date-group-done .todo-date-header {
+    color: var(--text-muted);
+}
+
 .todo-date-header {
     font-size: var(--font-size-md);
     font-weight: 600;
