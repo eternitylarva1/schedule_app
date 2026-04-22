@@ -49,6 +49,20 @@ async def init_db() -> None:
             )
         """)
 
+        # AI providers table for multiple AI configurations
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS ai_providers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                api_base TEXT NOT NULL,
+                model TEXT NOT NULL,
+                api_key TEXT NOT NULL,
+                is_active INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+
         # Goals table for multi-horizon planning with hierarchical subtasks
         await db.execute("""
             CREATE TABLE IF NOT EXISTS goals (
@@ -262,41 +276,53 @@ async def get_events(date_filter: str = "today") -> List[Event]:
         end = today_start + timedelta(days=1)
 
     # Include no-time items in month-style queries (used by todo list)
-    include_no_time = (date_filter == "month") or bool(re.match(r'^\d{4}-\d{2}$', date_filter))
+    include_no_time = (date_filter == "month") or (date_filter == "all") or bool(re.match(r'^\d{4}-\d{2}$', date_filter))
+    
+    # For "all" filter, don't apply date filtering
+    is_all_filter = (date_filter == "all")
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        if include_no_time:
+        if is_all_filter:
+            query = """SELECT * FROM events
+                       ORDER BY CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time"""
+            async with db.execute(query) as cursor:
+                rows = await cursor.fetchall()
+        elif include_no_time:
             query = """SELECT * FROM events
                        WHERE (start_time >= ? AND start_time < ?) OR start_time IS NULL
                        ORDER BY CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time"""
+            async with db.execute(
+                query,
+                (start.isoformat(), end.isoformat()),
+            ) as cursor:
+                rows = await cursor.fetchall()
         else:
             query = """SELECT * FROM events
                        WHERE start_time >= ? AND start_time < ?
                        ORDER BY start_time"""
-
-        async with db.execute(
-            query,
-            (start.isoformat(), end.isoformat()),
-        ) as cursor:
-            rows = await cursor.fetchall()
-            events = []
-            for row in rows:
-                events.append(Event(
-                    id=row["id"],
-                    title=row["title"],
-                    start_time=datetime.fromisoformat(row["start_time"]) if row["start_time"] else None,
-                    end_time=datetime.fromisoformat(row["end_time"]) if row["end_time"] else None,
-                    category_id=row["category_id"],
-                    all_day=bool(row["all_day"]),
-                    recurrence=row["recurrence"],
-                    status=row["status"],
-                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
-                    updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
-                    reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
-                    reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
-                    reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
-                ))
+            async with db.execute(
+                query,
+                (start.isoformat(), end.isoformat()),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        events = []
+        for row in rows:
+            events.append(Event(
+                id=row["id"],
+                title=row["title"],
+                start_time=datetime.fromisoformat(row["start_time"]) if row["start_time"] else None,
+                end_time=datetime.fromisoformat(row["end_time"]) if row["end_time"] else None,
+                category_id=row["category_id"],
+                all_day=bool(row["all_day"]),
+                recurrence=row["recurrence"],
+                status=row["status"],
+                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
+                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
+                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
+            ))
     return events
 
 
@@ -595,6 +621,82 @@ async def set_setting(key: str, value: str) -> None:
             (key, value),
         )
         await db.commit()
+
+
+async def get_ai_providers() -> list[dict]:
+    """Get all AI providers."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM ai_providers ORDER BY is_active DESC, id ASC") as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def get_active_ai_provider() -> Optional[dict]:
+    """Get the currently active AI provider."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM ai_providers WHERE is_active = 1 LIMIT 1") as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def create_ai_provider(name: str, api_base: str, model: str, api_key: str) -> dict:
+    """Create a new AI provider."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO ai_providers (name, api_base, model, api_key, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (name, api_base, model, api_key, now, now),
+        )
+        await db.commit()
+        provider_id = cursor.lastrowid
+        return {
+            "id": provider_id,
+            "name": name,
+            "api_base": api_base,
+            "model": model,
+            "api_key": api_key,
+            "is_active": 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+
+async def update_ai_provider(provider_id: int, name: str, api_base: str, model: str, api_key: str) -> Optional[dict]:
+    """Update an AI provider."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """UPDATE ai_providers SET name = ?, api_base = ?, model = ?, api_key = ?, updated_at = ?
+               WHERE id = ?""",
+            (name, api_base, model, api_key, now, provider_id),
+        )
+        await db.commit()
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM ai_providers WHERE id = ?", (provider_id,)) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def delete_ai_provider(provider_id: int) -> bool:
+    """Delete an AI provider."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM ai_providers WHERE id = ?", (provider_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def activate_ai_provider(provider_id: int) -> bool:
+    """Set an AI provider as active (deactivate all others)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Deactivate all
+        await db.execute("UPDATE ai_providers SET is_active = 0")
+        # Activate the selected one
+        await db.execute("UPDATE ai_providers SET is_active = 1 WHERE id = ?", (provider_id,))
+        await db.commit()
+        return True
 
 
 async def create_goal(goal: Goal) -> Goal:

@@ -843,8 +843,8 @@
             };
         };
         
-        // Fetch all events (use month filter to get more events)
-        const data = await apiCall('events?date=month');
+        // Fetch events based on todoSubview filter
+        const data = await apiCall('events?date=' + state.todoSubview);
         
         if (!data || data.length === 0) {
             container.innerHTML = `
@@ -4380,6 +4380,9 @@
             elements.userSelfDescription.value = '';
         }
         
+        // Load AI providers
+        await loadAiProviders();
+        
         // Set version
         elements.appVersion.textContent = 'v' + APP_VERSION;
         
@@ -4396,6 +4399,136 @@
         
         elements.settingsModal.classList.add('hidden');
     }
+
+    // ============ AI Providers ============
+    async function loadAiProviders() {
+        try {
+            const providers = await apiCall('ai-providers');
+            renderAiProviders(providers || []);
+        } catch (e) {
+            console.error('Failed to load AI providers:', e);
+            renderAiProviders([]);
+        }
+    }
+
+    function renderAiProviders(providers) {
+        const list = elements.aiProvidersList;
+        if (!providers || providers.length === 0) {
+            list.innerHTML = '<div class="ai-provider-empty">暂无配置的 AI，点击下方添加</div>';
+            return;
+        }
+        
+        list.innerHTML = providers.map(p => `
+            <div class="ai-provider-item ${p.is_active ? 'active' : ''}" data-id="${p.id}">
+                <div class="ai-provider-info">
+                    <span class="ai-provider-name">${escapeHtml(p.name)}${p.is_active ? ' ✓' : ''}</span>
+                    <span class="ai-provider-model">${escapeHtml(p.model)} · ${escapeHtml(p.api_base)}</span>
+                </div>
+                <div class="ai-provider-actions">
+                    <button class="ai-provider-activate-btn" ${p.is_active ? 'disabled' : ''} onclick="ScheduleApp.activateAiProvider(${p.id})">
+                        ${p.is_active ? '使用中' : '使用'}
+                    </button>
+                    <button class="ai-provider-edit-btn" onclick="ScheduleApp.editAiProvider(${p.id}, '${escapeHtml(p.name)}', '${escapeHtml(p.api_base)}', '${escapeHtml(p.model)}', '${escapeHtml(p.api_key)}')">编辑</button>
+                    <button class="ai-provider-delete-btn" onclick="ScheduleApp.deleteAiProvider(${p.id})">删除</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openAiProviderModal(id = null, name = '', apiBase = '', model = '', apiKey = '') {
+        elements.aiProviderId.value = id || '';
+        elements.aiProviderModalTitle.textContent = id ? '编辑 AI 提供商' : '添加 AI 提供商';
+        elements.aiProviderName.value = name;
+        elements.aiProviderApiBase.value = apiBase;
+        elements.aiProviderModel.value = model;
+        elements.aiProviderApiKey.value = apiKey;
+        elements.aiProviderModal.classList.remove('hidden');
+    }
+
+    function closeAiProviderModal() {
+        elements.aiProviderModal.classList.add('hidden');
+    }
+
+    async function saveAiProvider() {
+        const id = elements.aiProviderId.value;
+        const name = elements.aiProviderName.value.trim();
+        const apiBase = elements.aiProviderApiBase.value.trim();
+        const model = elements.aiProviderModel.value.trim();
+        const apiKey = elements.aiProviderApiKey.value.trim();
+        
+        if (!name || !apiBase || !model) {
+            showToast('请填写完整信息');
+            return;
+        }
+        
+        try {
+            let result;
+            if (id) {
+                result = await apiCall(`ai-providers/${id}`, 'PUT', { name, api_base: apiBase, model, api_key: apiKey });
+            } else {
+                result = await apiCall('ai-providers', 'POST', { name, api_base: apiBase, model, api_key: apiKey });
+            }
+            
+            if (result && !result.error) {
+                showToast(id ? 'AI配置已更新' : 'AI配置已添加');
+                closeAiProviderModal();
+                await loadAiProviders();
+            } else {
+                showToast(result?.message || '保存失败');
+            }
+        } catch (e) {
+            showToast('保存失败');
+            console.error(e);
+        }
+    }
+
+    async function activateAiProvider(id) {
+        try {
+            const result = await apiCall(`ai-providers/${id}/activate`, 'PUT');
+            if (result && !result.error) {
+                showToast('已切换到该AI');
+                await loadAiProviders();
+            } else {
+                showToast('切换失败');
+            }
+        } catch (e) {
+            showToast('切换失败');
+            console.error(e);
+        }
+    }
+
+    async function deleteAiProvider(id) {
+        const confirmed = await showConfirm('确定删除该AI配置？');
+        if (!confirmed) return;
+        
+        try {
+            const result = await apiCall(`ai-providers/${id}`, 'DELETE');
+            if (result && !result.error) {
+                showToast('AI配置已删除');
+                await loadAiProviders();
+            } else {
+                showToast('删除失败');
+            }
+        } catch (e) {
+            showToast('删除失败');
+            console.error(e);
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // Make functions globally accessible for inline onclick
+    window.ScheduleApp = {
+        ...(window.ScheduleApp || {}),
+        activateAiProvider,
+        editAiProvider: openAiProviderModal,
+        deleteAiProvider,
+    };
 
     async function handleQQReminderToggle(e) {
         const enabled = e.target.checked;
@@ -5372,6 +5505,13 @@
         document.getElementById('cleanupTestEntriesBtn')?.addEventListener('click', handleCleanupTestEntries);
         document.getElementById('semanticHelpBtn')?.addEventListener('click', showSemanticHelpModal);
         
+        // AI Provider modal events
+        elements.addAiProviderBtn?.addEventListener('click', () => openAiProviderModal());
+        elements.aiProviderBackdrop?.addEventListener('click', closeAiProviderModal);
+        elements.aiProviderClose?.addEventListener('click', closeAiProviderModal);
+        elements.aiProviderCancelBtn?.addEventListener('click', closeAiProviderModal);
+        elements.aiProviderSaveBtn?.addEventListener('click', saveAiProvider);
+        
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
@@ -5410,6 +5550,19 @@
                 renderMonthView();
             }
             await loadData();
+        });
+
+        // Todo segmented control
+        document.getElementById('todoSegmented')?.addEventListener('click', async (e) => {
+            const seg = e.target.closest('.cal-segment');
+            if (!seg) return;
+            state.todoSubview = seg.dataset.subview;
+            // Update active states
+            document.querySelectorAll('#todoSegmented .cal-segment').forEach(s => {
+                s.classList.toggle('active', s.dataset.subview === state.todoSubview);
+            });
+            // Re-render todo view with new filter
+            await renderTodoView();
         });
 
         // Floating add button (content area, visible in day/todo)
@@ -5489,11 +5642,6 @@
     // ============================================
     // Utility Functions
     // ============================================
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
     function debounce(func, wait) {
         let timeout;

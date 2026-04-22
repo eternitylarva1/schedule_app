@@ -14,9 +14,51 @@ class LLMService:
         self.api_base = os.getenv("LLM_API_BASE", "https://open.cherryin.net/v1")
         self.api_key = os.getenv("LLM_API_KEY", "sk-nzCBqwmTVmDj137YyfMVKp1xAAVv0Pc2YrXHpHqwILKpDEEw")
         self.model = os.getenv("LLM_MODEL", "minimax/minimax-m2.5-highspeed")
+        self._db_path = None  # Will be set when app initializes
+    
+    def set_db_path(self, db_path: str):
+        """Set database path for runtime configuration."""
+        self._db_path = db_path
+    
+    async def _load_settings_from_db(self):
+        """Load LLM settings from ai_providers table - use active provider."""
+        if not self._db_path:
+            return
+        
+        try:
+            import aiosqlite
+            async with aiosqlite.connect(self._db_path) as conn:
+                conn.row_factory = aiosqlite.Row
+                # First check if there are any ai_providers configured
+                async with conn.execute("SELECT COUNT(*) as cnt FROM ai_providers") as cursor:
+                    row = await cursor.fetchone()
+                    if row["cnt"] == 0:
+                        # No providers configured, use environment defaults
+                        return
+                
+                # Get active provider
+                async with conn.execute("SELECT * FROM ai_providers WHERE is_active = 1 LIMIT 1") as cursor:
+                    provider = await cursor.fetchone()
+                    if provider:
+                        self.api_base = provider["api_base"]
+                        self.model = provider["model"]
+                        self.api_key = provider["api_key"]
+                    else:
+                        # No active provider, use first provider as fallback
+                        async with conn.execute("SELECT * FROM ai_providers LIMIT 1") as cursor:
+                            provider = await cursor.fetchone()
+                            if provider:
+                                self.api_base = provider["api_base"]
+                                self.model = provider["model"]
+                                self.api_key = provider["api_key"]
+        except Exception as e:
+            print(f"Failed to load LLM settings from DB: {e}")
     
     async def chat(self, messages: list[dict[str, Any]], temperature: float = 0.7) -> Optional[str]:
         """Send chat request to LLM API."""
+        # Load settings from database at runtime (allows user to change settings without restart)
+        await self._load_settings_from_db()
+        
         if not self.api_key:
             return None
         

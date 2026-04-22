@@ -84,6 +84,12 @@
 
             <!-- Todo View -->
             <div class="view todo-view hidden" id="todoView">
+                <div class="calendar-segmented" id="todoSegmented">
+                    <button class="cal-segment active" data-subview="all">全部</button>
+                    <button class="cal-segment" data-subview="today">今天</button>
+                    <button class="cal-segment" data-subview="week">本周</button>
+                    <button class="cal-segment" data-subview="month">本月</button>
+                </div>
                 <div class="todo-container" id="todoContainer"></div>
             </div>
 
@@ -346,6 +352,20 @@
                             </div>
                             <textarea id="userSelfDescription" rows="3" placeholder="例如：我在准备考研，每天学习10小时..."></textarea>
                         </div>
+                        <!-- AI 模型配置 -->
+                        <div class="settings-item-divider">
+                            <span>AI 模型配置</span>
+                        </div>
+                        <div id="aiProvidersList" class="ai-providers-list">
+                            <!-- AI providers will be loaded here -->
+                        </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <span class="settings-item-title">添加 AI 提供商</span>
+                                <span class="settings-item-desc">配置新的 AI 模型</span>
+                            </div>
+                            <button class="btn btn-secondary" id="addAiProviderBtn">+ 添加</button>
+                        </div>
                         <div class="settings-item">
                             <div class="settings-item-info">
                                 <span class="settings-item-title">版本信息</span>
@@ -366,6 +386,52 @@
                             </div>
                             <button class="btn btn-danger settings-cleanup-btn" id="cleanupTestEntriesBtn">一键清理</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Provider Modal -->
+        <div class="modal hidden" id="aiProviderModal">
+            <div class="modal-backdrop" id="aiProviderBackdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="aiProviderModalTitle">添加 AI 提供商</h2>
+                    <button class="modal-close" id="aiProviderClose">×</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="aiProviderId">
+                    <div class="settings-item settings-item-text">
+                        <div class="settings-item-info">
+                            <span class="settings-item-title">名称</span>
+                            <span class="settings-item-desc">例如：OpenAI、Claude、本地模型</span>
+                        </div>
+                        <input type="text" id="aiProviderName" class="settings-input" placeholder="OpenAI">
+                    </div>
+                    <div class="settings-item settings-item-text">
+                        <div class="settings-item-info">
+                            <span class="settings-item-title">API 地址</span>
+                            <span class="settings-item-desc">API 端点 URL</span>
+                        </div>
+                        <input type="text" id="aiProviderApiBase" class="settings-input" placeholder="https://api.openai.com/v1">
+                    </div>
+                    <div class="settings-item settings-item-text">
+                        <div class="settings-item-info">
+                            <span class="settings-item-title">模型名称</span>
+                            <span class="settings-item-desc">要使用的模型标识</span>
+                        </div>
+                        <input type="text" id="aiProviderModel" class="settings-input" placeholder="gpt-3.5-turbo">
+                    </div>
+                    <div class="settings-item settings-item-text">
+                        <div class="settings-item-info">
+                            <span class="settings-item-title">API Key</span>
+                            <span class="settings-item-desc">API 密钥</span>
+                        </div>
+                        <input type="password" id="aiProviderApiKey" class="settings-input" placeholder="sk-...">
+                    </div>
+                    <div style="margin-top: var(--space-md); display: flex; gap: var(--space-sm);">
+                        <button class="btn btn-primary" id="aiProviderSaveBtn" style="flex:1;">保存</button>
+                        <button class="btn btn-secondary" id="aiProviderCancelBtn" style="flex:1;">取消</button>
                     </div>
                 </div>
             </div>

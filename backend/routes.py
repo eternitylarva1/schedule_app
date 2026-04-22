@@ -27,10 +27,10 @@ def error_response(message: str, code: int = 1) -> web.Response:
 
 
 async def get_events(request: web.Request) -> web.Response:
-    """GET /api/events?date=today|week|month|YYYY-MM-DD|YYYY-MM - list events."""
+    """GET /api/events?date=today|week|month|all|YYYY-MM-DD|YYYY-MM - list events."""
     date_filter = request.query.get("date", "today")
-    # Accept today/week/month or specific date (YYYY-MM-DD) or month (YYYY-MM)
-    valid_filters = ("today", "week", "month")
+    # Accept today/week/month/all or specific date (YYYY-MM-DD) or month (YYYY-MM)
+    valid_filters = ("today", "week", "month", "all")
     import re
     if date_filter not in valid_filters and not re.match(r'^\d{4}-\d{2}-\d{2}$', date_filter) and not re.match(r'^\d{4}-\d{2}$', date_filter):
         date_filter = "today"
@@ -796,6 +796,86 @@ async def update_setting(request: web.Request) -> web.Response:
         return error_response(f"更新设置失败: {str(e)}")
 
 
+# ============ AI Providers Endpoints ============
+
+async def get_ai_providers(request: web.Request) -> web.Response:
+    """GET /api/ai-providers - list all AI providers."""
+    try:
+        providers = await db.get_ai_providers()
+        return json_response(providers)
+    except Exception as e:
+        return error_response(f"获取AI配置失败: {str(e)}")
+
+
+async def create_ai_provider(request: web.Request) -> web.Response:
+    """POST /api/ai-providers - create a new AI provider."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        provider = await db.create_ai_provider(
+            name=data.get("name", "").strip(),
+            api_base=data.get("api_base", "").strip(),
+            model=data.get("model", "").strip(),
+            api_key=data.get("api_key", "").strip(),
+        )
+        return json_response(provider)
+    except Exception as e:
+        return error_response(f"创建AI配置失败: {str(e)}")
+
+
+async def update_ai_provider(request: web.Request) -> web.Response:
+    """PUT /api/ai-providers/{id} - update an AI provider."""
+    provider_id = int(request.match_info["id"])
+    
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        provider = await db.update_ai_provider(
+            provider_id=provider_id,
+            name=data.get("name", "").strip(),
+            api_base=data.get("api_base", "").strip(),
+            model=data.get("model", "").strip(),
+            api_key=data.get("api_key", "").strip(),
+        )
+        if provider:
+            return json_response(provider)
+        else:
+            return error_response("AI配置不存在", code=404)
+    except Exception as e:
+        return error_response(f"更新AI配置失败: {str(e)}")
+
+
+async def delete_ai_provider(request: web.Request) -> web.Response:
+    """DELETE /api/ai-providers/{id} - delete an AI provider."""
+    provider_id = int(request.match_info["id"])
+    
+    try:
+        success = await db.delete_ai_provider(provider_id)
+        if success:
+            return json_response({"deleted": True})
+        else:
+            return error_response("AI配置不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除AI配置失败: {str(e)}")
+
+
+async def activate_ai_provider(request: web.Request) -> web.Response:
+    """PUT /api/ai-providers/{id}/activate - set as active AI provider."""
+    provider_id = int(request.match_info["id"])
+    
+    try:
+        await db.activate_ai_provider(provider_id)
+        return json_response({"activated": True})
+    except Exception as e:
+        return error_response(f"激活AI配置失败: {str(e)}")
+
+
 # ============ Notes Endpoints ============
 
 async def get_notes(request: web.Request) -> web.Response:
@@ -1488,3 +1568,10 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_delete("/api/expenses/{id}", delete_expense)
     app.router.add_get("/api/expenses/stats", get_expense_stats)
     app.router.add_get("/api/expenses/categories", get_expense_categories)
+
+    # AI Providers
+    app.router.add_get("/api/ai-providers", get_ai_providers)
+    app.router.add_post("/api/ai-providers", create_ai_provider)
+    app.router.add_put("/api/ai-providers/{id}", update_ai_provider)
+    app.router.add_delete("/api/ai-providers/{id}", delete_ai_provider)
+    app.router.add_put("/api/ai-providers/{id}/activate", activate_ai_provider)
