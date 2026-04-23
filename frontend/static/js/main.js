@@ -565,6 +565,9 @@
             const eventsDiv = document.createElement('div');
             eventsDiv.className = 'week-cell-events';
             
+            let prevEventEndMinutes = -1;
+            let prevEventCategory = null;
+            
             dayEvents.forEach(event => {
                 const start = new Date(event.start_time);
                 const fallbackEnd = new Date(start.getTime() + 30 * 60 * 1000);
@@ -577,13 +580,27 @@
                 }
 
                 const topPx = (startMinutes / 60) * weekHourHeight;
-                const heightPx = Math.max(20, ((endMinutes - startMinutes) / 60) * weekHourHeight);
+                let heightPx = Math.max(20, ((endMinutes - startMinutes) / 60) * weekHourHeight);
+                
+                // Add spacing between consecutive events (regardless of category)
+                const gap = 3; // pixels
+                const isConsecutive = prevEventEndMinutes === startMinutes;
+                
+                if (isConsecutive) {
+                    // Reduce height slightly to account for the gap, keeping time accurate
+                    heightPx = Math.max(16, heightPx - gap);
+                }
 
                 const eventEl = document.createElement('div');
                 eventEl.className = 'week-event';
                 eventEl.style.setProperty('--event-color', getCategoryColor(event.category_id));
                 eventEl.style.top = `${topPx}px`;
                 eventEl.style.height = `${heightPx}px`;
+                
+                // Add top margin for consecutive events
+                if (isConsecutive) {
+                    eventEl.style.marginTop = `${gap}px`;
+                }
                 
                 const titleEl = document.createElement('div');
                 titleEl.className = 'week-event-title';
@@ -616,6 +633,10 @@
                 });
                 
                 eventsDiv.appendChild(eventEl);
+                
+                // Track for next iteration
+                prevEventEndMinutes = endMinutes;
+                prevEventCategory = event.category_id;
             });
             
             cell.appendChild(eventsDiv);
@@ -5888,11 +5909,103 @@
         
         const budgetCards = document.querySelectorAll('.budget-card');
         budgetCards.forEach(card => {
-            card.addEventListener('click', () => {
+            card.addEventListener('click', async () => {
                 const budgetId = parseInt(card.dataset.budgetId);
                 const budget = state.budgets.find(b => b.id === budgetId);
                 if (budget) {
-                    openBudgetModal(budget);
+                    await showBudgetExpenses(budget);
+                }
+            });
+        });
+    }
+
+    async function showBudgetExpenses(budget) {
+        // Fetch expenses for this budget
+        const expenses = await apiCall(`budgets/${budget.id}/expenses`);
+        if (!expenses || expenses.length === 0) {
+            showToast('该预算暂无支出记录');
+            return;
+        }
+        
+        const container = elements.notepadContainer;
+        const percent = budget.amount > 0 ? Math.min((budget.spent / budget.amount) * 100, 100) : 0;
+        const isOver = budget.spent > budget.amount;
+        
+        let html = `
+            <div class="budget-detail-header" style="background: ${budget.color}; padding: var(--space-md); border-radius: var(--radius-lg); margin-bottom: var(--space-md);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
+                    <span style="font-size: var(--font-size-md); font-weight: 500;">${escapeHtml(budget.name)}</span>
+                    <button class="budget-detail-back" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 10px; border-radius: var(--radius-md); cursor: pointer;">← 返回</button>
+                </div>
+                <div style="font-size: 24px; font-weight: bold; margin-bottom: var(--space-xs);">
+                    ¥${(budget.amount - budget.spent).toFixed(1)} <span style="font-size: var(--font-size-xs); opacity: 0.8;">剩余</span>
+                </div>
+                <div style="height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
+                    <div style="height: 100%; width: ${percent}%; background: white; border-radius: 2px;"></div>
+                </div>
+                <div style="font-size: var(--font-size-xs); opacity: 0.8; margin-top: var(--space-xs);">
+                    已用 ¥${budget.spent.toFixed(1)} / ¥${budget.amount.toFixed(1)}
+                </div>
+            </div>
+            <div class="expense-list">
+        `;
+        
+        // Group by date
+        const grouped = {};
+        expenses.forEach(exp => {
+            const dateKey = exp.created_at ? exp.created_at.split('T')[0] : 'unknown';
+            if (!grouped[dateKey]) grouped[dateKey] = [];
+            grouped[dateKey].push(exp);
+        });
+        
+        Object.keys(grouped).sort((a, b) => b.localeCompare(a)).forEach(dateKey => {
+            const dayExpenses = grouped[dateKey];
+            const date = new Date(dateKey);
+            const now = new Date();
+            const isToday = isSameDay(date, now);
+            const isYesterday = isSameDay(date, new Date(now.getTime() - 86400000));
+            
+            let dateLabel;
+            if (isToday) dateLabel = '今天';
+            else if (isYesterday) dateLabel = '昨天';
+            else dateLabel = `${date.getMonth() + 1}月${date.getDate()}日`;
+            
+            html += `
+                <div class="expense-day-group">
+                    <div class="expense-day-header">${dateLabel}</div>
+                    ${dayExpenses.map(exp => {
+                        const cat = state.expenseCategories.find(c => c.id === exp.category) || { name: '其他', color: '#6B7280' };
+                        return `
+                            <div class="expense-item expense-item-clickable" style="cursor: pointer;" data-expense-id="${exp.id}">
+                                <div class="expense-item-left">
+                                    <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
+                                    <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
+                                </div>
+                                <div class="expense-item-right">
+                                    <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+        
+        // Back button
+        container.querySelector('.budget-detail-back').addEventListener('click', () => {
+            renderExpenseList();
+        });
+        
+        // Click on expense item to edit
+        container.querySelectorAll('.expense-item-clickable').forEach(item => {
+            item.addEventListener('click', () => {
+                const expenseId = parseInt(item.dataset.expenseId);
+                const exp = expenses.find(x => x.id === expenseId);
+                if (exp) {
+                    openExpenseModal(exp);
                 }
             });
         });
