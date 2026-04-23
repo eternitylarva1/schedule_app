@@ -213,6 +213,7 @@
     expenseModal: document.getElementById('expenseModal'),
     expenseBackdrop: document.getElementById('expenseBackdrop'),
     expenseClose: document.getElementById('expenseClose'),
+    expenseModalTitle: document.getElementById('expenseModalTitle'),
     expenseAmount: document.getElementById('expenseAmount'),
     expenseNote: document.getElementById('expenseNote'),
     expenseCategorySelector: document.getElementById('expenseCategorySelector'),
