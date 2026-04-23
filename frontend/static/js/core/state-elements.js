@@ -35,6 +35,7 @@
     llmCycleFailed: 0,
     llmStatusHideTimer: null,
     llmLastStatusText: '',
+    llmLastSubmittedText: '',  // 保存最后提交的文本，便于复制和编辑
     llmAbortController: null,
     llmCancelRequested: false,
     isNavigating: false,
@@ -96,6 +97,8 @@
     llmQueueMeta: document.getElementById('llmQueueMeta'),
     llmQueueProgressBar: document.getElementById('llmQueueProgressBar'),
     llmQueueCancelBtn: document.getElementById('llmQueueCancelBtn'),
+    llmQueueCopyBtn: document.getElementById('llmQueueCopyBtn'),
+    llmQueueDetail: document.getElementById('llmQueueDetail'),
     dayView: document.getElementById('dayView'),
     weekView: document.getElementById('weekView'),
     monthView: document.getElementById('monthView'),
@@ -216,6 +219,7 @@
     expenseBudget: document.getElementById('expenseBudget'),
     expenseSaveBtn: document.getElementById('expenseSaveBtn'),
     expenseCancelBtn: document.getElementById('expenseCancelBtn'),
+    expenseId: document.getElementById('expenseId'),
   };
 
   global.ScheduleAppCore = {

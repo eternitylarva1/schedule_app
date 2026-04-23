@@ -176,7 +176,7 @@ sys.path.insert(0, '..')
 from send_message import send_private_message
 
 send_private_message(
-    user_id=2987345656,
+    user_id=2674610176,
     message='[计划助手更新通知]\n- 更新内容\n\n仓库: https://github.com/eternitylarva1/schedule_app'
 )
 ```

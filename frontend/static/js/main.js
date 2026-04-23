@@ -2811,15 +2811,17 @@
                     <div class="expense-day-header">${dateLabel}</div>
                     ${dayExpenses.map(exp => {
                         const cat = state.expenseCategories.find(c => c.id === exp.category) || { name: '其他', color: '#6B7280' };
+                        const budget = exp.budget_id ? state.budgets.find(b => b.id === exp.budget_id) : null;
                         return `
                             <div class="swipe-item expense-swipe" data-expense-id="${exp.id}">
-                                <div class="swipe-action swipe-action-left" data-action="reuse" data-expense-id="${exp.id}">↺ 复用</div>
+                                <div class="swipe-action swipe-action-left" data-action="edit" data-expense-id="${exp.id}">✏️ 编辑</div>
                                 <div class="swipe-action swipe-action-right" data-action="delete" data-expense-id="${exp.id}">🗑️ 删除</div>
                                 <div class="swipe-content">
-                                    <div class="expense-item" data-expense-id="${exp.id}">
+                                    <div class="expense-item expense-item-clickable" data-expense-id="${exp.id}">
                                         <div class="expense-item-left">
                                             <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
                                             <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
+                                            ${budget ? `<span class="expense-item-budget" style="color: ${budget.color}">【${budget.name}】</span>` : ''}
                                         </div>
                                         <div class="expense-item-right">
                                             <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
@@ -2870,7 +2872,9 @@
                 const exp = state.expenses.find(x => x.id === expenseId);
                 if (!exp) return;
 
-                if (action === 'reuse') {
+                if (action === 'edit') {
+                    openExpenseModal(exp);
+                } else if (action === 'reuse') {
                     if (elements.notepadInput) {
                         elements.notepadInput.value = `${exp.note || ''}${exp.amount ? ` ${exp.amount}块` : ''}`.trim();
                         elements.notepadInput.focus();
@@ -2883,6 +2887,17 @@
                         showToast('已删除');
                         await renderExpenseList();
                     }
+                }
+            });
+        });
+        
+        // Bind click on expense item to edit
+        container.querySelectorAll('.expense-item-clickable').forEach(item => {
+            item.addEventListener('click', () => {
+                const expenseId = parseInt(item.dataset.expenseId);
+                const exp = state.expenses.find(x => x.id === expenseId);
+                if (exp) {
+                    openExpenseModal(exp);
                 }
             });
         });
@@ -4991,12 +5006,36 @@
 
         elements.llmQueueStatus.classList.remove('hidden');
 
+        // 更新详情区域：显示当前处理的完整文本和队列中的项目
+        if (elements.llmQueueDetail) {
+            let detailHtml = '';
+            
+            // 当前正在处理的项目
+            if (hasActive && state.llmActiveRequest) {
+                detailHtml += `<div class="llm-queue-item llm-queue-item-active">
+                    <span class="llm-queue-item-label">处理中</span>
+                    <span class="llm-queue-item-text">${escapeHtml(state.llmActiveRequest.text)}</span>
+                </div>`;
+            }
+            
+            // 队列中等待的项目
+            if (waiting > 0) {
+                state.llmQueue.forEach((item, idx) => {
+                    detailHtml += `<div class="llm-queue-item">
+                        <span class="llm-queue-item-label">排队${idx + 1}</span>
+                        <span class="llm-queue-item-text">${escapeHtml(item.text)}</span>
+                    </div>`;
+                });
+            }
+            
+            elements.llmQueueDetail.innerHTML = detailHtml;
+        }
+
         if (hasActive) {
             const current = state.llmCycleDone + 1;
             const total = Math.max(state.llmCycleTotal, current);
-            const previewText = String(state.llmActiveRequest.text || '').slice(0, 18);
-            elements.llmQueueText.textContent = `AI处理中 ${current}/${total}：${previewText}${state.llmActiveRequest.text.length > 18 ? '…' : ''}`;
-            elements.llmQueueMeta.textContent = waiting > 0 ? `排队 ${waiting}` : '进行中';
+            elements.llmQueueText.textContent = `AI处理中 ${current}/${total}`;
+            elements.llmQueueMeta.textContent = waiting > 0 ? `排队 ${waiting} 项` : '进行中';
 
             const progress = Math.max(4, Math.min(96, ((state.llmCycleDone + 0.5) / Math.max(1, total)) * 100));
             elements.llmQueueProgressBar.style.width = `${progress}%`;
@@ -5188,8 +5227,11 @@
             return;
         }
 
+        // 保存提交的文本，便于用户复制和编辑
+        state.llmLastSubmittedText = text;
+        
         enqueueLlmRequest(text);
-        elements.llmInput.value = '';
+        // 保留输入内容，方便用户查看和编辑（不清空）
         elements.llmInput.focus();
     }
 
@@ -5524,6 +5566,36 @@
         });
         if (elements.llmQueueCancelBtn) {
             elements.llmQueueCancelBtn.addEventListener('click', () => cancelLlmGeneration(true));
+        }
+        
+        // 复制按钮：将当前处理的文本复制到剪贴板
+        if (elements.llmQueueCopyBtn) {
+            elements.llmQueueCopyBtn.addEventListener('click', async () => {
+                const textToCopy = state.llmActiveRequest?.text || state.llmLastSubmittedText || '';
+                if (!textToCopy) {
+                    showToast('没有可复制的内容');
+                    return;
+                }
+                try {
+                    await navigator.clipboard.writeText(textToCopy);
+                    showToast('已复制到剪贴板');
+                } catch (err) {
+                    // 降级方案：使用传统方法
+                    const textarea = document.createElement('textarea');
+                    textarea.value = textToCopy;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    try {
+                        document.execCommand('copy');
+                        showToast('已复制到剪贴板');
+                    } catch (e) {
+                        showToast('复制失败，请手动选择文本');
+                    }
+                    document.body.removeChild(textarea);
+                }
+            });
         }
         
         // Breakdown modal events
@@ -5874,13 +5946,17 @@
     // Expense Modal Functions
     // ============================================
     let selectedExpenseCategory = 'food';
+    let editingExpenseId = null;
+    let lastUsedBudgetId = null;
     
-    function openExpenseModal() {
+    function openExpenseModal(expense = null) {
         if (!elements.expenseModal) return;
         
-        elements.expenseAmount.value = '';
-        elements.expenseNote.value = '';
-        selectedExpenseCategory = 'food';
+        editingExpenseId = expense ? expense.id : null;
+        elements.expenseId.value = editingExpenseId || '';
+        elements.expenseAmount.value = expense ? expense.amount : '';
+        elements.expenseNote.value = expense ? (expense.note || '') : '';
+        selectedExpenseCategory = expense ? expense.category : 'food';
         
         // Populate budget selector
         if (elements.expenseBudget) {
@@ -5891,13 +5967,23 @@
                 option.textContent = `${budget.name} (剩余 ¥${(budget.amount - budget.spent).toFixed(1)})`;
                 elements.expenseBudget.appendChild(option);
             });
+            // Pre-select budget
+            if (expense && expense.budget_id) {
+                elements.expenseBudget.value = expense.budget_id;
+            } else if (lastUsedBudgetId) {
+                elements.expenseBudget.value = lastUsedBudgetId;
+            }
         }
         
+        // Update modal title
+        elements.expenseModalTitle.textContent = expense ? '编辑支出' : '记一笔';        
         // Render category selector
         renderExpenseCategorySelector();
         
         elements.expenseModal.classList.remove('hidden');
-        elements.expenseAmount?.focus();
+        if (!expense) {
+            elements.expenseAmount?.focus();
+        }
     }
 
     function closeExpenseModal() {
@@ -5925,6 +6011,7 @@
     }
 
     async function handleExpenseSave() {
+        const expenseId = elements.expenseId?.value ? parseInt(elements.expenseId.value) : null;
         const amount = parseFloat(elements.expenseAmount.value);
         const note = elements.expenseNote.value.trim();
         const budgetId = elements.expenseBudget?.value ? parseInt(elements.expenseBudget.value) : null;
@@ -5934,14 +6021,28 @@
             return;
         }
         
-        await createExpense({
-            amount,
-            category: selectedExpenseCategory,
-            note: note || '记账',
-            budget_id: budgetId
-        });
+        if (expenseId) {
+            await updateExpense(expenseId, {
+                amount,
+                category: selectedExpenseCategory,
+                note: note || '记账',
+                budget_id: budgetId || null
+            });
+            showToast('支出已更新');
+        } else {
+            await createExpense({
+                amount,
+                category: selectedExpenseCategory,
+                note: note || '记账',
+                budget_id: budgetId
+            });
+            showToast('已记录 ¥' + amount.toFixed(1));
+            // Remember last used budget
+            if (budgetId) {
+                lastUsedBudgetId = budgetId;
+            }
+        }
         
-        showToast('已记录 ¥' + amount.toFixed(1));
         closeExpenseModal();
         await renderExpenseList();
     }
