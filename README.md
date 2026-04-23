@@ -88,6 +88,190 @@ schedule_app/
 - 提交前必须通过调试回归测试
 - 提交后通过 QQ 发送更新通知
 
+## API 接口文档
+
+基础 URL: `http://localhost:8080/api`
+
+所有接口返回格式：
+```json
+{
+  "code": 0,       // 0 表示成功，非 0 表示错误
+  "data": {...},   // 返回数据
+  "message": "..." // 错误信息（仅错误时）
+}
+```
+
+---
+
+### 📅 日历事件 (Events)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/events?date=today\|week\|month\|all\|YYYY-MM-DD` | 获取事件列表 |
+| POST | `/events` | 创建事件 |
+| PUT | `/events/{id}` | 更新事件 |
+| DELETE | `/events/{id}` | 删除事件 |
+| PUT | `/events/{id}/complete` | 标记完成 |
+| PUT | `/events/{id}/uncomplete` | 撤销完成 |
+| GET | `/categories` | 获取事件分类 |
+
+**创建事件 POST /events**
+```json
+{
+  "title": "会议",
+  "start_time": "2026-04-23T10:00:00",
+  "end_time": "2026-04-23T11:00:00",
+  "category_id": "work",
+  "reminder_enabled": true
+}
+```
+
+---
+
+### 🎯 目标规划 (Goals)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/goals?horizon=short\|semester\|long` | 获取目标列表 |
+| POST | `/goals` | 创建目标 |
+| PUT | `/goals/{id}` | 更新目标 |
+| DELETE | `/goals/{id}` | 删除目标 |
+| GET | `/goals/{id}/tree` | 获取目标完整树 |
+| GET | `/goals/{id}/subtasks` | 获取子任务 |
+| GET | `/goals/{id}/conversations` | 获取对话历史 |
+| POST | `/goals/{id}/conversations` | 添加对话消息 |
+| POST | `/goals/ai/discuss` | AI 目标规划对话 |
+
+---
+
+### 📓 笔记 (Notes)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/notes` | 获取所有笔记 |
+| POST | `/notes` | 创建笔记 |
+| PUT | `/notes/{id}` | 更新笔记 |
+| DELETE | `/notes/{id}` | 删除笔记 |
+| GET | `/notes/{note_id}/conversations` | 获取对话历史 |
+| POST | `/notes/{note_id}/chat` | 与 AI 对话 |
+| DELETE | `/notes/{note_id}/conversations` | 清空对话历史 |
+
+### 📂 笔记分组 (Note Groups)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/note-groups` | 获取所有分组 |
+| POST | `/note-groups` | 创建分组 |
+| PUT | `/note-groups/{id}` | 更新分组 |
+| DELETE | `/note-groups/{id}` | 删除分组 |
+
+---
+
+### 💰 记账 (Expenses)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/expenses?date=month` | 获取支出记录 |
+| POST | `/expenses` | 创建支出 |
+| PUT | `/expenses/{id}` | 更新支出 |
+| DELETE | `/expenses/{id}` | 删除支出 |
+| GET | `/expenses/stats?date=month` | 获取支出统计 |
+| GET | `/expenses/categories` | 获取支出分类 |
+
+**创建支出 POST /expenses**
+```json
+{
+  "amount": 15.5,
+  "category": "food",
+  "note": "午餐",
+  "budget_id": 1
+}
+```
+
+---
+
+### 🎒 预算 (Budgets)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/budgets` | 获取所有预算（含已用/剩余） |
+| POST | `/budgets` | 创建预算 |
+| PUT | `/budgets/{id}` | 更新预算 |
+| DELETE | `/budgets/{id}` | 删除预算 |
+| GET | `/budgets/{id}/expenses` | 获取某预算下的支出 |
+
+**创建预算 POST /budgets**
+```json
+{
+  "name": "毕业设计",
+  "amount": 5000,
+  "color": "#3B82F6"
+}
+```
+
+**GET /budgets 返回示例**
+```json
+{
+  "id": 1,
+  "name": "毕业设计",
+  "amount": 5000,
+  "spent": 150,
+  "remaining": 4850,
+  "color": "#3B82F6"
+}
+```
+
+---
+
+### 🤖 AI 接口 (LLM)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| POST | `/llm/chat` | 解析自然语言为日程（不创建） |
+| POST | `/llm/create` | 解析并创建日程 |
+| POST | `/llm/command` | 统一命令执行（如"删除4月5号的代办"） |
+| POST | `/llm/breakdown` | AI 任务拆解 |
+| POST | `/llm/parse_expense` | AI 记账解析 |
+
+**POST /llm/create 示例**
+```json
+{
+  "text": "明天上午9点开会"
+}
+```
+
+---
+
+### ⚙️ 设置 (Settings)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/settings` | 获取所有设置 |
+| PUT | `/settings/{key}` | 更新设置 |
+| POST | `/settings/cleanup_test_entries` | 清理测试数据 |
+
+---
+
+### 🔧 AI 提供商 (AI Providers)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/ai-providers` | 获取所有配置 |
+| POST | `/ai-providers` | 创建配置 |
+| PUT | `/ai-providers/{id}` | 更新配置 |
+| DELETE | `/ai-providers/{id}` | 删除配置 |
+| PUT | `/ai-providers/{id}/activate` | 激活配置 |
+
+---
+
+### 📊 统计 (Stats)
+
+| 方法 | 端点 | 说明 |
+|------|------|------|
+| GET | `/stats?date=today\|week\|month` | 获取完成率统计 |
+
+---
+
 ## 许可证
 
 MIT
