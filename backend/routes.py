@@ -7,7 +7,7 @@ from aiohttp import web
 from typing import Any
 
 from . import db
-from .models import Event, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES, NoteGroup
+from .models import Event, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES, NoteGroup, Budget
 
 
 def json_response(data: Any, code: int = 0) -> web.Response:
@@ -1173,6 +1173,7 @@ async def create_expense(request: web.Request) -> web.Response:
             amount=float(data.get("amount", 0)),
             category=data.get("category", "other"),
             note=data.get("note", "").strip(),
+            budget_id=data.get("budget_id"),
         )
         if expense.amount <= 0:
             return error_response("金额必须大于0")
@@ -1237,6 +1238,104 @@ async def get_expense_stats(request: web.Request) -> web.Response:
 async def get_expense_categories(request: web.Request) -> web.Response:
     """GET /api/expenses/categories - list expense categories."""
     return json_response(EXPENSE_CATEGORIES)
+
+
+# ============================================
+# Budgets API
+# ============================================
+
+async def get_budgets(request: web.Request) -> web.Response:
+    """GET /api/budgets - list all budgets with spent/remaining stats."""
+    try:
+        budgets = await db.get_budgets_with_stats()
+        return json_response(budgets)
+    except Exception as e:
+        return error_response(f"获取预算失败: {str(e)}")
+
+
+async def create_budget(request: web.Request) -> web.Response:
+    """POST /api/budgets - create a new budget."""
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception:
+        return error_response("无效的JSON数据")
+
+    try:
+        budget = Budget(
+            name=(data.get("name", "") or "").strip(),
+            amount=float(data.get("amount", 0)),
+            color=data.get("color", "#3B82F6"),
+        )
+        if not budget.name:
+            return error_response("预算名称不能为空")
+        if budget.amount <= 0:
+            return error_response("预算金额必须大于0")
+        created = await db.create_budget(budget)
+        return json_response(created.to_dict())
+    except Exception as e:
+        return error_response(f"创建预算失败: {str(e)}")
+
+
+async def update_budget(request: web.Request) -> web.Response:
+    """PUT /api/budgets/{id} - update a budget."""
+    budget_id = int(request.match_info["id"])
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception:
+        return error_response("无效的JSON数据")
+
+    try:
+        existing = await db.get_budget(budget_id)
+        if not existing:
+            return error_response("预算不存在", code=404)
+        budget = Budget(
+            name=(data.get("name", existing.name) or "").strip(),
+            amount=float(data.get("amount", existing.amount)),
+            color=data.get("color", existing.color),
+        )
+        if not budget.name:
+            return error_response("预算名称不能为空")
+        if budget.amount <= 0:
+            return error_response("预算金额必须大于0")
+        updated = await db.update_budget(budget_id, budget)
+        return json_response(updated.to_dict())
+    except Exception as e:
+        return error_response(f"更新预算失败: {str(e)}")
+
+
+async def delete_budget(request: web.Request) -> web.Response:
+    """DELETE /api/budgets/{id} - delete a budget."""
+    budget_id = int(request.match_info["id"])
+    try:
+        success = await db.delete_budget(budget_id)
+        if success:
+            return json_response({"deleted": True})
+        return error_response("预算不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除预算失败: {str(e)}")
+
+
+async def get_budget_expenses(request: web.Request) -> web.Response:
+    """GET /api/budgets/{id}/expenses - get expenses for a specific budget."""
+    budget_id = int(request.match_info["id"])
+    try:
+        budget = await db.get_budget(budget_id)
+        if not budget:
+            return error_response("预算不存在", code=404)
+        expenses = await db.get_expenses_by_budget(budget_id)
+        return json_response([e.to_dict() for e in expenses])
+    except Exception as e:
+        return error_response(f"获取预算支出失败: {str(e)}")
 
 
 # ============================================
@@ -1585,3 +1684,9 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_put("/api/ai-providers/{id}", update_ai_provider)
     app.router.add_delete("/api/ai-providers/{id}", delete_ai_provider)
     app.router.add_put("/api/ai-providers/{id}/activate", activate_ai_provider)
+    # Budgets endpoints
+    app.router.add_get("/api/budgets", get_budgets)
+    app.router.add_post("/api/budgets", create_budget)
+    app.router.add_put("/api/budgets/{id}", update_budget)
+    app.router.add_delete("/api/budgets/{id}", delete_budget)
+    app.router.add_get("/api/budgets/{id}/expenses", get_budget_expenses)

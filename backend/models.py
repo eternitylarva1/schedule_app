@@ -189,6 +189,7 @@ class Expense:
     amount: float = 0.0
     category: str = "other"
     note: str = ""
+    budget_id: int | None = None
     created_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -229,7 +230,34 @@ class NoteConversation:
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "NoteConversation":
         """Create NoteConversation from dictionary."""
-        if d.get("created_at") and isinstance(d["created_at"], str):
+        if d.get("created_at") and isinstance(d.get("created_at"), str):
             d["created_at"] = datetime.fromisoformat(d["created_at"])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)
+
+
+@dataclass
+class Budget:
+    """Budget model for expense budgeting."""
+    id: int | None = None
+    name: str = ""
+    amount: float = 0.0
+    color: str = "#3B82F6"
+    created_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        if d.get("created_at") and isinstance(d["created_at"], datetime):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Budget":
+        """Create Budget from dictionary."""
+        if d.get("created_at") and isinstance(d.get("created_at"), str):
+            d["created_at"] = datetime.fromisoformat(d["created_at"])
+        if "amount" in d and d["amount"] is not None:
+            d["amount"] = float(d["amount"])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)

@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional
 
-from .models import Event, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation
+from .models import Event, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation, Budget
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
@@ -161,6 +161,17 @@ async def init_db() -> None:
             )
         """)
 
+        # Budgets table for expense budgeting
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS budgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                amount REAL NOT NULL DEFAULT 0,
+                color TEXT DEFAULT '#3B82F6',
+                created_at TEXT
+            )
+        """)
+
         # Note groups table for custom note groupings
         await db.execute("""
             CREATE TABLE IF NOT EXISTS note_groups (
@@ -183,6 +194,12 @@ async def init_db() -> None:
                 FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
             )
         """)
+
+        # Add budget_id column to expenses table
+        try:
+            await db.execute("ALTER TABLE expenses ADD COLUMN budget_id INTEGER")
+        except Exception:
+            pass
 
         # Add group_id column to notes table
         try:
@@ -1201,9 +1218,9 @@ async def create_expense(expense: Expense) -> Expense:
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            """INSERT INTO expenses (amount, category, note, created_at)
-               VALUES (?, ?, ?, ?)""",
-            (expense.amount, expense.category, expense.note, now),
+            """INSERT INTO expenses (amount, category, note, budget_id, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (expense.amount, expense.category, expense.note, expense.budget_id, now),
         )
         await db.commit()
         expense.id = cursor.lastrowid
@@ -1583,3 +1600,149 @@ async def cleanup_test_entries() -> dict[str, int]:
         "notes_deleted": note_result.rowcount or 0,
         "expenses_deleted": expense_result.rowcount or 0,
     }
+
+
+# ============ Budget CRUD ============
+
+async def create_budget(budget: Budget) -> Budget:
+    """Create a new budget."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "INSERT INTO budgets (name, amount, color, created_at) VALUES (?, ?, ?, ?)",
+            (budget.name, budget.amount, budget.color, now)
+        )
+        await db.commit()
+        budget.id = cursor.lastrowid
+        budget.created_at = datetime.now()
+        return budget
+
+
+async def get_budget(budget_id: int) -> Optional[Budget]:
+    """Get a budget by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM budgets WHERE id = ?", (budget_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return Budget(
+                id=row["id"],
+                name=row["name"],
+                amount=row["amount"],
+                color=row["color"],
+                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None
+            )
+
+
+async def get_budgets() -> List[Budget]:
+    """Get all budgets."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM budgets ORDER BY created_at DESC") as cursor:
+            rows = await cursor.fetchall()
+            budgets = []
+            for row in rows:
+                budgets.append(Budget(
+                    id=row["id"],
+                    name=row["name"],
+                    amount=row["amount"],
+                    color=row["color"],
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None
+                ))
+            return budgets
+
+
+async def update_budget(budget_id: int, budget: Budget) -> Optional[Budget]:
+    """Update a budget."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE budgets SET name = ?, amount = ?, color = ? WHERE id = ?",
+            (budget.name, budget.amount, budget.color, budget_id)
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return None
+        return await get_budget(budget_id)
+
+
+async def delete_budget(budget_id: int) -> bool:
+    """Delete a budget."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # First, unlink expenses from this budget
+        await db.execute("UPDATE expenses SET budget_id = NULL WHERE budget_id = ?", (budget_id,))
+        cursor = await db.execute("DELETE FROM budgets WHERE id = ?", (budget_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def get_budget_spent(budget_id: int) -> float:
+    """Get total spent amount for a budget."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE budget_id = ?",
+            (budget_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row["total"] if row else 0.0
+
+
+async def get_budget_with_stats(budget_id: int) -> Optional[dict]:
+    """Get budget with spent and remaining amounts."""
+    budget = await get_budget(budget_id)
+    if not budget:
+        return None
+    spent = await get_budget_spent(budget_id)
+    return {
+        "id": budget.id,
+        "name": budget.name,
+        "amount": budget.amount,
+        "spent": spent,
+        "remaining": budget.amount - spent,
+        "color": budget.color,
+        "created_at": budget.created_at.isoformat() if budget.created_at else None
+    }
+
+
+async def get_budgets_with_stats() -> List[dict]:
+    """Get all budgets with spent and remaining amounts."""
+    budgets = await get_budgets()
+    result = []
+    for budget in budgets:
+        if budget.id is not None:
+            spent = await get_budget_spent(budget.id)
+        else:
+            spent = 0.0
+        result.append({
+            "id": budget.id,
+            "name": budget.name,
+            "amount": budget.amount,
+            "spent": spent,
+            "remaining": budget.amount - spent,
+            "color": budget.color,
+            "created_at": budget.created_at.isoformat() if budget.created_at else None
+        })
+    return result
+
+
+async def get_expenses_by_budget(budget_id: int) -> List[Expense]:
+    """Get all expenses for a specific budget."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM expenses WHERE budget_id = ? ORDER BY created_at DESC",
+            (budget_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            expenses = []
+            for row in rows:
+                expenses.append(Expense(
+                    id=row["id"],
+                    amount=row["amount"],
+                    category=row["category"],
+                    note=row["note"],
+                    budget_id=row["budget_id"] if "budget_id" in row.keys() else None,
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None
+                ))
+            return expenses
