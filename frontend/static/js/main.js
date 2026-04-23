@@ -828,6 +828,10 @@
 
     async function renderTodoView() {
         const container = elements.todoContainer;
+        // 保存滚动位置
+        const scrollParent = container.parentElement;
+        const scrollTop = scrollParent ? scrollParent.scrollTop : 0;
+        
         container.innerHTML = '<div class="loading">加载中...</div>';
 
         const deadlineRegex = /截止\s*(\d{1,2})月(\d{1,2})日/;
@@ -876,6 +880,8 @@
                     <div class="empty-text">暂无待办事项</div>
                 </div>
             `;
+            // 恢复滚动位置
+            if (scrollParent) scrollParent.scrollTop = scrollTop;
             return;
         }
         
@@ -908,6 +914,8 @@
                     <div class="empty-text">暂无待办事项</div>
                 </div>
             `;
+            // 恢复滚动位置
+            if (scrollParent) scrollParent.scrollTop = scrollTop;
             return;
         }
 
@@ -1349,6 +1357,9 @@
             
             container.appendChild(groupEl);
         });
+        
+        // 恢复滚动位置
+        if (scrollParent) scrollParent.scrollTop = scrollTop;
     }
 
     // ============================================
