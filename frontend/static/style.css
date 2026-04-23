@@ -3752,6 +3752,15 @@ textarea {
     font-weight: 500;
 }
 
+.expense-item-budget {
+    font-size: var(--font-size-xs);
+    margin-left: var(--space-xs);
+}
+
+.expense-item-clickable {
+    cursor: pointer;
+}
+
 .expense-action-btn {
     padding: 4px 8px;
     border: none;
