@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=20260412-08">
+    <link rel="stylesheet" href="/static/style.css?v=20260412-09">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -495,10 +495,8 @@
                         <div class="expense-category-selector" id="expenseCategorySelector"></div>
                     </div>
                     <div class="form-group">
-                        <label for="expenseBudget">归属预算（可选）</label>
-                        <select id="expenseBudget" class="expense-budget-select">
-                            <option value="">不使用预算</option>
-                        </select>
+                        <label>归属预算（可选）</label>
+                        <div class="expense-budget-selector" id="expenseBudgetSelector"></div>
                     </div>
                     <div style="margin-top: var(--space-md); display: flex; gap: var(--space-sm);">
                         <button class="btn btn-primary" id="expenseSaveBtn" style="flex:1;">保存</button>
@@ -509,11 +507,11 @@
         </div>
     </div>
 
-    <script src="/static/js/core/state-elements.js?v=20260412-07"></script>
+    <script src="/static/js/core/state-elements.js?v=20260412-08"></script>
     <script src="/static/js/core/utils.js?v=20260412-04"></script>
     <script src="/static/js/core/api-toast.js?v=20260412-04"></script>
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
-    <script src="/static/js/main.js?v=20260412-18"></script>
+    <script src="/static/js/main.js?v=20260412-19"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {

@@ -6059,6 +6059,7 @@
     let selectedExpenseCategory = 'food';
     let editingExpenseId = null;
     let lastUsedBudgetId = null;
+    let selectedExpenseBudgetId = null;
     
     function openExpenseModal(expense = null) {
         if (!elements.expenseModal) return;
@@ -6069,32 +6070,46 @@
         elements.expenseNote.value = expense ? (expense.note || '') : '';
         selectedExpenseCategory = expense ? expense.category : 'food';
         
-        // Populate budget selector
-        if (elements.expenseBudget) {
-            elements.expenseBudget.innerHTML = '<option value="">不使用预算</option>';
-            state.budgets.forEach(budget => {
-                const option = document.createElement('option');
-                option.value = budget.id;
-                option.textContent = `${budget.name} (剩余 ¥${(budget.amount - budget.spent).toFixed(1)})`;
-                elements.expenseBudget.appendChild(option);
-            });
-            // Pre-select budget
-            if (expense && expense.budget_id) {
-                elements.expenseBudget.value = expense.budget_id;
-            } else if (lastUsedBudgetId) {
-                elements.expenseBudget.value = lastUsedBudgetId;
-            }
+        // Pre-select budget
+        if (expense && expense.budget_id) {
+            selectedExpenseBudgetId = expense.budget_id;
+        } else if (lastUsedBudgetId) {
+            selectedExpenseBudgetId = lastUsedBudgetId;
+        } else {
+            selectedExpenseBudgetId = null;
         }
+        
+        // Render category selector
+        renderExpenseCategorySelector();
+        // Render budget selector
+        renderExpenseBudgetSelector();
         
         // Update modal title
         elements.expenseModalTitle.textContent = expense ? '编辑支出' : '记一笔';        
-        // Render category selector
-        renderExpenseCategorySelector();
         
         elements.expenseModal.classList.remove('hidden');
         if (!expense) {
             elements.expenseAmount?.focus();
         }
+    }
+    
+    function renderExpenseBudgetSelector() {
+        if (!elements.expenseBudgetSelector) return;
+        
+        let html = `<button class="expense-budget-btn ${selectedExpenseBudgetId === null ? 'selected' : ''}" data-budget-id="">不使用预算</button>`;
+        state.budgets.forEach(budget => {
+            const remaining = budget.amount - budget.spent;
+            html += `<button class="expense-budget-btn ${selectedExpenseBudgetId === budget.id ? 'selected' : ''}" data-budget-id="${budget.id}" style="border-color: ${selectedExpenseBudgetId === budget.id ? budget.color : 'var(--border-color)'}; color: ${selectedExpenseBudgetId === budget.id ? budget.color : 'var(--text-secondary)'}">${escapeHtml(budget.name)} ¥${remaining.toFixed(1)}</button>`;
+        });
+        elements.expenseBudgetSelector.innerHTML = html;
+        
+        elements.expenseBudgetSelector.querySelectorAll('.expense-budget-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const budgetId = btn.dataset.budgetId;
+                selectedExpenseBudgetId = budgetId ? parseInt(budgetId) : null;
+                renderExpenseBudgetSelector();
+            });
+        });
     }
 
     function closeExpenseModal() {
@@ -6125,7 +6140,7 @@
         const expenseId = elements.expenseId?.value ? parseInt(elements.expenseId.value) : null;
         const amount = parseFloat(elements.expenseAmount.value);
         const note = elements.expenseNote.value.trim();
-        const budgetId = elements.expenseBudget?.value ? parseInt(elements.expenseBudget.value) : null;
+        const budgetId = selectedExpenseBudgetId;
         
         if (isNaN(amount) || amount <= 0) {
             showToast('请输入有效的金额');

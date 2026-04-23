@@ -217,7 +217,7 @@
     expenseAmount: document.getElementById('expenseAmount'),
     expenseNote: document.getElementById('expenseNote'),
     expenseCategorySelector: document.getElementById('expenseCategorySelector'),
-    expenseBudget: document.getElementById('expenseBudget'),
+    expenseBudgetSelector: document.getElementById('expenseBudgetSelector'),
     expenseSaveBtn: document.getElementById('expenseSaveBtn'),
     expenseCancelBtn: document.getElementById('expenseCancelBtn'),
     expenseId: document.getElementById('expenseId'),
