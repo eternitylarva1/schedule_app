@@ -60,6 +60,11 @@ async def create_event(request: web.Request) -> web.Response:
                 if time_result[1]:
                     data["end_time"] = time_result[1].isoformat()
 
+        # Get default reminder setting
+        default_reminder = await db.get_setting("default_task_reminder_enabled")
+        default_reminder_enabled = default_reminder and default_reminder.lower() == "true"
+        reminder_enabled = bool(data.get("reminder_enabled", default_reminder_enabled))
+
         # Create Event object
         event = Event(
             title=data.get("title", ""),
@@ -69,7 +74,7 @@ async def create_event(request: web.Request) -> web.Response:
             all_day=data.get("all_day", False),
             recurrence=data.get("recurrence", "none"),
             status=data.get("status", "pending"),
-            reminder_enabled=data.get("reminder_enabled", False),
+            reminder_enabled=reminder_enabled,
             reminder_minutes=data.get("reminder_minutes", 1),
             reminder_sent=data.get("reminder_sent", False),
         )
@@ -279,6 +284,10 @@ async def llm_create(request: web.Request) -> web.Response:
     deadline_label = _extract_deadline_label_from_text(user_text)
     has_explicit_clock_time = _has_explicit_clock_time_in_text(user_text)
 
+    # Get default reminder setting
+    default_reminder = await db.get_setting("default_task_reminder_enabled")
+    default_reminder_enabled = default_reminder and default_reminder.lower() == "true"
+
     for i, event_data in enumerate(events_data):
         title = event_data.get("title", user_text)
         start_time_str = event_data.get("start_time")
@@ -312,6 +321,7 @@ async def llm_create(request: web.Request) -> web.Response:
             all_day=False,
             recurrence="none",
             status="pending",
+            reminder_enabled=default_reminder_enabled,
         )
         
         try:
