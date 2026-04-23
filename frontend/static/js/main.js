@@ -566,7 +566,6 @@
             eventsDiv.className = 'week-cell-events';
             
             let prevEventEndMinutes = -1;
-            let prevEventCategory = null;
             
             dayEvents.forEach(event => {
                 const start = new Date(event.start_time);
@@ -636,7 +635,6 @@
                 
                 // Track for next iteration
                 prevEventEndMinutes = endMinutes;
-                prevEventCategory = event.category_id;
             });
             
             cell.appendChild(eventsDiv);
