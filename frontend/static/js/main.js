@@ -244,6 +244,10 @@
         deleteExpense,
         fetchExpenseStats,
         parseExpenseWithLLM,
+        fetchBudgets,
+        createBudget,
+        updateBudget,
+        deleteBudget,
         showToast,
         showConfirm,
     } = window.ScheduleAppCore;
@@ -2705,11 +2709,46 @@
     async function renderExpenseList() {
         const container = elements.notepadContainer;
         
-        // Fetch expenses and stats
-        const [expenses, stats] = await Promise.all([
+        // Fetch expenses, stats, and budgets
+        const [expenses, stats, budgets] = await Promise.all([
             fetchExpenses('month'),
-            fetchExpenseStats('month')
+            fetchExpenseStats('month'),
+            fetchBudgets()
         ]);
+        
+        // Render budget cards
+        const budgetCardsHtml = budgets.length > 0 ? `
+            <div class="budget-header">
+                <span class="budget-header-title">我的预算</span>
+                <button class="budget-add-btn" id="addBudgetBtn">+ 添加预算</button>
+            </div>
+            <div class="budget-cards">
+                ${budgets.map(budget => {
+                    const percent = budget.amount > 0 ? Math.min((budget.spent / budget.amount) * 100, 100) : 0;
+                    const isOver = budget.spent > budget.amount;
+                    return `
+                        <div class="budget-card-wrapper">
+                            <div class="budget-card" style="background: ${budget.color}" data-budget-id="${budget.id}">
+                                <div class="budget-card-name">${escapeHtml(budget.name)}</div>
+                                <div class="budget-card-remaining ${isOver ? 'over-budget' : ''}">
+                                    ¥${(budget.amount - budget.spent).toFixed(1)}
+                                </div>
+                                <div class="budget-card-progress">
+                                    <div class="budget-card-progress-bar" style="width: ${percent}%"></div>
+                                </div>
+                                <div class="budget-card-spent">已用 ¥${budget.spent.toFixed(1)} / ¥${budget.amount.toFixed(1)}</div>
+                            </div>
+                            <button class="budget-card-delete" data-budget-id="${budget.id}" title="删除">×</button>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        ` : `
+            <div class="budget-header">
+                <span class="budget-header-title">我的预算</span>
+                <button class="budget-add-btn" id="addBudgetBtn">+ 添加预算</button>
+            </div>
+        `;
         
         // Render stats summary
         const statsHtml = `
@@ -2734,13 +2773,14 @@
         `;
         
         if (!expenses || expenses.length === 0) {
-            container.innerHTML = statsHtml + `
+            container.innerHTML = budgetCardsHtml + statsHtml + `
                 <div class="empty-state">
                     <div class="empty-icon">💰</div>
                     <div class="empty-text">暂无记账记录</div>
                     <div class="empty-hint">输入如：中午吃面15块</div>
                 </div>
             `;
+            bindBudgetEvents();
             return;
         }
         
@@ -2752,7 +2792,7 @@
             grouped[dateKey].push(exp);
         });
         
-        let listHtml = statsHtml + '<div class="expense-list">';
+        let listHtml = budgetCardsHtml + statsHtml + '<div class="expense-list">';
         
         Object.keys(grouped).sort((a, b) => b.localeCompare(a)).forEach(dateKey => {
             const dayExpenses = grouped[dateKey];
@@ -2846,6 +2886,9 @@
                 }
             });
         });
+        
+        // Bind budget events
+        bindBudgetEvents();
     }
 
     function closeAllOpenSwipeItems(exceptEl = null) {
@@ -5526,6 +5569,12 @@
         elements.aiProviderCancelBtn?.addEventListener('click', closeAiProviderModal);
         elements.aiProviderSaveBtn?.addEventListener('click', saveAiProvider);
         
+        // Budget modal events
+        elements.budgetBackdrop?.addEventListener('click', closeBudgetModal);
+        elements.budgetClose?.addEventListener('click', closeBudgetModal);
+        elements.budgetCancelBtn?.addEventListener('click', closeBudgetModal);
+        elements.budgetSaveBtn?.addEventListener('click', handleBudgetSave);
+        
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
@@ -5735,6 +5784,85 @@
             }
         `;
         document.head.appendChild(style);
+    }
+
+    // ============================================
+    // Budget Functions
+    // ============================================
+    function bindBudgetEvents() {
+        const addBtn = document.getElementById('addBudgetBtn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => openBudgetModal());
+        }
+        
+        const deleteBtns = document.querySelectorAll('.budget-card-delete');
+        deleteBtns.forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const budgetId = parseInt(btn.dataset.budgetId);
+                const confirmed = await showConfirm('确定删除这个预算吗？关联的支出记录不会被删除。');
+                if (confirmed) {
+                    await deleteBudget(budgetId);
+                    showToast('已删除');
+                    await renderExpenseList();
+                }
+            });
+        });
+        
+        const budgetCards = document.querySelectorAll('.budget-card');
+        budgetCards.forEach(card => {
+            card.addEventListener('click', () => {
+                const budgetId = parseInt(card.dataset.budgetId);
+                const budget = state.budgets.find(b => b.id === budgetId);
+                if (budget) {
+                    openBudgetModal(budget);
+                }
+            });
+        });
+    }
+
+    function openBudgetModal(budget = null) {
+        if (!elements.budgetModal) return;
+        
+        elements.budgetModalTitle.textContent = budget ? '编辑预算' : '添加预算';
+        elements.budgetId.value = budget ? budget.id : '';
+        elements.budgetName.value = budget ? budget.name : '';
+        elements.budgetAmount.value = budget ? budget.amount : '';
+        elements.budgetColor.value = budget ? budget.color : '#3B82F6';
+        
+        elements.budgetModal.classList.remove('hidden');
+    }
+
+    function closeBudgetModal() {
+        if (!elements.budgetModal) return;
+        elements.budgetModal.classList.add('hidden');
+    }
+
+    async function handleBudgetSave() {
+        const id = elements.budgetId.value;
+        const name = elements.budgetName.value.trim();
+        const amount = parseFloat(elements.budgetAmount.value);
+        const color = elements.budgetColor.value;
+        
+        if (!name) {
+            showToast('请输入预算名称');
+            return;
+        }
+        if (isNaN(amount) || amount <= 0) {
+            showToast('请输入有效的金额');
+            return;
+        }
+        
+        if (id) {
+            await updateBudget(parseInt(id), { name, amount, color });
+            showToast('预算已更新');
+        } else {
+            await createBudget({ name, amount, color });
+            showToast('预算已创建');
+        }
+        
+        closeBudgetModal();
+        await renderExpenseList();
     }
 
     // ============================================

@@ -354,6 +354,38 @@
     }
 
     // ============================================
+    // Budgets API Functions
+    // ============================================
+    async function fetchBudgets() {
+        const data = await apiCall('budgets');
+        if (data) {
+            state.budgets = data;
+            return data;
+        }
+        return [];
+    }
+
+    async function createBudget(budgetData) {
+        return await apiCall('budgets', {
+            method: 'POST',
+            body: JSON.stringify(budgetData)
+        });
+    }
+
+    async function updateBudget(budgetId, budgetData) {
+        return await apiCall(`budgets/${budgetId}`, {
+            method: 'PUT',
+            body: JSON.stringify(budgetData)
+        });
+    }
+
+    async function deleteBudget(budgetId) {
+        return await apiCall(`budgets/${budgetId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // ============================================
     // Toast Notifications
     // ============================================
     let toastTimeout = null;
@@ -465,6 +497,10 @@
         deleteExpense,
         fetchExpenseStats,
         parseExpenseWithLLM,
+        fetchBudgets,
+        createBudget,
+        updateBudget,
+        deleteBudget,
         showToast,
         showConfirm,
     };

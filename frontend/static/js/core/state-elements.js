@@ -76,6 +76,7 @@
       { id: 'other', name: '其他', color: '#6B7280' }
     ],
     expenseStats: { total: 0, by_category: {} },
+    budgets: [],
     selectedNote: null,
     notepadSwipeGlobalBound: false,
   };
@@ -193,6 +194,18 @@
     reminderEnabled: document.getElementById('reminderEnabled'),
     pendingTimeCheck: document.getElementById('pendingTimeCheck'),
     saveDetailBtn: document.getElementById('saveDetailBtn'),
+    // Budget modal
+    budgetModal: document.getElementById('budgetModal'),
+    budgetBackdrop: document.getElementById('budgetBackdrop'),
+    budgetClose: document.getElementById('budgetClose'),
+    budgetModalTitle: document.getElementById('budgetModalTitle'),
+    budgetId: document.getElementById('budgetId'),
+    budgetName: document.getElementById('budgetName'),
+    budgetAmount: document.getElementById('budgetAmount'),
+    budgetColor: document.getElementById('budgetColor'),
+    budgetSaveBtn: document.getElementById('budgetSaveBtn'),
+    budgetCancelBtn: document.getElementById('budgetCancelBtn'),
+    budgetList: document.getElementById('budgetList'),
   };
 
   global.ScheduleAppCore = {
