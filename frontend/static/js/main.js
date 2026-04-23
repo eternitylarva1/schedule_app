@@ -5575,6 +5575,12 @@
         elements.budgetCancelBtn?.addEventListener('click', closeBudgetModal);
         elements.budgetSaveBtn?.addEventListener('click', handleBudgetSave);
         
+        // Expense modal events
+        elements.expenseBackdrop?.addEventListener('click', closeExpenseModal);
+        elements.expenseClose?.addEventListener('click', closeExpenseModal);
+        elements.expenseCancelBtn?.addEventListener('click', closeExpenseModal);
+        elements.expenseSaveBtn?.addEventListener('click', handleExpenseSave);
+        
         // Tab bar
         elements.tabDay.addEventListener('click', () => switchView('day'));
         elements.tabTodo.addEventListener('click', () => switchView('todo'));
@@ -5632,8 +5638,7 @@
         elements.contentAddBtn.addEventListener('click', async () => {
             if (state.currentView === 'notepad') {
                 if (state.notepadSubview === 'expense') {
-                    elements.notepadInput?.focus();
-                    showToast('在输入框描述消费，AI会帮你结构化记账');
+                    openExpenseModal();
                     return;
                 }
                 await showQuickNoteCreateModal();
@@ -5862,6 +5867,82 @@
         }
         
         closeBudgetModal();
+        await renderExpenseList();
+    }
+
+    // ============================================
+    // Expense Modal Functions
+    // ============================================
+    let selectedExpenseCategory = 'food';
+    
+    function openExpenseModal() {
+        if (!elements.expenseModal) return;
+        
+        elements.expenseAmount.value = '';
+        elements.expenseNote.value = '';
+        selectedExpenseCategory = 'food';
+        
+        // Populate budget selector
+        if (elements.expenseBudget) {
+            elements.expenseBudget.innerHTML = '<option value="">不使用预算</option>';
+            state.budgets.forEach(budget => {
+                const option = document.createElement('option');
+                option.value = budget.id;
+                option.textContent = `${budget.name} (剩余 ¥${(budget.amount - budget.spent).toFixed(1)})`;
+                elements.expenseBudget.appendChild(option);
+            });
+        }
+        
+        // Render category selector
+        renderExpenseCategorySelector();
+        
+        elements.expenseModal.classList.remove('hidden');
+        elements.expenseAmount?.focus();
+    }
+
+    function closeExpenseModal() {
+        if (!elements.expenseModal) return;
+        elements.expenseModal.classList.add('hidden');
+    }
+
+    function renderExpenseCategorySelector() {
+        if (!elements.expenseCategorySelector) return;
+        
+        elements.expenseCategorySelector.innerHTML = state.expenseCategories.map(cat => `
+            <button class="expense-category-btn ${cat.id === selectedExpenseCategory ? 'selected' : ''}" 
+                    data-category="${cat.id}" 
+                    style="border-color: ${cat.id === selectedExpenseCategory ? cat.color : 'var(--border-color)'}; color: ${cat.id === selectedExpenseCategory ? cat.color : 'var(--text-secondary)'}">
+                ${cat.name}
+            </button>
+        `).join('');
+        
+        elements.expenseCategorySelector.querySelectorAll('.expense-category-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedExpenseCategory = btn.dataset.category;
+                renderExpenseCategorySelector();
+            });
+        });
+    }
+
+    async function handleExpenseSave() {
+        const amount = parseFloat(elements.expenseAmount.value);
+        const note = elements.expenseNote.value.trim();
+        const budgetId = elements.expenseBudget?.value ? parseInt(elements.expenseBudget.value) : null;
+        
+        if (isNaN(amount) || amount <= 0) {
+            showToast('请输入有效的金额');
+            return;
+        }
+        
+        await createExpense({
+            amount,
+            category: selectedExpenseCategory,
+            note: note || '记账',
+            budget_id: budgetId
+        });
+        
+        showToast('已记录 ¥' + amount.toFixed(1));
+        closeExpenseModal();
         await renderExpenseList();
     }
 

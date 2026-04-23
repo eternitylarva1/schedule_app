@@ -2939,6 +2939,7 @@ textarea {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    padding-bottom: var(--content-bottom-clearance);
 }
 
 .month-cell {
@@ -3899,6 +3900,40 @@ textarea {
 .color-picker-hint {
     font-size: var(--font-size-xs);
     color: var(--text-muted);
+}
+
+/* Expense Modal Styles */
+.expense-category-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.expense-category-btn {
+    padding: 4px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.expense-category-btn.selected {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    background: var(--accent-primary-bg);
+}
+
+.expense-budget-select {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
 }
 
 /* ============================================

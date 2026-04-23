@@ -206,6 +206,16 @@
     budgetSaveBtn: document.getElementById('budgetSaveBtn'),
     budgetCancelBtn: document.getElementById('budgetCancelBtn'),
     budgetList: document.getElementById('budgetList'),
+    // Expense modal
+    expenseModal: document.getElementById('expenseModal'),
+    expenseBackdrop: document.getElementById('expenseBackdrop'),
+    expenseClose: document.getElementById('expenseClose'),
+    expenseAmount: document.getElementById('expenseAmount'),
+    expenseNote: document.getElementById('expenseNote'),
+    expenseCategorySelector: document.getElementById('expenseCategorySelector'),
+    expenseBudget: document.getElementById('expenseBudget'),
+    expenseSaveBtn: document.getElementById('expenseSaveBtn'),
+    expenseCancelBtn: document.getElementById('expenseCancelBtn'),
   };
 
   global.ScheduleAppCore = {
