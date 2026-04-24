@@ -1779,14 +1779,30 @@
             
             const parsed = await parseExpenseWithLLM(text);
             if (parsed) {
-                const result = await createExpense({
-                    amount: parsed.amount,
-                    category: parsed.category,
-                    note: parsed.note || text
-                });
-                if (result) {
-                    showToast(`已记录：${parsed.amount}元`);
+                // Handle both single expense and batch expenses
+                let expenses = [];
+                if (parsed.expenses && Array.isArray(parsed.expenses)) {
+                    expenses = parsed.expenses;
+                } else if (parsed.amount !== undefined) {
+                    expenses = [parsed];
+                }
+                
+                if (expenses.length > 0) {
+                    for (const exp of expenses) {
+                        await createExpense({
+                            amount: exp.amount,
+                            category: exp.category,
+                            note: exp.note || text
+                        });
+                    }
+                    if (expenses.length === 1) {
+                        showToast(`已记录：${expenses[0].amount}元`);
+                    } else {
+                        showToast(`已记录${expenses.length}笔支出`);
+                    }
                     await renderExpenseList();
+                } else {
+                    showToast('AI解析失败，请重试');
                 }
             } else {
                 showToast('AI解析失败，请重试');

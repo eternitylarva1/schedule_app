@@ -347,6 +347,16 @@
                                 <span class="switch-slider"></span>
                             </label>
                         </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <span class="settings-item-title">AI记账自动加入预算</span>
+                                <span class="settings-item-desc">自然语言记账时，AI自动判断并加入相关预算（需明确提及或高置信度匹配）</span>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="autoAssignBudgetFromLlm">
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
                         <div class="settings-item settings-item-textarea">
                             <div class="settings-item-info">
                                 <span class="settings-item-title">我的现状</span>
@@ -464,6 +474,32 @@
                             <span class="color-picker-hint">选择预算卡片颜色</span>
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label>周期</label>
+                        <div class="button-group" id="budgetPeriodGroup" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <button class="btn btn-sm period-btn" data-period="none">无周期</button>
+                            <button class="btn btn-sm period-btn" data-period="weekly">每周</button>
+                            <button class="btn btn-sm period-btn" data-period="monthly">每月</button>
+                            <button class="btn btn-sm period-btn" data-period="quarterly">每季度</button>
+                            <button class="btn btn-sm period-btn" data-period="yearly">每年</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="budgetAutoReset" style="width: 18px; height: 18px;">
+                            <span>周期结束时自动重置</span>
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="budgetRollover" style="width: 18px; height: 18px;">
+                            <span>结转未用金额到下期</span>
+                        </label>
+                    </div>
+                    <div class="form-group" id="budgetRolloverLimitGroup" style="display: none;">
+                        <label for="budgetRolloverLimit">结转上限（月数，0或留空表示不限）</label>
+                        <input type="number" id="budgetRolloverLimit" placeholder="2" min="0" style="width: 100px;">
+                    </div>
                     <div style="margin-top: var(--space-md); display: flex; gap: var(--space-sm);">
                         <button class="btn btn-primary" id="budgetSaveBtn" style="flex:1;">保存</button>
                         <button class="btn btn-secondary" id="budgetCancelBtn" style="flex:1;">取消</button>
@@ -497,6 +533,12 @@
                     <div class="form-group">
                         <label>归属预算（可选）</label>
                         <div class="expense-budget-selector" id="expenseBudgetSelector"></div>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="expenseIsTest" style="width: 18px; height: 18px;">
+                            <span>标记为测试</span>
+                        </label>
                     </div>
                     <div style="margin-top: var(--space-md); display: flex; gap: var(--space-sm);">
                         <button class="btn btn-primary" id="expenseSaveBtn" style="flex:1;">保存</button>

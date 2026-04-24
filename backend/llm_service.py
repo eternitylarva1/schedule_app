@@ -3,7 +3,7 @@ import aiohttp
 import asyncio
 import json
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 class LLMService:
@@ -472,44 +472,79 @@ class LLMService:
             "subtasks": []
         }
 
-    async def parse_expense(self, user_text: str) -> Optional[Dict[str, Any]]:
-        """Parse natural language expense into structured data.
+    async def parse_expense(self, user_text: str, budgets: List[Dict[str, Any]] = None, 
+                            auto_assign_budget: bool = False) -> Optional[List[Dict[str, Any]]]:
+        """Parse natural language expense(s) into structured data.
         
-        Returns dict with:
+        Args:
+            user_text: The user's natural language input
+            budgets: List of existing budgets with id, name, color
+            auto_assign_budget: Whether to auto-assign budget based on content
+            
+        Returns list of dicts, each with:
         - amount: float (金额)
         - category: str (分类：food/transport/shopping/other)
         - note: str (备注说明)
+        - budget_id: int or None (预算ID，仅在明确提及或高置信度匹配时返回)
+        
+        If user mentions multiple expenses (e.g., "买书50，吃饭20")，
+        returns multiple items in the list.
         """
         from datetime import datetime
         now = datetime.now()
         current_date = now.strftime("%Y年%m月%d日")
         current_time = now.strftime("%H:%M")
         
-        prompt = f"""用户想要记录一笔支出，请解析并返回JSON格式。
+        budgets_context = ""
+        if budgets:
+            budget_list = "\n".join([f"- {b['name']} (ID:{b['id']})" for b in budgets])
+            budgets_context = f"""
+现有预算列表：
+{budget_list}
+
+规则：
+- 如果用户明确提到某个预算名称（如'加入学习预算'、'从学习预算支出'），必须将该预算ID填入budget_id
+- 如果用户没有明确提到预算名称，且auto_assign_budget为false，则budget_id填null
+- 如果用户没有明确提到预算名称，但auto_assign_budget为true，只有当支出内容与某个预算【高度相关】时才填入该预算ID（【高度相关】意味着支出内容几乎是必然属于该预算，例如'买书'对于'学习'预算）
+- 如果没有高度相关的预算，budget_id填null
+- 判断高度相关时要严格，避免误判"""
+        else:
+            budgets_context = "\n\n（暂无预算列表，budget_id固定为null）"
+        
+        prompt = f"""用户想要记录支出，请解析并返回JSON格式。支持同时记录多笔支出，用逗号、顿号、或"和"连接多个支出描述。
 
 当前日期：{current_date} {current_time}
 用户输入：{user_text}
+{budgets_context}
 
-请从用户输入中提取：
-1. 金额（数字，单位元）
-2. 消费分类（只能选以下之一：food餐饮、transport交通、shopping购物、other其他）
-3. 备注说明（简短描述这笔支出是什么，去掉金额信息）
+请从用户输入中提取所有支出：
+- 每笔支出包含：金额（数字，单位元）、消费分类（food餐饮/transport交通/shopping购物/other其他）、备注说明
+- 如果用户一次说了多笔支出（如"买书50，吃饭20，喝奶茶15"），返回多笔
+- 如果只有一笔支出，也返回单元素列表
 
 返回JSON格式（只返回JSON，不要其他内容）：
 {{
-    "amount": 金额数字，如15.5,
-    "category": "food/transport/shopping/other之一",
-    "note": "简短备注，如'吃面'、'打车'"
+    "expenses": [
+        {{
+            "amount": 金额数字，如15.5,
+            "category": "food/transport/shopping/other之一",
+            "note": "简短备注，如'吃面'、'打车'",
+            "budget_id": 预算ID数字或null
+        }},
+        ... 更多支出
+    ]
 }}
 
 规则：
 - 金额必须提取或根据描述合理推断（如"吃了碗面"可以推断10-30元）
 - 分类推断：吃饭→food，打车/公交/地铁→transport，买东西/网购→shopping，其他→other
 - 备注只保留核心内容，去掉金额
-- 如果用户没明确金额，给一个合理推断值"""
+- 如果用户没明确金额，给一个合理推断值
+- 如果描述中包含多个独立支出项，必须全部解析出来
+- 每笔支出单独一个对象，不要合并"""
         
         response = await self.chat([
-            {"role": "system", "content": "你是一个记账助手，帮助用户将口语化的消费描述转换为结构化的记账数据。"},
+            {"role": "system", "content": "你是一个记账助手，帮助用户将口语化的消费描述转换为结构化的记账数据。支持批量记录多笔支出。"},
             {"role": "user", "content": prompt}
         ], temperature=0.3)
         
@@ -522,7 +557,11 @@ class LLMService:
             json_end = response.rfind('}') + 1
             if json_start >= 0 and json_end > json_start:
                 json_str = response[json_start:json_end]
-                return json.loads(json_str)
+                result = json.loads(json_str)
+                if isinstance(result, dict) and "expenses" in result:
+                    return result["expenses"]
+                elif isinstance(result, list):
+                    return result
         except json.JSONDecodeError:
             pass
         

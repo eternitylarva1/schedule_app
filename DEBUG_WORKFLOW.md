@@ -2,6 +2,20 @@
 
 > 目标：建立一套**可重复、可定位、可回归**的调试流程，覆盖本项目主要功能（日历/待办/规划/记事本/LLM/提醒）。
 
+## 目录
+
+1. [适用范围](#0-适用范围)
+2. [调试总流程](#1-调试总流程统一模板)
+3. [快速健康检查](#2-快速健康检查3-分钟)
+4. [分层调试清单](#3-分层调试清单定位根因)
+5. [功能级调试流程](#4-功能级调试流程按模块)
+6. [常见故障](#5-常见故障-直接处理策略)
+7. [回归测试矩阵](#6-回归测试矩阵每次修复后必跑)
+8. [标准收尾动作](#7-标准收尾动作修复完成后)
+9. [测试数据清理](#8-测试数据清理)
+10. [推荐调试顺序](#9-推荐调试顺序避免来回跳)
+11. [维护建议](#10-维护建议)
+
 ---
 
 ## 0. 适用范围
@@ -261,16 +275,32 @@ curl -s "http://localhost:8080/api/goals?horizon=short"
 
 ## 7. 标准收尾动作（修复完成后）
 
-1. **提交代码**（仅在确认修复后）
-2. **推送**
-3. **重启后端**
-4. **验活 API**：
+1. **清理测试数据**
+   - 方法见第 8 节「测试数据清理」
+2. **提交代码**（仅在确认修复后）
+3. **推送**
+4. **重启后端**
+5. **验活 API**：
 
 ```bash
 curl -s http://localhost:8080/api/events?date=today
 ```
 
-5. **发送更新通知（QQ）**
+6. **发送更新通知（QQ）**
+
+使用 NapCat API 发送私聊消息：
+
+```bash
+curl -s -X POST "http://127.0.0.1:3000/send_private_msg" \
+  -H "Content-Type: application/json" \
+  -d "{\"user_id\":2674610176,\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"[计划助手更新通知]\n- 修复点1\n- 修复点2\n- 验证结果\n\n仓库: https://github.com/eternitylarva1/schedule_app\"}}]}"
+```
+
+或使用项目上级目录的 `send_message.py`：
+
+```bash
+python ../send_message.py
+```
 
 通知模板：
 
@@ -285,7 +315,82 @@ curl -s http://localhost:8080/api/events?date=today
 
 ---
 
-## 8. 推荐调试顺序（避免来回跳）
+## 8. 测试数据清理
+
+### 8.1 手动清理（API）
+
+**一键清理所有测试数据**（关键词 + is_test 标记）：
+
+```bash
+curl -s -X POST http://localhost:8080/api/settings/cleanup_test_entries \
+  -H "Content-Type: application/json" \
+  -d "{}"
+```
+
+返回示例：
+```json
+{
+  "code": 0,
+  "data": {
+    "events_deleted": 1,
+    "notes_deleted": 0,
+    "expenses_deleted": 2,
+    "budgets_deleted": 1
+  }
+}
+```
+
+### 8.2 手动清理（数据库）
+
+```bash
+# 删除 events 中标题含测试关键词的记录
+curl -s -X POST http://localhost:8080/api/settings/cleanup_test_entries \
+  -H "Content-Type: application/json" -d "{}"
+```
+
+### 8.3 清理范围
+
+| 类型 | 关键词匹配 | is_test 标记 |
+|------|----------|--------------|
+| Events | ✅ 标题含：测试/test/debug/demo/样例/示例/tmp/临时 | ✅ |
+| Notes | ✅ 标题或内容含上述关键词 | - |
+| Expenses | ✅ 备注含上述关键词 | ✅ |
+| Budgets | - | ✅ |
+
+### 8.4 创建测试数据时标记
+
+调试时创建测试数据，建议加上 `is_test: true` 标记，方便后续精准清理：
+
+**Events：**
+```bash
+curl -s -X POST http://localhost:8080/api/events \
+  -H "Content-Type: application/json" \
+  -d '{"title":"测试日程","is_test":true,"skip_conflict_check":true}'
+```
+
+**Expenses：**
+```bash
+curl -s -X POST http://localhost:8080/api/expenses \
+  -H "Content-Type: application/json" \
+  -d '{"amount":1,"category":"food","note":"测试记账","is_test":true}'
+```
+
+**Budgets：**
+```bash
+curl -s -X POST http://localhost:8080/api/budgets \
+  -H "Content-Type: application/json" \
+  -d '{"name":"测试预算","amount":100,"is_test":true}'
+```
+
+### 8.5 前端测试标记
+
+前端界面也支持测试标记：
+- **记账弹窗**：勾选「标记为测试」
+- **预算编辑**：支持 `is_test` 字段
+
+---
+
+## 9. 推荐调试顺序（避免来回跳）
 
 **先活性，再接口，再状态，再UI**：
 
@@ -298,8 +403,8 @@ curl -s http://localhost:8080/api/events?date=today
 
 ---
 
-## 9. 维护建议
+## 10. 维护建议
 
-- 每次重构 UI/视图切换时，先跑“第 6 节回归矩阵”。
-- 给关键节点加“存在性断言”（如 `daySlider`）可提前暴露问题。
+- 每次重构 UI/视图切换时，先跑"第 6 节回归矩阵"。
+- 给关键节点加"存在性断言"（如 `daySlider`）可提前暴露问题。
 - 发生线上事故时，先按第 2 节做 3 分钟快检，再深挖。

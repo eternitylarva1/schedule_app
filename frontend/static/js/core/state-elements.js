@@ -178,6 +178,7 @@
     enableDragResize: document.getElementById('enableDragResize'),
     enableQQReminder: document.getElementById('enableQQReminder'),
     defaultTaskReminderEnabled: document.getElementById('defaultTaskReminderEnabled'),
+    autoAssignBudgetFromLlm: document.getElementById('autoAssignBudgetFromLlm'),
     userSelfDescription: document.getElementById('userSelfDescription'),
     appVersion: document.getElementById('appVersion'),
     // AI Providers
@@ -206,6 +207,11 @@
     budgetName: document.getElementById('budgetName'),
     budgetAmount: document.getElementById('budgetAmount'),
     budgetColor: document.getElementById('budgetColor'),
+    budgetPeriodGroup: document.getElementById('budgetPeriodGroup'),
+    budgetAutoReset: document.getElementById('budgetAutoReset'),
+    budgetRollover: document.getElementById('budgetRollover'),
+    budgetRolloverLimit: document.getElementById('budgetRolloverLimit'),
+    budgetRolloverLimitGroup: document.getElementById('budgetRolloverLimitGroup'),
     budgetSaveBtn: document.getElementById('budgetSaveBtn'),
     budgetCancelBtn: document.getElementById('budgetCancelBtn'),
     budgetList: document.getElementById('budgetList'),
@@ -221,6 +227,7 @@
     expenseSaveBtn: document.getElementById('expenseSaveBtn'),
     expenseCancelBtn: document.getElementById('expenseCancelBtn'),
     expenseId: document.getElementById('expenseId'),
+    expenseIsTest: document.getElementById('expenseIsTest'),
   };
 
   global.ScheduleAppCore = {

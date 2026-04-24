@@ -77,6 +77,7 @@ async def create_event(request: web.Request) -> web.Response:
             reminder_enabled=reminder_enabled,
             reminder_minutes=data.get("reminder_minutes", 1),
             reminder_sent=data.get("reminder_sent", False),
+            is_test=bool(data.get("is_test", False)),
         )
 
         # Idempotency guard: if exact same pending event exists, return it directly
@@ -1174,6 +1175,7 @@ async def create_expense(request: web.Request) -> web.Response:
             category=data.get("category", "other"),
             note=data.get("note", "").strip(),
             budget_id=data.get("budget_id"),
+            is_test=bool(data.get("is_test", False)),
         )
         if expense.amount <= 0:
             return error_response("金额必须大于0")
@@ -1204,6 +1206,8 @@ async def update_expense(request: web.Request) -> web.Response:
             amount=float(data.get("amount", existing.amount)),
             category=data.get("category", existing.category),
             note=data.get("note", existing.note).strip(),
+            budget_id=data.get("budget_id", existing.budget_id),
+            is_test=data.get("is_test", existing.is_test),
         )
         updated = await db.update_expense(expense_id, expense)
         if not updated:
@@ -1253,6 +1257,18 @@ async def get_budgets(request: web.Request) -> web.Response:
         return error_response(f"获取预算失败: {str(e)}")
 
 
+async def get_budget(request: web.Request) -> web.Response:
+    """GET /api/budgets/{id} - get a single budget with spent/remaining stats."""
+    budget_id = int(request.match_info["id"])
+    try:
+        budget_with_stats = await db.get_budget_with_stats(budget_id)
+        if budget_with_stats is None:
+            return error_response("预算不存在", code=404)
+        return json_response(budget_with_stats)
+    except Exception as e:
+        return error_response(f"获取预算失败: {str(e)}")
+
+
 async def create_budget(request: web.Request) -> web.Response:
     """POST /api/budgets - create a new budget."""
     try:
@@ -1266,10 +1282,22 @@ async def create_budget(request: web.Request) -> web.Response:
         return error_response("无效的JSON数据")
 
     try:
+        # Parse period_start if provided
+        period_start = None
+        if data.get("period_start"):
+            from datetime import datetime
+            period_start = datetime.fromisoformat(data.get("period_start").replace("Z", "+00:00"))
+        
         budget = Budget(
             name=(data.get("name", "") or "").strip(),
             amount=float(data.get("amount", 0)),
             color=data.get("color", "#3B82F6"),
+            period=data.get("period", "none"),
+            auto_reset=bool(data.get("auto_reset", False)),
+            rollover=bool(data.get("rollover", False)),
+            rollover_limit=data.get("rollover_limit"),
+            period_start=period_start,
+            is_test=bool(data.get("is_test", False)),
         )
         if not budget.name:
             return error_response("预算名称不能为空")
@@ -1298,10 +1326,23 @@ async def update_budget(request: web.Request) -> web.Response:
         existing = await db.get_budget(budget_id)
         if not existing:
             return error_response("预算不存在", code=404)
+        
+        # Parse period_start if provided
+        period_start = existing.period_start
+        if "period_start" in data and data.get("period_start"):
+            from datetime import datetime
+            period_start = datetime.fromisoformat(data.get("period_start").replace("Z", "+00:00"))
+        
         budget = Budget(
             name=(data.get("name", existing.name) or "").strip(),
             amount=float(data.get("amount", existing.amount)),
             color=data.get("color", existing.color),
+            period=data.get("period", existing.period),
+            auto_reset=bool(data.get("auto_reset", existing.auto_reset)),
+            rollover=bool(data.get("rollover", existing.rollover)),
+            rollover_limit=data.get("rollover_limit") if "rollover_limit" in data else existing.rollover_limit,
+            rollover_amount=data.get("rollover_amount", existing.rollover_amount),
+            period_start=period_start,
         )
         if not budget.name:
             return error_response("预算名称不能为空")
@@ -1336,6 +1377,58 @@ async def get_budget_expenses(request: web.Request) -> web.Response:
         return json_response([e.to_dict() for e in expenses])
     except Exception as e:
         return error_response(f"获取预算支出失败: {str(e)}")
+
+
+# ============================================
+# Budget Templates API
+# ============================================
+
+async def get_budget_templates(request: web.Request) -> web.Response:
+    """GET /api/budget-templates - list all budget templates."""
+    try:
+        templates = await db.get_budget_templates()
+        return json_response([t.to_dict() for t in templates])
+    except Exception as e:
+        return error_response(f"获取预算模板失败: {str(e)}")
+
+
+async def create_budget_template(request: web.Request) -> web.Response:
+    """POST /api/budget-templates - create a new budget template."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        template = db.BudgetTemplate(
+            name=(data.get("name", "") or "").strip(),
+            amount=float(data.get("amount", 0)),
+            color=data.get("color", "#3B82F6"),
+            period=data.get("period", "none"),
+            auto_reset=bool(data.get("auto_reset", False)),
+            rollover=bool(data.get("rollover", False)),
+            rollover_limit=data.get("rollover_limit"),
+        )
+        if not template.name:
+            return error_response("模板名称不能为空")
+        if template.amount <= 0:
+            return error_response("模板金额必须大于0")
+        created = await db.create_budget_template(template)
+        return json_response(created.to_dict())
+    except Exception as e:
+        return error_response(f"创建预算模板失败: {str(e)}")
+
+
+async def delete_budget_template(request: web.Request) -> web.Response:
+    """DELETE /api/budget-templates/{id} - delete a budget template."""
+    template_id = int(request.match_info["id"])
+    try:
+        success = await db.delete_budget_template(template_id)
+        if success:
+            return json_response({"deleted": True})
+        return error_response("模板不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除预算模板失败: {str(e)}")
 
 
 # ============================================
@@ -1495,7 +1588,7 @@ async def llm_parse_expense(request: web.Request) -> web.Response:
     """POST /api/llm/parse_expense - parse natural language expense into structured data.
     
     Body: {"text": "中午吃面15块"}
-    Returns: {"amount": 15, "category": "food", "note": "吃面"}
+    Returns: {"amount": 15, "category": "food", "note": "吃面", "budget_id": null or 1}
     """
     try:
         body_bytes = await request.read()
@@ -1514,13 +1607,52 @@ async def llm_parse_expense(request: web.Request) -> web.Response:
     if not user_text:
         return error_response("输入不能为空")
     
+    # Get existing budgets for context
+    budgets = await db.get_budgets_with_stats()
+    budget_list = [{"id": b["id"], "name": b["name"], "color": b["color"]} for b in budgets if b.get("id")]
+    
+    # Get auto_assign setting
+    auto_assign = await db.get_setting("auto_assign_budget_from_llm")
+    auto_assign_budget = bool(auto_assign and auto_assign.lower() == "true")
+    
     from .llm_service import llm_service
     
-    result = await llm_service.parse_expense(user_text)
-    if result:
-        return json_response(result)
-    else:
+    parsed = await llm_service.parse_expense(user_text, budgets=budget_list, auto_assign_budget=auto_assign_budget)
+    if not parsed:
         return error_response("AI解析失败，请检查网络连接或稍后重试")
+    
+    # Ensure it's a list
+    if isinstance(parsed, dict) and "expenses" in parsed:
+        expenses_list = parsed["expenses"]
+    elif isinstance(parsed, list):
+        expenses_list = parsed
+    else:
+        expenses_list = [parsed]
+    
+    # Create each expense
+    created_expenses = []
+    for exp_data in expenses_list:
+        try:
+            expense = Expense(
+                amount=float(exp_data.get("amount", 0)),
+                category=exp_data.get("category", "other"),
+                note=exp_data.get("note", "").strip() or "记账",
+                budget_id=exp_data.get("budget_id"),
+                is_test=bool(exp_data.get("is_test", False)),
+            )
+            if expense.amount > 0:
+                created = await db.create_expense(expense)
+                created_expenses.append(created.to_dict())
+        except (ValueError, TypeError):
+            continue
+    
+    if not created_expenses:
+        return error_response("没有有效的支出记录")
+    
+    return json_response({
+        "count": len(created_expenses),
+        "expenses": created_expenses
+    })
 
 
 def _parse_datetime(value: Any):
@@ -1687,6 +1819,11 @@ def setup_routes(app: web.Application) -> None:
     # Budgets endpoints
     app.router.add_get("/api/budgets", get_budgets)
     app.router.add_post("/api/budgets", create_budget)
+    app.router.add_get("/api/budgets/{id}", get_budget)
     app.router.add_put("/api/budgets/{id}", update_budget)
     app.router.add_delete("/api/budgets/{id}", delete_budget)
     app.router.add_get("/api/budgets/{id}/expenses", get_budget_expenses)
+    # Budget templates endpoints
+    app.router.add_get("/api/budget-templates", get_budget_templates)
+    app.router.add_post("/api/budget-templates", create_budget_template)
+    app.router.add_delete("/api/budget-templates/{id}", delete_budget_template)

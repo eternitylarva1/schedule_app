@@ -20,6 +20,7 @@ class Event:
     reminder_enabled: bool = False
     reminder_minutes: int = 1
     reminder_sent: bool = False
+    is_test: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -44,6 +45,8 @@ class Event:
             d['reminder_sent'] = bool(d['reminder_sent'])
         if 'reminder_minutes' in d and d['reminder_minutes'] is not None:
             d['reminder_minutes'] = int(d['reminder_minutes'])
+        if 'is_test' in d:
+            d['is_test'] = bool(d['is_test'])
         # Remove None values for optional fields
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
@@ -190,6 +193,7 @@ class Expense:
     category: str = "other"
     note: str = ""
     budget_id: int | None = None
+    is_test: bool = False
     created_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -243,6 +247,18 @@ class Budget:
     name: str = ""
     amount: float = 0.0
     color: str = "#3B82F6"
+    # 周期设置
+    period: str = "none"  # none/monthly/weekly/quarterly/yearly
+    # 自动重置：周期结束时自动重置已用金额
+    auto_reset: bool = False
+    # 结转设置
+    rollover: bool = False  # 是否启用结转
+    rollover_limit: int | None = None  # 结转上限（月数），None表示无限
+    rollover_amount: float = 0.0  # 当前结转金额
+    # 周期开始日期（用于计算是否该重置）
+    period_start: datetime | None = None
+    # 测试标记
+    is_test: bool = False
     created_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -250,6 +266,8 @@ class Budget:
         d = asdict(self)
         if d.get("created_at") and isinstance(d["created_at"], datetime):
             d["created_at"] = d["created_at"].isoformat()
+        if d.get("period_start") and isinstance(d["period_start"], datetime):
+            d["period_start"] = d["period_start"].isoformat()
         return d
 
     @classmethod
@@ -257,7 +275,11 @@ class Budget:
         """Create Budget from dictionary."""
         if d.get("created_at") and isinstance(d.get("created_at"), str):
             d["created_at"] = datetime.fromisoformat(d["created_at"])
+        if d.get("period_start") and isinstance(d.get("period_start"), str):
+            d["period_start"] = datetime.fromisoformat(d["period_start"])
         if "amount" in d and d["amount"] is not None:
             d["amount"] = float(d["amount"])
+        if "rollover_amount" in d and d["rollover_amount"] is not None:
+            d["rollover_amount"] = float(d["rollover_amount"])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)

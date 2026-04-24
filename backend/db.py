@@ -1,6 +1,7 @@
 """SQLite database operations."""
 import aiosqlite
-from datetime import datetime
+from dataclasses import dataclass, asdict
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -99,6 +100,11 @@ async def init_db() -> None:
         # Link events to goals (optional)
         try:
             await db.execute("ALTER TABLE events ADD COLUMN goal_id INTEGER")
+        except Exception:
+            pass
+        # Event is_test flag
+        try:
+            await db.execute("ALTER TABLE events ADD COLUMN is_test INTEGER DEFAULT 0")
         except Exception:
             pass
         
@@ -207,6 +213,55 @@ async def init_db() -> None:
         except Exception:
             pass
         
+        # Budget migration: add period and rollover fields
+        try:
+            await db.execute("ALTER TABLE budgets ADD COLUMN period TEXT DEFAULT 'none'")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE budgets ADD COLUMN auto_reset INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE budgets ADD COLUMN rollover INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE budgets ADD COLUMN rollover_limit INTEGER")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE budgets ADD COLUMN rollover_amount REAL DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE budgets ADD COLUMN period_start TEXT")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE budgets ADD COLUMN is_test INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE expenses ADD COLUMN is_test INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        
+        # Budget templates table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS budget_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                amount REAL NOT NULL DEFAULT 0,
+                color TEXT DEFAULT '#3B82F6',
+                period TEXT DEFAULT 'none',
+                auto_reset INTEGER DEFAULT 0,
+                rollover INTEGER DEFAULT 0,
+                rollover_limit INTEGER,
+                created_at TEXT
+            )
+        """)
+        
         await db.commit()
 
 
@@ -216,8 +271,8 @@ async def create_event(event: Event) -> Event:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """INSERT INTO events 
-               (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at, reminder_enabled, reminder_minutes, reminder_sent)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at, reminder_enabled, reminder_minutes, reminder_sent, is_test)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event.title,
                 event.start_time.isoformat() if event.start_time else None,
@@ -231,6 +286,7 @@ async def create_event(event: Event) -> Event:
                 1 if event.reminder_enabled else 0,
                 event.reminder_minutes,
                 1 if event.reminder_sent else 0,
+                1 if event.is_test else 0,
             ),
         )
         await db.commit()
@@ -325,6 +381,7 @@ async def get_events(date_filter: str = "today") -> List[Event]:
                 rows = await cursor.fetchall()
         events = []
         for row in rows:
+            row_keys = list(row.keys())
             events.append(Event(
                 id=row["id"],
                 title=row["title"],
@@ -336,9 +393,10 @@ async def get_events(date_filter: str = "today") -> List[Event]:
                 status=row["status"],
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
-                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
-                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
-                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
+                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row_keys and row["reminder_enabled"] is not None else False,
+                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row_keys and row["reminder_minutes"] is not None else 1,
+                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row_keys and row["reminder_sent"] is not None else False,
+                is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
             ))
     return events
 
@@ -351,6 +409,7 @@ async def get_event(event_id: int) -> Optional[Event]:
             row = await cursor.fetchone()
             if not row:
                 return None
+            row_keys = list(row.keys())
             return Event(
                 id=row["id"],
                 title=row["title"],
@@ -362,9 +421,10 @@ async def get_event(event_id: int) -> Optional[Event]:
                 status=row["status"],
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
-                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
-                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
-                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
+                reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row_keys and row["reminder_enabled"] is not None else False,
+                reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row_keys and row["reminder_minutes"] is not None else 1,
+                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row_keys and row["reminder_sent"] is not None else False,
+                is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
             )
 
 
@@ -376,7 +436,7 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
             """UPDATE events SET 
                title = ?, start_time = ?, end_time = ?, category_id = ?, 
                all_day = ?, recurrence = ?, status = ?, updated_at = ?,
-               reminder_enabled = ?, reminder_minutes = ?, reminder_sent = ?
+               reminder_enabled = ?, reminder_minutes = ?, reminder_sent = ?, is_test = ?
                WHERE id = ?""",
             (
                 event.title,
@@ -390,6 +450,7 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
                 1 if event.reminder_enabled else 0,
                 event.reminder_minutes,
                 1 if event.reminder_sent else 0,
+                1 if event.is_test else 0,
                 event_id,
             ),
         )
@@ -1218,9 +1279,10 @@ async def create_expense(expense: Expense) -> Expense:
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            """INSERT INTO expenses (amount, category, note, budget_id, created_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (expense.amount, expense.category, expense.note, expense.budget_id, now),
+            """INSERT INTO expenses (amount, category, note, budget_id, is_test, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (expense.amount, expense.category, expense.note, expense.budget_id, 
+             1 if expense.is_test else 0, now),
         )
         await db.commit()
         expense.id = cursor.lastrowid
@@ -1276,11 +1338,14 @@ async def get_expenses(date_filter: str = "month") -> List[Expense]:
             rows = await cursor.fetchall()
             expenses = []
             for row in rows:
+                row_keys = list(row.keys())
                 expenses.append(Expense(
                     id=row["id"],
                     amount=float(row["amount"]) if row["amount"] else 0.0,
                     category=row["category"] or "other",
                     note=row["note"] or "",
+                    budget_id=row["budget_id"] if "budget_id" in row_keys else None,
+                    is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 ))
     return expenses
@@ -1294,11 +1359,14 @@ async def get_expense(expense_id: int) -> Optional[Expense]:
             row = await cursor.fetchone()
             if not row:
                 return None
+            row_keys = list(row.keys())
             return Expense(
                 id=row["id"],
                 amount=float(row["amount"]) if row["amount"] else 0.0,
                 category=row["category"] or "other",
                 note=row["note"] or "",
+                budget_id=row["budget_id"] if "budget_id" in row_keys else None,
+                is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
             )
 
@@ -1307,8 +1375,8 @@ async def update_expense(expense_id: int, expense: Expense) -> Optional[Expense]
     """Update an existing expense."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE expenses SET amount = ?, category = ?, note = ? WHERE id = ?",
-            (expense.amount, expense.category, expense.note, expense_id),
+            "UPDATE expenses SET amount = ?, category = ?, note = ?, budget_id = ?, is_test = ? WHERE id = ?",
+            (expense.amount, expense.category, expense.note, expense.budget_id, 1 if expense.is_test else 0, expense_id),
         )
         await db.commit()
     return await get_expense(expense_id)
@@ -1565,16 +1633,21 @@ async def delete_note_group(group_id: int) -> bool:
 
 
 async def cleanup_test_entries() -> dict[str, int]:
-    """Delete test/demo/debug entries across events, notes and expenses."""
+    """Delete test/demo/debug entries across events, notes, expenses and budgets.
+    
+    Cleans by:
+    1. Keyword matching (测试/test/debug/demo/etc) in title/content
+    2. is_test flag for events, expenses and budgets
+    """
     patterns = [
         "%测试%", "%test%", "%debug%", "%demo%", "%样例%", "%示例%", "%tmp%", "%临时%"
     ]
 
     async with aiosqlite.connect(DB_PATH) as db:
-        # Events by title
-        event_where = " OR ".join(["LOWER(title) LIKE LOWER(?)" for _ in patterns])
+        # Events by title OR is_test flag
+        event_keyword_where = " OR ".join(["LOWER(title) LIKE LOWER(?)" for _ in patterns])
         event_result = await db.execute(
-            f"DELETE FROM events WHERE {event_where}",
+            f"DELETE FROM events WHERE ({event_keyword_where}) OR is_test = 1",
             patterns,
         )
 
@@ -1586,11 +1659,16 @@ async def cleanup_test_entries() -> dict[str, int]:
             patterns + patterns,
         )
 
-        # Expenses by note
-        expense_where = " OR ".join(["LOWER(note) LIKE LOWER(?)" for _ in patterns])
+        # Expenses by note OR is_test flag
+        expense_keyword_where = " OR ".join(["LOWER(note) LIKE LOWER(?)" for _ in patterns])
         expense_result = await db.execute(
-            f"DELETE FROM expenses WHERE {expense_where}",
+            f"DELETE FROM expenses WHERE ({expense_keyword_where}) OR is_test = 1",
             patterns,
+        )
+
+        # Budgets by is_test flag
+        budget_result = await db.execute(
+            "DELETE FROM budgets WHERE is_test = 1",
         )
 
         await db.commit()
@@ -1599,6 +1677,7 @@ async def cleanup_test_entries() -> dict[str, int]:
         "events_deleted": event_result.rowcount or 0,
         "notes_deleted": note_result.rowcount or 0,
         "expenses_deleted": expense_result.rowcount or 0,
+        "budgets_deleted": budget_result.rowcount or 0,
     }
 
 
@@ -1607,10 +1686,15 @@ async def cleanup_test_entries() -> dict[str, int]:
 async def create_budget(budget: Budget) -> Budget:
     """Create a new budget."""
     now = datetime.now().isoformat()
+    period_start = budget.period_start.isoformat() if budget.period_start else None
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "INSERT INTO budgets (name, amount, color, created_at) VALUES (?, ?, ?, ?)",
-            (budget.name, budget.amount, budget.color, now)
+            """INSERT INTO budgets (name, amount, color, period, auto_reset, rollover, rollover_limit, rollover_amount, period_start, is_test, created_at) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (budget.name, budget.amount, budget.color, budget.period, 
+             1 if budget.auto_reset else 0, 1 if budget.rollover else 0,
+             budget.rollover_limit, budget.rollover_amount, period_start, 
+             1 if budget.is_test else 0, now)
         )
         await db.commit()
         budget.id = cursor.lastrowid
@@ -1626,11 +1710,25 @@ async def get_budget(budget_id: int) -> Optional[Budget]:
             row = await cursor.fetchone()
             if not row:
                 return None
+            row_keys = list(row.keys())
+            period=row["period"] if "period" in row_keys else "none"
+            auto_reset=bool(row["auto_reset"]) if "auto_reset" in row_keys and row["auto_reset"] is not None else False
+            rollover=bool(row["rollover"]) if "rollover" in row_keys and row["rollover"] is not None else False
+            rollover_limit=row["rollover_limit"] if "rollover_limit" in row_keys and row["rollover_limit"] is not None else None
+            rollover_amount=row["rollover_amount"] if "rollover_amount" in row_keys and row["rollover_amount"] is not None else 0.0
+            period_start=datetime.fromisoformat(row["period_start"]) if "period_start" in row_keys and row["period_start"] else None
             return Budget(
                 id=row["id"],
                 name=row["name"],
                 amount=row["amount"],
                 color=row["color"],
+                period=period,
+                auto_reset=auto_reset,
+                rollover=rollover,
+                rollover_limit=rollover_limit,
+                rollover_amount=rollover_amount,
+                period_start=period_start,
+                is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None
             )
 
@@ -1643,11 +1741,25 @@ async def get_budgets() -> List[Budget]:
             rows = await cursor.fetchall()
             budgets = []
             for row in rows:
+                row_keys = list(row.keys())
+                period=row["period"] if "period" in row_keys else "none"
+                auto_reset=bool(row["auto_reset"]) if "auto_reset" in row_keys and row["auto_reset"] is not None else False
+                rollover=bool(row["rollover"]) if "rollover" in row_keys and row["rollover"] is not None else False
+                rollover_limit=row["rollover_limit"] if "rollover_limit" in row_keys and row["rollover_limit"] is not None else None
+                rollover_amount=row["rollover_amount"] if "rollover_amount" in row_keys and row["rollover_amount"] is not None else 0.0
+                period_start=datetime.fromisoformat(row["period_start"]) if "period_start" in row_keys and row["period_start"] else None
                 budgets.append(Budget(
                     id=row["id"],
                     name=row["name"],
                     amount=row["amount"],
                     color=row["color"],
+                    period=period,
+                    auto_reset=auto_reset,
+                    rollover=rollover,
+                    rollover_limit=rollover_limit,
+                    rollover_amount=rollover_amount,
+                    period_start=period_start,
+                    is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None
                 ))
             return budgets
@@ -1655,10 +1767,15 @@ async def get_budgets() -> List[Budget]:
 
 async def update_budget(budget_id: int, budget: Budget) -> Optional[Budget]:
     """Update a budget."""
+    period_start = budget.period_start.isoformat() if budget.period_start else None
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            "UPDATE budgets SET name = ?, amount = ?, color = ? WHERE id = ?",
-            (budget.name, budget.amount, budget.color, budget_id)
+            """UPDATE budgets SET name = ?, amount = ?, color = ?, period = ?, auto_reset = ?, 
+               rollover = ?, rollover_limit = ?, rollover_amount = ?, period_start = ?, is_test = ? WHERE id = ?""",
+            (budget.name, budget.amount, budget.color, budget.period,
+             1 if budget.auto_reset else 0, 1 if budget.rollover else 0,
+             budget.rollover_limit, budget.rollover_amount, period_start, 
+             1 if budget.is_test else 0, budget_id)
         )
         await db.commit()
         if cursor.rowcount == 0:
@@ -1688,39 +1805,146 @@ async def get_budget_spent(budget_id: int) -> float:
             return row["total"] if row else 0.0
 
 
-async def get_budget_with_stats(budget_id: int) -> Optional[dict]:
-    """Get budget with spent and remaining amounts."""
+def get_next_period_start(period_start: datetime, period: str) -> datetime:
+    """Calculate the start of the next period."""
+    if period == "weekly":
+        # Next week starts 7 days later
+        return period_start + timedelta(weeks=1)
+    elif period == "monthly":
+        # Next month: add one month
+        month = period_start.month
+        year = period_start.year
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+        # Keep the same day, but cap at the number of days in the new month
+        day = min(period_start.day, [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1])
+        return datetime(year, month, day, period_start.hour, period_start.minute, period_start.second)
+    elif period == "quarterly":
+        # Next quarter: add 3 months
+        month = period_start.month
+        year = period_start.year
+        month += 3
+        if month > 12:
+            month -= 12
+            year += 1
+        day = min(period_start.day, [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1])
+        return datetime(year, month, day, period_start.hour, period_start.minute, period_start.second)
+    elif period == "yearly":
+        # Next year
+        return datetime(period_start.year + 1, period_start.month, period_start.day, period_start.hour, period_start.minute, period_start.second)
+    else:
+        # No period or unknown period - no automatic reset
+        return period_start
+
+
+async def check_and_reset_budget_period(budget_id: int) -> Optional[Budget]:
+    """Check if budget period has ended and perform reset if needed.
+    
+    Returns the updated budget, or None if budget doesn't exist.
+    """
     budget = await get_budget(budget_id)
     if not budget:
         return None
+    
+    # Skip if no period is set
+    if not budget.period or budget.period == "none":
+        return budget
+    
+    # If no period_start, set it to now
+    if not budget.period_start:
+        budget.period_start = datetime.now()
+        return await update_budget(budget_id, budget)
+    
+    # Calculate next period start
+    next_start = get_next_period_start(budget.period_start, budget.period)
+    now = datetime.now()
+    
+    # If current time is still within the period, nothing to do
+    if now < next_start:
+        return budget
+    
+    # Period has ended - need to reset
+    # Get current spent
     spent = await get_budget_spent(budget_id)
+    remaining = budget.amount - spent
+    
+    # Handle rollover
+    if budget.rollover and remaining > 0:
+        # Add remaining to rollover_amount
+        new_rollover = budget.rollover_amount + remaining
+        # Apply rollover limit if set
+        if budget.rollover_limit is not None:
+            # Calculate max rollover based on limit (e.g., 2 months worth)
+            max_rollover = budget.amount * budget.rollover_limit
+            new_rollover = min(new_rollover, max_rollover)
+        budget.rollover_amount = new_rollover
+    
+    # Start new period
+    budget.period_start = next_start
+    
+    # Save changes
+    return await update_budget(budget_id, budget)
+
+
+async def get_budget_with_stats(budget_id: int) -> Optional[dict]:
+    """Get budget with spent and remaining amounts. Auto-resets if period has ended."""
+    # Check and perform period reset if needed
+    budget = await check_and_reset_budget_period(budget_id)
+    if not budget:
+        return None
+    spent = await get_budget_spent(budget_id)
+    # Effective amount includes rollover
+    effective_amount = budget.amount + budget.rollover_amount
     return {
         "id": budget.id,
         "name": budget.name,
         "amount": budget.amount,
+        "effective_amount": effective_amount,
         "spent": spent,
-        "remaining": budget.amount - spent,
+        "remaining": effective_amount - spent,
         "color": budget.color,
+        "period": budget.period,
+        "auto_reset": budget.auto_reset,
+        "rollover": budget.rollover,
+        "rollover_limit": budget.rollover_limit,
+        "rollover_amount": budget.rollover_amount,
+        "period_start": budget.period_start.isoformat() if budget.period_start else None,
         "created_at": budget.created_at.isoformat() if budget.created_at else None
     }
 
 
 async def get_budgets_with_stats() -> List[dict]:
-    """Get all budgets with spent and remaining amounts."""
+    """Get all budgets with spent and remaining amounts. Auto-resets periods if needed."""
     budgets = await get_budgets()
     result = []
     for budget in budgets:
+        # Check and perform period reset if needed
         if budget.id is not None:
+            reset_budget = await check_and_reset_budget_period(budget.id)
+            if reset_budget is None:
+                continue  # Skip if budget was deleted
+            budget = reset_budget
             spent = await get_budget_spent(budget.id)
         else:
             spent = 0.0
+        # Effective amount includes rollover
+        effective_amount = budget.amount + budget.rollover_amount
         result.append({
             "id": budget.id,
             "name": budget.name,
             "amount": budget.amount,
+            "effective_amount": effective_amount,
             "spent": spent,
-            "remaining": budget.amount - spent,
+            "remaining": effective_amount - spent,
             "color": budget.color,
+            "period": budget.period,
+            "auto_reset": budget.auto_reset,
+            "rollover": budget.rollover,
+            "rollover_limit": budget.rollover_limit,
+            "rollover_amount": budget.rollover_amount,
+            "period_start": budget.period_start.isoformat() if budget.period_start else None,
             "created_at": budget.created_at.isoformat() if budget.created_at else None
         })
     return result
@@ -1746,3 +1970,74 @@ async def get_expenses_by_budget(budget_id: int) -> List[Expense]:
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None
                 ))
             return expenses
+
+
+# ============ Budget Templates CRUD ============
+
+@dataclass
+class BudgetTemplate:
+    """Budget template for quick budget creation."""
+    id: int | None = None
+    name: str = ""
+    amount: float = 0.0
+    color: str = "#3B82F6"
+    period: str = "none"
+    auto_reset: bool = False
+    rollover: bool = False
+    rollover_limit: int | None = None
+    created_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        if d.get("created_at") and isinstance(d["created_at"], datetime):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+
+async def create_budget_template(template: BudgetTemplate) -> BudgetTemplate:
+    """Create a new budget template."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO budget_templates (name, amount, color, period, auto_reset, rollover, rollover_limit, created_at) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (template.name, template.amount, template.color, template.period,
+             1 if template.auto_reset else 0, 1 if template.rollover else 0,
+             template.rollover_limit, now)
+        )
+        await db.commit()
+        template.id = cursor.lastrowid
+        template.created_at = datetime.now()
+        return template
+
+
+async def get_budget_templates() -> List[BudgetTemplate]:
+    """Get all budget templates."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM budget_templates ORDER BY created_at DESC") as cursor:
+            rows = await cursor.fetchall()
+            templates = []
+            for row in rows:
+                row_keys = list(row.keys())
+                templates.append(BudgetTemplate(
+                    id=row["id"],
+                    name=row["name"],
+                    amount=row["amount"],
+                    color=row.get("color", "#3B82F6"),
+                    period=row.get("period", "none"),
+                    auto_reset=bool(row.get("auto_reset", 0)),
+                    rollover=bool(row.get("rollover", 0)),
+                    rollover_limit=row.get("rollover_limit"),
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None
+                ))
+            return templates
+
+
+async def delete_budget_template(template_id: int) -> bool:
+    """Delete a budget template."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM budget_templates WHERE id = ?", (template_id,))
+        await db.commit()
+        return cursor.rowcount > 0

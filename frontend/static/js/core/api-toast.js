@@ -152,6 +152,9 @@
             if (data.default_task_reminder_enabled !== undefined) {
                 state.defaultTaskReminderEnabled = data.default_task_reminder_enabled === 'true';
             }
+            if (data.auto_assign_budget_from_llm !== undefined) {
+                state.autoAssignBudgetFromLlm = data.auto_assign_budget_from_llm === 'true';
+            }
         }
         return data;
     }
