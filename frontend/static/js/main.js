@@ -5929,22 +5929,26 @@
     }
 
     async function showBudgetExpenses(budget) {
-        // Fetch expenses for this budget
-        const expenses = await apiCall(`budgets/${budget.id}/expenses`);
-        if (!expenses || expenses.length === 0) {
-            showToast('该预算暂无支出记录');
-            return;
+        // Refresh budget data first
+        const budgetData = await apiCall(`budgets/${budget.id}`);
+        if (budgetData) {
+            budget = { ...budget, ...budgetData };
         }
+        
+        // Fetch expenses for this budget
+        const expenses = await apiCall(`budgets/${budget.id}/expenses`) || [];
         
         const container = elements.notepadContainer;
         const percent = budget.amount > 0 ? Math.min((budget.spent / budget.amount) * 100, 100) : 0;
-        const isOver = budget.spent > budget.amount;
         
         let html = `
             <div class="budget-detail-header" style="background: ${budget.color}; padding: var(--space-md); border-radius: var(--radius-lg); margin-bottom: var(--space-md);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
                     <span style="font-size: var(--font-size-md); font-weight: 500;">${escapeHtml(budget.name)}</span>
-                    <button class="budget-detail-back" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 10px; border-radius: var(--radius-md); cursor: pointer;">← 返回</button>
+                    <div style="display: flex; gap: var(--space-xs);">
+                        <button class="budget-detail-edit" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 10px; border-radius: var(--radius-md); cursor: pointer;">✏️</button>
+                        <button class="budget-detail-back" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 10px; border-radius: var(--radius-md); cursor: pointer;">← 返回</button>
+                    </div>
                 </div>
                 <div style="font-size: 24px; font-weight: bold; margin-bottom: var(--space-xs);">
                     ¥${(budget.amount - budget.spent).toFixed(1)} <span style="font-size: var(--font-size-xs); opacity: 0.8;">剩余</span>
@@ -5956,49 +5960,63 @@
                     已用 ¥${budget.spent.toFixed(1)} / ¥${budget.amount.toFixed(1)}
                 </div>
             </div>
-            <div class="expense-list">
+            
+            <button class="btn btn-primary" id="addExpenseToBudgetBtn" style="width: 100%; margin-bottom: var(--space-md);">
+                + 添加支出
+            </button>
+            
+            <div class="expense-list" id="budgetExpenseList">
         `;
         
-        // Group by date
-        const grouped = {};
-        expenses.forEach(exp => {
-            const dateKey = exp.created_at ? exp.created_at.split('T')[0] : 'unknown';
-            if (!grouped[dateKey]) grouped[dateKey] = [];
-            grouped[dateKey].push(exp);
-        });
-        
-        Object.keys(grouped).sort((a, b) => b.localeCompare(a)).forEach(dateKey => {
-            const dayExpenses = grouped[dateKey];
-            const date = new Date(dateKey);
-            const now = new Date();
-            const isToday = isSameDay(date, now);
-            const isYesterday = isSameDay(date, new Date(now.getTime() - 86400000));
-            
-            let dateLabel;
-            if (isToday) dateLabel = '今天';
-            else if (isYesterday) dateLabel = '昨天';
-            else dateLabel = `${date.getMonth() + 1}月${date.getDate()}日`;
-            
+        if (expenses.length === 0) {
             html += `
-                <div class="expense-day-group">
-                    <div class="expense-day-header">${dateLabel}</div>
-                    ${dayExpenses.map(exp => {
-                        const cat = state.expenseCategories.find(c => c.id === exp.category) || { name: '其他', color: '#6B7280' };
-                        return `
-                            <div class="expense-item expense-item-clickable" style="cursor: pointer;" data-expense-id="${exp.id}">
-                                <div class="expense-item-left">
-                                    <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
-                                    <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
-                                </div>
-                                <div class="expense-item-right">
-                                    <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
+                <div class="empty-state" style="padding: var(--space-xl); text-align: center;">
+                    <div class="empty-text" style="margin-bottom: var(--space-xs);">暂无支出记录</div>
+                    <div class="empty-hint">点击上方按钮添加</div>
                 </div>
             `;
-        });
+        } else {
+            // Group by date
+            const grouped = {};
+            expenses.forEach(exp => {
+                const dateKey = exp.created_at ? exp.created_at.split('T')[0] : 'unknown';
+                if (!grouped[dateKey]) grouped[dateKey] = [];
+                grouped[dateKey].push(exp);
+            });
+            
+            Object.keys(grouped).sort((a, b) => b.localeCompare(a)).forEach(dateKey => {
+                const dayExpenses = grouped[dateKey];
+                const date = new Date(dateKey);
+                const now = new Date();
+                const isToday = isSameDay(date, now);
+                const isYesterday = isSameDay(date, new Date(now.getTime() - 86400000));
+                
+                let dateLabel;
+                if (isToday) dateLabel = '今天';
+                else if (isYesterday) dateLabel = '昨天';
+                else dateLabel = `${date.getMonth() + 1}月${date.getDate()}日`;
+                
+                html += `
+                    <div class="expense-day-group">
+                        <div class="expense-day-header">${dateLabel}</div>
+                        ${dayExpenses.map(exp => {
+                            const cat = state.expenseCategories.find(c => c.id === exp.category) || { name: '其他', color: '#6B7280' };
+                            return `
+                                <div class="expense-item expense-item-clickable" style="cursor: pointer;" data-expense-id="${exp.id}">
+                                    <div class="expense-item-left">
+                                        <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
+                                        <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
+                                    </div>
+                                    <div class="expense-item-right">
+                                        <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            });
+        }
         
         html += '</div>';
         container.innerHTML = html;
@@ -6006,6 +6024,17 @@
         // Back button
         container.querySelector('.budget-detail-back').addEventListener('click', () => {
             renderExpenseList();
+        });
+        
+        // Edit budget button
+        container.querySelector('.budget-detail-edit')?.addEventListener('click', () => {
+            openBudgetModal(budget);
+        });
+        
+        // Add expense button - pre-select this budget
+        container.querySelector('#addExpenseToBudgetBtn')?.addEventListener('click', () => {
+            selectedExpenseBudgetId = budget.id;
+            openExpenseModalForBudget(budget);
         });
         
         // Click on expense item to edit
@@ -6018,6 +6047,15 @@
                 }
             });
         });
+    }
+    
+    function openExpenseModalForBudget(budget) {
+        // Open modal with this budget pre-selected
+        const fakeExpense = { 
+            budget_id: budget.id,
+            category: 'other'
+        };
+        openExpenseModal(fakeExpense);
     }
 
     function openBudgetModal(budget = null) {
