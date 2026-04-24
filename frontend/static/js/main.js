@@ -1291,7 +1291,7 @@
                     } else if (swipeDeltaX > 100) {
                         await deleteEvent(event.id);
                         showToast('已删除');
-                        renderTodoView();
+                        await renderTodoView();
                     } else {
                         eventEl.classList.remove('swiped');
                     }
