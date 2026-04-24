@@ -2455,6 +2455,34 @@ textarea {
     letter-spacing: 0.5px;
 }
 
+/* Settings section */
+.settings-section {
+    margin-bottom: var(--space-lg);
+}
+
+.settings-section-title {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: var(--space-xs) 0;
+    margin-bottom: var(--space-xs);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-section .settings-item {
+    background: transparent;
+    padding: var(--space-sm) 0;
+}
+
+.settings-modal-content {
+    max-height: 90vh;
+}
+
+.settings-modal-body {
+    padding-top: var(--space-sm);
+}
+
 /* AI Providers List */
 .ai-providers-list {
     display: flex;
@@ -3835,7 +3863,6 @@ textarea {
     width: 140px;
     padding: var(--space-md);
     border-radius: var(--radius-lg);
-    color: white;
     cursor: pointer;
     transition: transform 0.2s;
 }
