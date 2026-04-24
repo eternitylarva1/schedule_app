@@ -2754,19 +2754,26 @@
             </div>
             <div class="budget-cards">
                 ${budgets.map(budget => {
-                    const percent = budget.amount > 0 ? Math.min((budget.spent / budget.amount) * 100, 100) : 0;
-                    const isOver = budget.spent > budget.amount;
+                    // Use effective_amount if rollover exists
+                    const effectiveAmount = budget.effective_amount || budget.amount;
+                    const percent = effectiveAmount > 0 ? Math.min((budget.spent / effectiveAmount) * 100, 100) : 0;
+                    const isOver = budget.spent > effectiveAmount;
+                    // Show period badge if period is set
+                    const periodLabel = budget.period && budget.period !== 'none' ? 
+                        {weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年'}[budget.period] || '' : '';
                     return `
                         <div class="budget-card-wrapper">
                             <div class="budget-card" style="background: ${budget.color}" data-budget-id="${budget.id}">
+                                ${periodLabel ? `<div class="budget-card-period">${periodLabel}</div>` : ''}
                                 <div class="budget-card-name">${escapeHtml(budget.name)}</div>
                                 <div class="budget-card-remaining ${isOver ? 'over-budget' : ''}">
-                                    ¥${(budget.amount - budget.spent).toFixed(1)}
+                                    ¥${(effectiveAmount - budget.spent).toFixed(1)}
                                 </div>
                                 <div class="budget-card-progress">
                                     <div class="budget-card-progress-bar" style="width: ${percent}%"></div>
                                 </div>
-                                <div class="budget-card-spent">已用 ¥${budget.spent.toFixed(1)} / ¥${budget.amount.toFixed(1)}</div>
+                                <div class="budget-card-spent">已用 ¥${budget.spent.toFixed(1)} / ¥${effectiveAmount.toFixed(1)}</div>
+                                ${budget.rollover && budget.rollover_amount > 0 ? `<div class="budget-card-rollover">结转 ¥${budget.rollover_amount.toFixed(1)}</div>` : ''}
                             </div>
                             <button class="budget-card-delete" data-budget-id="${budget.id}" title="删除">×</button>
                         </div>
@@ -2923,7 +2930,12 @@
         
         // Bind click on expense item to edit
         container.querySelectorAll('.expense-item-clickable').forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                // Ignore click if just finished dragging (swipe)
+                if (item.closest('.swipe-item')?.classList.contains('swipe-just-dragged')) {
+                    e.stopPropagation();
+                    return;
+                }
                 const expenseId = parseInt(item.dataset.expenseId);
                 const exp = state.expenses.find(x => x.id === expenseId);
                 if (exp) {
@@ -3007,6 +3019,10 @@
             if (!axisLocked && (Math.abs(deltaX) > axisLockThreshold || Math.abs(deltaY) > axisLockThreshold)) {
                 axisLocked = true;
                 horizontalDrag = Math.abs(deltaX) >= Math.abs(deltaY);
+                // Mark as dragged so click doesn't fire after swipe
+                if (horizontalDrag) {
+                    itemEl.classList.add('swipe-just-dragged');
+                }
             }
 
             if (!horizontalDrag) return;
@@ -3039,6 +3055,11 @@
 
             axisLocked = false;
             horizontalDrag = false;
+
+            // Remove swipe-just-dragged after a short delay to prevent click
+            setTimeout(() => {
+                itemEl.classList.remove('swipe-just-dragged');
+            }, 50);
         };
 
         contentEl.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
@@ -4471,6 +4492,7 @@
         await fetchSettings();
         elements.enableQQReminder.checked = state.qqReminderEnabled;
         elements.defaultTaskReminderEnabled.checked = state.defaultTaskReminderEnabled;
+        elements.autoAssignBudgetFromLlm.checked = state.autoAssignBudgetFromLlm;
         
         // Load user self description from API
         const settings = await apiCall('settings');
@@ -4666,6 +4688,19 @@
         } else {
             e.target.checked = !enabled;
             state.defaultTaskReminderEnabled = !enabled;
+        }
+    }
+
+    async function handleAutoAssignBudgetToggle(e) {
+        const enabled = e.target.checked;
+        state.autoAssignBudgetFromLlm = enabled;
+        
+        const result = await updateSetting('auto_assign_budget_from_llm', enabled ? 'true' : 'false');
+        if (result) {
+            showToast(enabled ? 'AI记账将自动加入相关预算' : 'AI记账不会自动加入预算');
+        } else {
+            e.target.checked = !enabled;
+            state.autoAssignBudgetFromLlm = !enabled;
         }
     }
 
@@ -5250,7 +5285,11 @@
         state.llmCancelRequested = false;
     }
 
-    async function handleLlmSubmit() {
+    async function handleLlmSubmit(e) {
+        if (e && e.preventDefault) {
+            e.preventDefault();
+        }
+        
         const text = elements.llmInput.value.trim();
         if (!text) {
             showToast('请输入日程内容');
@@ -5261,7 +5300,8 @@
         state.llmLastSubmittedText = text;
         
         enqueueLlmRequest(text);
-        // 保留输入内容，方便用户查看和编辑（不清空）
+        // 清空输入框
+        elements.llmInput.value = '';
         elements.llmInput.focus();
     }
 
@@ -5661,6 +5701,7 @@
         elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
         elements.enableQQReminder.addEventListener('change', handleQQReminderToggle);
         elements.defaultTaskReminderEnabled.addEventListener('change', handleDefaultTaskReminderToggle);
+        elements.autoAssignBudgetFromLlm.addEventListener('change', handleAutoAssignBudgetToggle);
         document.getElementById('cleanupTestEntriesBtn')?.addEventListener('click', handleCleanupTestEntries);
         document.getElementById('semanticHelpBtn')?.addEventListener('click', showSemanticHelpModal);
         
@@ -5676,6 +5717,19 @@
         elements.budgetClose?.addEventListener('click', closeBudgetModal);
         elements.budgetCancelBtn?.addEventListener('click', closeBudgetModal);
         elements.budgetSaveBtn?.addEventListener('click', handleBudgetSave);
+        
+        // Budget period buttons
+        elements.budgetPeriodGroup?.querySelectorAll('.period-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedBudgetPeriod = btn.dataset.period;
+                updatePeriodButtons();
+            });
+        });
+        
+        // Budget rollover checkbox toggle
+        elements.budgetRollover?.addEventListener('change', () => {
+            elements.budgetRolloverLimitGroup.style.display = elements.budgetRollover.checked ? 'block' : 'none';
+        });
         
         // Expense modal events
         elements.expenseBackdrop?.addEventListener('click', closeExpenseModal);
@@ -5939,7 +5993,13 @@
         const expenses = await apiCall(`budgets/${budget.id}/expenses`) || [];
         
         const container = elements.notepadContainer;
-        const percent = budget.amount > 0 ? Math.min((budget.spent / budget.amount) * 100, 100) : 0;
+        // Use effective_amount if rollover exists
+        const effectiveAmount = budget.effective_amount || budget.amount;
+        const percent = effectiveAmount > 0 ? Math.min((budget.spent / effectiveAmount) * 100, 100) : 0;
+        
+        // Period labels
+        const periodLabels = {weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年'};
+        const periodLabel = budget.period && budget.period !== 'none' ? periodLabels[budget.period] || '' : '';
         
         let html = `
             <div class="budget-detail-header" style="background: ${budget.color}; padding: var(--space-md); border-radius: var(--radius-lg); margin-bottom: var(--space-md);">
@@ -5951,14 +6011,16 @@
                     </div>
                 </div>
                 <div style="font-size: 24px; font-weight: bold; margin-bottom: var(--space-xs);">
-                    ¥${(budget.amount - budget.spent).toFixed(1)} <span style="font-size: var(--font-size-xs); opacity: 0.8;">剩余</span>
+                    ¥${(effectiveAmount - budget.spent).toFixed(1)} <span style="font-size: var(--font-size-xs); opacity: 0.8;">剩余</span>
                 </div>
                 <div style="height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
                     <div style="height: 100%; width: ${percent}%; background: white; border-radius: 2px;"></div>
                 </div>
                 <div style="font-size: var(--font-size-xs); opacity: 0.8; margin-top: var(--space-xs);">
-                    已用 ¥${budget.spent.toFixed(1)} / ¥${budget.amount.toFixed(1)}
+                    已用 ¥${budget.spent.toFixed(1)} / ¥${effectiveAmount.toFixed(1)}
+                    ${budget.rollover && budget.rollover_amount > 0 ? ` (含结转 ¥${budget.rollover_amount.toFixed(1)})` : ''}
                 </div>
+                ${periodLabel ? `<div style="font-size: var(--font-size-xs); opacity: 0.8; margin-top: 4px;">${periodLabel}${budget.auto_reset ? ' · 自动重置' : ''}${budget.rollover ? ' · 结转' : ''}</div>` : ''}
             </div>
             
             <button class="btn btn-primary" id="addExpenseToBudgetBtn" style="width: 100%; margin-bottom: var(--space-md);">
@@ -6058,6 +6120,8 @@
         openExpenseModal(fakeExpense);
     }
 
+    let selectedBudgetPeriod = 'none';
+
     function openBudgetModal(budget = null) {
         if (!elements.budgetModal) return;
         
@@ -6067,7 +6131,27 @@
         elements.budgetAmount.value = budget ? budget.amount : '';
         elements.budgetColor.value = budget ? budget.color : '#3B82F6';
         
+        // Set period
+        selectedBudgetPeriod = budget ? (budget.period || 'none') : 'none';
+        updatePeriodButtons();
+        
+        // Set auto_reset and rollover
+        elements.budgetAutoReset.checked = budget ? (budget.auto_reset || false) : false;
+        elements.budgetRollover.checked = budget ? (budget.rollover || false) : false;
+        elements.budgetRolloverLimit.value = budget && budget.rollover_limit ? budget.rollover_limit : '';
+        
+        // Show/hide rollover limit based on rollover checkbox
+        elements.budgetRolloverLimitGroup.style.display = elements.budgetRollover.checked ? 'block' : 'none';
+        
         elements.budgetModal.classList.remove('hidden');
+    }
+
+    function updatePeriodButtons() {
+        if (!elements.budgetPeriodGroup) return;
+        elements.budgetPeriodGroup.querySelectorAll('.period-btn').forEach(btn => {
+            btn.classList.toggle('btn-primary', btn.dataset.period === selectedBudgetPeriod);
+            btn.classList.toggle('btn-secondary', btn.dataset.period !== selectedBudgetPeriod);
+        });
     }
 
     function closeBudgetModal() {
@@ -6080,6 +6164,10 @@
         const name = elements.budgetName.value.trim();
         const amount = parseFloat(elements.budgetAmount.value);
         const color = elements.budgetColor.value;
+        const period = selectedBudgetPeriod;
+        const auto_reset = elements.budgetAutoReset.checked;
+        const rollover = elements.budgetRollover.checked;
+        const rollover_limit = elements.budgetRolloverLimit.value ? parseInt(elements.budgetRolloverLimit.value) : null;
         
         if (!name) {
             showToast('请输入预算名称');
@@ -6090,11 +6178,13 @@
             return;
         }
         
+        const budgetData = { name, amount, color, period, auto_reset, rollover, rollover_limit };
+        
         if (id) {
-            await updateBudget(parseInt(id), { name, amount, color });
+            await updateBudget(parseInt(id), budgetData);
             showToast('预算已更新');
         } else {
-            await createBudget({ name, amount, color });
+            await createBudget(budgetData);
             showToast('预算已创建');
         }
         
@@ -6118,6 +6208,9 @@
         elements.expenseAmount.value = expense ? expense.amount : '';
         elements.expenseNote.value = expense ? (expense.note || '') : '';
         selectedExpenseCategory = expense ? expense.category : 'food';
+        
+        // Set is_test checkbox
+        elements.expenseIsTest.checked = expense ? (expense.is_test || false) : false;
         
         // Pre-select budget
         if (expense && expense.budget_id) {
@@ -6190,6 +6283,7 @@
         const amount = parseFloat(elements.expenseAmount.value);
         const note = elements.expenseNote.value.trim();
         const budgetId = selectedExpenseBudgetId;
+        const isTest = elements.expenseIsTest.checked;
         
         if (isNaN(amount) || amount <= 0) {
             showToast('请输入有效的金额');
@@ -6209,9 +6303,10 @@
                 amount,
                 category: selectedExpenseCategory,
                 note: note || '记账',
-                budget_id: budgetId
+                budget_id: budgetId,
+                is_test: isTest
             });
-            showToast('已记录 ¥' + amount.toFixed(1));
+            showToast('已记录 ¥' + amount.toFixed(1) + (isTest ? ' [测试]' : ''));
             // Remember last used budget
             if (budgetId) {
                 lastUsedBudgetId = budgetId;
