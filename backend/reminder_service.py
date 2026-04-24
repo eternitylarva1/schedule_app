@@ -72,10 +72,14 @@ class ReminderService:
         if enabled and enabled.lower() != "true":
             return
         
+        # Check if default reminder is enabled
+        default_reminder_enabled = await db.get_setting("default_task_reminder_enabled")
+        default_reminder_enabled = default_reminder_enabled and default_reminder_enabled.lower() == "true"
+        
         now = datetime.now()
         
         # Query events where:
-        # - reminder_enabled = 1
+        # - (reminder_enabled = 1 OR default_reminder_enabled = true)
         # - status = 'pending'
         # - start_time is within reminder_minutes from now
         # - reminder_sent = 0
@@ -84,16 +88,18 @@ class ReminderService:
             db_conn.row_factory = aiosqlite.Row
             async with db_conn.execute(
                 """SELECT * FROM events 
-                   WHERE reminder_enabled = 1 
+                   WHERE (reminder_enabled = 1 OR ? = 1)
                    AND status = 'pending' 
                    AND reminder_sent = 0 
                    AND start_time IS NOT NULL""",
+                (1 if default_reminder_enabled else 0,),
             ) as cursor:
                 rows = await cursor.fetchall()
             
             for row in rows:
                 start_time = datetime.fromisoformat(row["start_time"])
-                reminder_minutes = row["reminder_minutes"] if "reminder_minutes" in row.keys() else 1
+                # Use event's reminder_minutes if set, otherwise default to 5 minutes for default reminder
+                reminder_minutes = row["reminder_minutes"] if "reminder_minutes" in row.keys() and row["reminder_minutes"] else 5
                 
                 # Check if event is within reminder window
                 time_until_event = start_time - now
