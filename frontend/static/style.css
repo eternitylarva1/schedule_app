@@ -1650,7 +1650,8 @@ body {
 }
 
 .form-group input[type="text"],
-.form-group input[type="datetime-local"] {
+.form-group input[type="datetime-local"],
+.form-group input[type="number"] {
     width: 100%;
     padding: var(--space-sm) var(--space-md);
     background: var(--bg-card);
@@ -1661,6 +1662,17 @@ body {
     font-family: inherit;
     -webkit-user-select: text;
     user-select: text;
+}
+
+/* Hide number input spinners */
+.form-group input[type="number"]::-webkit-inner-spin-button,
+.form-group input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.form-group input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 .form-group input:focus {
