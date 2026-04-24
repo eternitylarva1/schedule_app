@@ -32,7 +32,7 @@ class LLMService:
                 # First check if there are any ai_providers configured
                 async with conn.execute("SELECT COUNT(*) as cnt FROM ai_providers") as cursor:
                     row = await cursor.fetchone()
-                    if row["cnt"] == 0:
+                    if row is None or row["cnt"] == 0:
                         # No providers configured, use environment defaults
                         return
                 
@@ -472,7 +472,7 @@ class LLMService:
             "subtasks": []
         }
 
-    async def parse_expense(self, user_text: str, budgets: List[Dict[str, Any]] = None, 
+    async def parse_expense(self, user_text: str, budgets: Optional[List[Dict[str, Any]]] = None, 
                             auto_assign_budget: bool = False) -> Optional[List[Dict[str, Any]]]:
         """Parse natural language expense(s) into structured data.
         

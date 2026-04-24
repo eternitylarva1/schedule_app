@@ -1062,167 +1062,6 @@ async def delete_goal_conversations(goal_id: int) -> bool:
         await db.commit()
         return True
 
-
-# ============ Notes Functions ============
-
-async def create_note(note: Note) -> Note:
-    """Create a new note with sort_order set to highest + 1 in its group."""
-    now = datetime.now().isoformat()
-    async with aiosqlite.connect(DB_PATH) as db:
-        # Get max sort_order in the same group
-        group_filter = "group_id IS NULL" if note.group_id is None else f"group_id = {note.group_id}"
-        async with db.execute(f"SELECT MAX(sort_order) FROM notes WHERE {group_filter}") as cursor:
-            row = await cursor.fetchone()
-            max_order = row[0] if row and row[0] is not None else -1
-            note.sort_order = max_order + 1
-        
-        cursor = await db.execute(
-            """INSERT INTO notes (title, content, group_id, sort_order, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (note.title, note.content, note.group_id, note.sort_order, now, now),
-        )
-        await db.commit()
-        note.id = cursor.lastrowid
-        note.created_at = datetime.now()
-        note.updated_at = datetime.now()
-    return note
-
-
-async def get_notes() -> List[Note]:
-    """Get all notes, ordered by sort_order then most recent first."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM notes ORDER BY sort_order ASC, created_at DESC"
-        ) as cursor:
-            rows = await cursor.fetchall()
-            notes = []
-            for row in rows:
-                notes.append(Note(
-                    id=row["id"],
-                    title=row["title"] or "",
-                    content=row["content"] or "",
-                    group_id=row["group_id"] if "group_id" in row.keys() else None,
-                    sort_order=row["sort_order"] if "sort_order" in row.keys() else 0,
-                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
-                    updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
-                ))
-    return notes
-
-
-async def get_note(note_id: int) -> Optional[Note]:
-    """Get a single note by ID."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM notes WHERE id = ?", (note_id,)) as cursor:
-            row = await cursor.fetchone()
-            if not row:
-                return None
-            return Note(
-                id=row["id"],
-                title=row["title"] or "",
-                content=row["content"] or "",
-                group_id=row["group_id"] if "group_id" in row.keys() and row["group_id"] is not None else None,
-                sort_order=row["sort_order"] if "sort_order" in row.keys() else 0,
-                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
-                updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
-            )
-
-
-async def update_note(note_id: int, note: Note) -> Optional[Note]:
-    """Update an existing note."""
-    now = datetime.now().isoformat()
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE notes SET title = ?, content = ?, group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?",
-            (note.title, note.content, note.group_id, note.sort_order, now, note_id),
-        )
-        await db.commit()
-    return await get_note(note_id)
-
-
-async def delete_note(note_id: int) -> bool:
-    """Delete a note."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-
-
-# ============ Note Groups Functions ============
-
-async def create_note_group(group: NoteGroup) -> NoteGroup:
-    """Create a new note group."""
-    now = datetime.now().isoformat()
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute(
-            """INSERT INTO note_groups (name, sort_order, created_at)
-               VALUES (?, ?, ?)""",
-            (group.name, group.sort_order, now),
-        )
-        await db.commit()
-        group.id = cursor.lastrowid
-        group.created_at = datetime.now()
-    return group
-
-
-async def get_note_groups() -> List[NoteGroup]:
-    """Get all note groups, ordered by sort_order."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM note_groups ORDER BY sort_order ASC, created_at DESC"
-        ) as cursor:
-            rows = await cursor.fetchall()
-            groups = []
-            for row in rows:
-                groups.append(NoteGroup(
-                    id=row["id"],
-                    name=row["name"] or "",
-                    sort_order=row["sort_order"] or 0,
-                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
-                ))
-    return groups
-
-
-async def get_note_group(group_id: int) -> Optional[NoteGroup]:
-    """Get a single note group by ID."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM note_groups WHERE id = ?", (group_id,)) as cursor:
-            row = await cursor.fetchone()
-            if not row:
-                return None
-            return NoteGroup(
-                id=row["id"],
-                name=row["name"] or "",
-                sort_order=row["sort_order"] or 0,
-                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
-            )
-
-
-async def update_note_group(group_id: int, group: NoteGroup) -> Optional[NoteGroup]:
-    """Update an existing note group."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE note_groups SET name = ?, sort_order = ? WHERE id = ?",
-            (group.name, group.sort_order, group_id),
-        )
-        await db.commit()
-    return await get_note_group(group_id)
-
-
-async def delete_note_group(group_id: int) -> bool:
-    """Delete a note group (notes retain, group_id set to null)."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        # Set group_id to null for all notes in this group
-        await db.execute("UPDATE notes SET group_id = NULL WHERE group_id = ?", (group_id,))
-        # Delete the group
-        cursor = await db.execute("DELETE FROM note_groups WHERE id = ?", (group_id,))
-        await db.commit()
-        return cursor.rowcount > 0
-
-
 # ============ Note Conversations Functions ============
 
 async def create_note_conversation(conversation: "NoteConversation") -> "NoteConversation":
@@ -1926,7 +1765,8 @@ async def get_budgets_with_stats() -> List[dict]:
             if reset_budget is None:
                 continue  # Skip if budget was deleted
             budget = reset_budget
-            spent = await get_budget_spent(budget.id)
+            budget_id_for_spent = reset_budget.id
+            spent = await get_budget_spent(budget_id_for_spent) if budget_id_for_spent is not None else 0.0
         else:
             spent = 0.0
         # Effective amount includes rollover
@@ -2025,11 +1865,11 @@ async def get_budget_templates() -> List[BudgetTemplate]:
                     id=row["id"],
                     name=row["name"],
                     amount=row["amount"],
-                    color=row.get("color", "#3B82F6"),
-                    period=row.get("period", "none"),
-                    auto_reset=bool(row.get("auto_reset", 0)),
-                    rollover=bool(row.get("rollover", 0)),
-                    rollover_limit=row.get("rollover_limit"),
+                    color=row["color"] if "color" in row.keys() and row["color"] else "#3B82F6",
+                    period=row["period"] if "period" in row.keys() and row["period"] else "none",
+                    auto_reset=bool(row["auto_reset"]) if "auto_reset" in row.keys() else False,
+                    rollover=bool(row["rollover"]) if "rollover" in row.keys() else False,
+                    rollover_limit=row["rollover_limit"] if "rollover_limit" in row.keys() else None,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None
                 ))
             return templates
