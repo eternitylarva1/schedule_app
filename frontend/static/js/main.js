@@ -2758,7 +2758,17 @@
         });
     }
 
+    function getTextColorForBackground(bgColor) {
+        const hex = bgColor.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        return brightness > 128 ? '#333333' : '#ffffff';
+    }
+
     async function renderExpenseList() {
+        state.budgetView = 'cards';
         const container = elements.notepadContainer;
         
         // Fetch expenses, stats, and budgets
@@ -2771,7 +2781,7 @@
         // Render budget cards
         const budgetCardsHtml = budgets.length > 0 ? `
             <div class="budget-header">
-                <span class="budget-header-title">我的预算</span>
+                <span class="budget-header-title" id="budgetListTitle">我的预算（${budgets.length}个）</span>
                 <button class="budget-add-btn" id="addBudgetBtn">+ 添加预算</button>
             </div>
             <div class="budget-cards">
@@ -2783,12 +2793,13 @@
                     // Show period badge if period is set
                     const periodLabel = budget.period && budget.period !== 'none' ? 
                         {weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年'}[budget.period] || '' : '';
+                    const textColor = getTextColorForBackground(budget.color);
                     return `
                         <div class="budget-card-wrapper">
-                            <div class="budget-card" style="background: ${budget.color}" data-budget-id="${budget.id}">
+                            <div class="budget-card" style="background: ${budget.color}; color: ${textColor}" data-budget-id="${budget.id}">
                                 ${periodLabel ? `<div class="budget-card-period">${periodLabel}</div>` : ''}
                                 <div class="budget-card-name">${escapeHtml(budget.name)}</div>
-                                <div class="budget-card-remaining ${isOver ? 'over-budget' : ''}">
+                                <div class="budget-card-remaining ${isOver ? 'over-budget' : ''}" style="${isOver ? 'color: #fef08a' : ''}">
                                     ¥${(effectiveAmount - budget.spent).toFixed(1)}
                                 </div>
                                 <div class="budget-card-progress">
@@ -5978,6 +5989,19 @@
             addBtn.addEventListener('click', () => openBudgetModal());
         }
         
+        const budgetListTitle = document.getElementById('budgetListTitle');
+        if (budgetListTitle) {
+            budgetListTitle.addEventListener('click', () => {
+                if (state.budgetView === 'cards') {
+                    state.budgetView = 'list';
+                    showAllBudgetsList();
+                } else {
+                    state.budgetView = 'cards';
+                    renderExpenseList();
+                }
+            });
+        }
+        
         const deleteBtns = document.querySelectorAll('.budget-card-delete');
         deleteBtns.forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -6003,6 +6027,73 @@
             });
         });
     }
+    
+    async function showAllBudgetsList() {
+        state.budgetView = 'list';
+        const container = elements.notepadContainer;
+        
+        // Fetch all budgets with stats
+        const budgets = await fetchBudgets();
+        
+        if (budgets.length === 0) {
+            container.innerHTML = `
+                <div class="budget-header">
+                    <span class="budget-header-title">我的预算</span>
+                    <button class="budget-add-btn" id="addBudgetBtn">+ 添加预算</button>
+                </div>
+                <div class="empty-state" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+                    <div style="font-size: 48px; margin-bottom: 16px;">💰</div>
+                    <div>暂无预算</div>
+                    <div style="font-size: var(--font-size-xs); margin-top: 8px;">点击上方按钮创建第一个预算</div>
+                </div>
+            `;
+            bindBudgetEvents();
+            return;
+        }
+        
+        const textColor = (color) => getTextColorForBackground(color);
+        
+        let html = `
+            <div class="budget-header">
+                <span class="budget-header-title" id="budgetListTitle">我的预算（${budgets.length}个）</span>
+                <button class="budget-add-btn" id="addBudgetBtn">+ 添加预算</button>
+            </div>
+            <div class="budget-list-view" style="display: flex; flex-direction: column; gap: var(--space-sm);">
+                ${budgets.map(budget => {
+                    const effectiveAmount = budget.effective_amount || budget.amount;
+                    const remaining = effectiveAmount - budget.spent;
+                    const percent = effectiveAmount > 0 ? Math.min((budget.spent / effectiveAmount) * 100, 100) : 0;
+                    const isOver = budget.spent > effectiveAmount;
+                    const periodLabel = budget.period && budget.period !== 'none' ? 
+                        {weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年'}[budget.period] || '' : '';
+                    return `
+                        <div class="budget-list-item" data-budget-id="${budget.id}" style="
+                            background: ${budget.color};
+                            color: ${textColor(budget.color)};
+                            border-radius: var(--radius-lg);
+                            padding: var(--space-md);
+                            cursor: pointer;
+                        ">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xs);">
+                                <span style="font-weight: 500;">${escapeHtml(budget.name)}</span>
+                                <span style="font-size: var(--font-size-xs); opacity: 0.8;">${isOver ? '已超支' : '剩余 ¥' + remaining.toFixed(1)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: var(--font-size-xs); opacity: 0.8;">
+                                <span>${periodLabel ? periodLabel + ' · ' : ''}已用 ¥${budget.spent.toFixed(1)} / ¥${effectiveAmount.toFixed(1)}</span>
+                                ${budget.rollover && budget.rollover_amount > 0 ? `<span>结转 ¥${budget.rollover_amount.toFixed(1)}</span>` : ''}
+                            </div>
+                            <div style="height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; margin-top: var(--space-xs);">
+                                <div style="height: 100%; width: ${percent}%; background: ${textColor(budget.color)}; border-radius: 2px;"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+        
+        container.innerHTML = html;
+        bindBudgetEvents();
+    }
 
     async function showBudgetExpenses(budget) {
         // Refresh budget data first
@@ -6023,20 +6114,21 @@
         const periodLabels = {weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年'};
         const periodLabel = budget.period && budget.period !== 'none' ? periodLabels[budget.period] || '' : '';
         
+        const textColor = getTextColorForBackground(budget.color);
         let html = `
-            <div class="budget-detail-header" style="background: ${budget.color}; padding: var(--space-md); border-radius: var(--radius-lg); margin-bottom: var(--space-md);">
+            <div class="budget-detail-header" style="background: ${budget.color}; color: ${textColor}; padding: var(--space-md); border-radius: var(--radius-lg); margin-bottom: var(--space-md);">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-sm);">
                     <span style="font-size: var(--font-size-md); font-weight: 500;">${escapeHtml(budget.name)}</span>
                     <div style="display: flex; gap: var(--space-xs);">
-                        <button class="budget-detail-edit" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 10px; border-radius: var(--radius-md); cursor: pointer;">✏️</button>
-                        <button class="budget-detail-back" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 10px; border-radius: var(--radius-md); cursor: pointer;">← 返回</button>
+                        <button class="budget-detail-edit" style="background: rgba(255,255,255,0.2); border: none; color: ${textColor}; padding: 4px 10px; border-radius: var(--radius-md); cursor: pointer;">✏️</button>
+                        <button class="budget-detail-back" style="background: rgba(255,255,255,0.2); border: none; color: ${textColor}; padding: 4px 10px; border-radius: var(--radius-md); cursor: pointer;">← 返回</button>
                     </div>
                 </div>
                 <div style="font-size: 24px; font-weight: bold; margin-bottom: var(--space-xs);">
                     ¥${(effectiveAmount - budget.spent).toFixed(1)} <span style="font-size: var(--font-size-xs); opacity: 0.8;">剩余</span>
                 </div>
                 <div style="height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
-                    <div style="height: 100%; width: ${percent}%; background: white; border-radius: 2px;"></div>
+                    <div style="height: 100%; width: ${percent}%; background: ${textColor}; border-radius: 2px;"></div>
                 </div>
                 <div style="font-size: var(--font-size-xs); opacity: 0.8; margin-top: var(--space-xs);">
                     已用 ¥${budget.spent.toFixed(1)} / ¥${effectiveAmount.toFixed(1)}
@@ -6361,6 +6453,10 @@
         
         // Switch to last view (this also saves it again)
         await switchView(lastView);
+        
+        // Expose to window for external tools (Playwright, etc.)
+        window.switchView = switchView;
+        window.scheduleAppState = state;
         
         console.log('Schedule App ready!');
     }
