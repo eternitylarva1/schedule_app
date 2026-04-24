@@ -1164,7 +1164,7 @@
                     }
                 }, { passive: false });
                 
-                eventEl.addEventListener('touchend', async () => {
+                eventEl.addEventListener('touchend', async (e) => {
                     if (longPressTimer) {
                         clearTimeout(longPressTimer);
                         longPressTimer = null;
@@ -1203,6 +1203,9 @@
                     isHorizontalSwipe = null;
                     swipeDeltaX = 0;
                     mainContent = null;
+                    
+                    // 阻止后续可能触发的 click 事件
+                    e.stopPropagation();
                 }, { passive: true });
                 
                 // Also handle mouse events for desktop - mousedown to start long press
@@ -1300,6 +1303,9 @@
                     isHorizontalSwipe = null;
                     swipeDeltaX = 0;
                     mainContent = null;
+                    
+                    // 阻止后续可能触发的 click 事件
+                    e.stopPropagation();
                 });
                 
                 // Also handle mouse events for desktop testing
