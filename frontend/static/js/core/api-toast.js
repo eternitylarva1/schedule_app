@@ -31,7 +31,28 @@
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('HTTP Error:', response.status, errorText);
-                showToast(`请求失败 (${response.status})`);
+
+                let toastMessage = '';
+                if (errorText) {
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        if (errorJson && errorJson.message) {
+                            toastMessage = errorJson.message;
+                        }
+                    } catch (parseError) {
+                        // Keep raw text logging fallback; user-facing message handled below.
+                        console.debug('Failed to parse error response JSON:', parseError);
+                    }
+                }
+
+                if (!toastMessage) {
+                    toastMessage = `请求失败 (${response.status})`;
+                }
+                if (response.status === 409) {
+                    toastMessage = `时间冲突：${toastMessage}`;
+                }
+
+                showToast(toastMessage);
                 return null;
             }
             
