@@ -60,21 +60,21 @@ async def init_app() -> web.Application:
     # Initialize default AI provider from environment variables if none exists
     providers = await db.get_ai_providers()
     if len(providers) == 0:
-        # Create default provider from environment variables (with hardcoded fallback for demo)
+        # Create default provider from environment variables (if configured)
         import os
-        default_name = "默认 (minimax)"
-        default_api_base = os.getenv("LLM_API_BASE", "https://open.cherryin.net/v1")
-        default_model = os.getenv("LLM_MODEL", "minimax/minimax-m2.5-highspeed")
-        # Use env var or hardcoded fallback (same as llm_service.py)
-        default_api_key = os.getenv("LLM_API_KEY") or "sk-nzCBqwmTVmDj137YyfMVKp1xAAVv0Pc2YrXHpHqwILKpDEEw"
-        
-        provider = await db.create_ai_provider(
-            name=default_name,
-            api_base=default_api_base,
-            model=default_model,
-            api_key=default_api_key
-        )
-        await db.activate_ai_provider(provider["id"])
+        default_api_key = (os.getenv("LLM_API_KEY") or "").strip()
+        if default_api_key:
+            default_name = "默认 (env)"
+            default_api_base = os.getenv("LLM_API_BASE", "https://open.cherryin.net/v1")
+            default_model = os.getenv("LLM_MODEL", "minimax/minimax-m2.5-highspeed")
+
+            provider = await db.create_ai_provider(
+                name=default_name,
+                api_base=default_api_base,
+                model=default_model,
+                api_key=default_api_key
+            )
+            await db.activate_ai_provider(provider["id"])
 
     app = web.Application()
     

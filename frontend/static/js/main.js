@@ -4881,9 +4881,11 @@
     async function loadAiProviders() {
         try {
             const providers = await apiCall('ai-providers');
+            state.aiProviders = providers || [];
             renderAiProviders(providers || []);
         } catch (e) {
             console.error('Failed to load AI providers:', e);
+            state.aiProviders = [];
             renderAiProviders([]);
         }
     }
@@ -4905,20 +4907,23 @@
                     <button class="ai-provider-activate-btn" ${p.is_active ? 'disabled' : ''} onclick="ScheduleApp.activateAiProvider(${p.id})">
                         ${p.is_active ? '使用中' : '使用'}
                     </button>
-                    <button class="ai-provider-edit-btn" onclick="ScheduleApp.editAiProvider(${p.id}, '${escapeHtml(p.name)}', '${escapeHtml(p.api_base)}', '${escapeHtml(p.model)}', '${escapeHtml(p.api_key)}')">编辑</button>
+                    <button class="ai-provider-edit-btn" onclick="ScheduleApp.editAiProvider(${p.id})">编辑</button>
                     <button class="ai-provider-delete-btn" onclick="ScheduleApp.deleteAiProvider(${p.id})">删除</button>
                 </div>
             </div>
         `).join('');
     }
 
-    function openAiProviderModal(id = null, name = '', apiBase = '', model = '', apiKey = '') {
+    function openAiProviderModal(id = null) {
+        const provider = id ? (state.aiProviders || []).find((p) => p.id === id) : null;
         elements.aiProviderId.value = id || '';
         elements.aiProviderModalTitle.textContent = id ? '编辑 AI 提供商' : '添加 AI 提供商';
-        elements.aiProviderName.value = name;
-        elements.aiProviderApiBase.value = apiBase;
-        elements.aiProviderModel.value = model;
-        elements.aiProviderApiKey.value = apiKey;
+        elements.aiProviderName.value = provider?.name || '';
+        elements.aiProviderApiBase.value = provider?.api_base || '';
+        elements.aiProviderModel.value = provider?.model || '';
+        // 编辑默认不展示明文密钥，仅显示掩码提示；留空表示保持原值
+        elements.aiProviderApiKey.value = '';
+        elements.aiProviderApiKey.placeholder = provider?.has_api_key ? (provider.api_key || 'sk-****') : '请输入 API Key';
         elements.aiProviderModal.classList.remove('hidden');
     }
 
@@ -4943,6 +4948,10 @@
             if (id) {
                 result = await apiCall(`ai-providers/${id}`, 'PUT', { name, api_base: apiBase, model, api_key: apiKey });
             } else {
+                if (!apiKey) {
+                    showToast('请填写 API Key');
+                    return;
+                }
                 result = await apiCall('ai-providers', 'POST', { name, api_base: apiBase, model, api_key: apiKey });
             }
             

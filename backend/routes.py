@@ -26,6 +26,15 @@ def error_response(message: str, code: int = 1) -> web.Response:
     })
 
 
+def _sanitize_ai_provider(provider: dict) -> dict:
+    """Hide sensitive api_key when returning provider payload."""
+    safe = dict(provider)
+    raw_key = (safe.get("api_key") or "").strip()
+    safe["has_api_key"] = bool(raw_key)
+    safe["api_key"] = f"{raw_key[:3]}-****" if raw_key else ""
+    return safe
+
+
 async def get_events(request: web.Request) -> web.Response:
     """GET /api/events?date=today|week|month|all|YYYY-MM-DD|YYYY-MM - list events."""
     date_filter = request.query.get("date", "today")
@@ -225,7 +234,7 @@ async def llm_chat(request: web.Request) -> web.Response:
     if result:
         return json_response(result)
     else:
-        return error_response("LLM处理失败，请检查API配置或稍后重试")
+        return error_response(llm_service.last_error_message or "LLM处理失败，请检查API配置或稍后重试")
 
 
 async def llm_create(request: web.Request) -> web.Response:
@@ -268,7 +277,7 @@ async def llm_create(request: web.Request) -> web.Response:
     print(f"LLM create result: {result}")
     
     if not result:
-        return error_response("LLM处理失败，请检查网络连接或稍后重试")
+        return error_response(llm_service.last_error_message or "LLM处理失败，请检查网络连接或稍后重试")
     
     # Handle multiple events or single event
     events_list = []
@@ -559,7 +568,7 @@ async def llm_breakdown(request: web.Request) -> web.Response:
     if result:
         return json_response(result)
     else:
-        return error_response("LLM拆解失败")
+        return error_response(llm_service.last_error_message or "LLM拆解失败")
 
 
 async def get_goals(request: web.Request) -> web.Response:
@@ -810,7 +819,7 @@ async def ai_discuss_goal(request: web.Request) -> web.Response:
         )
         
         if not result:
-            return error_response("AI 响应失败，请稍后重试")
+            return error_response(llm_service.last_error_message or "AI 响应失败，请稍后重试")
         
         return json_response(result)
     
@@ -874,7 +883,7 @@ async def ai_reschedule_goal(request: web.Request) -> web.Response:
         )
         
         if not result:
-            return error_response("AI 响应失败，请稍后重试")
+            return error_response(llm_service.last_error_message or "AI 响应失败，请稍后重试")
         
         return json_response(result)
     
@@ -926,7 +935,7 @@ async def get_ai_providers(request: web.Request) -> web.Response:
     """GET /api/ai-providers - list all AI providers."""
     try:
         providers = await db.get_ai_providers()
-        return json_response(providers)
+        return json_response([_sanitize_ai_provider(provider) for provider in providers])
     except Exception as e:
         return error_response(f"获取AI配置失败: {str(e)}")
 
@@ -939,13 +948,17 @@ async def create_ai_provider(request: web.Request) -> web.Response:
         return error_response("无效的JSON数据")
     
     try:
+        api_key = data.get("api_key", "").strip()
+        if not api_key:
+            return error_response("API Key 不能为空，请在设置页填写有效密钥")
+
         provider = await db.create_ai_provider(
             name=data.get("name", "").strip(),
             api_base=data.get("api_base", "").strip(),
             model=data.get("model", "").strip(),
-            api_key=data.get("api_key", "").strip(),
+            api_key=api_key,
         )
-        return json_response(provider)
+        return json_response(_sanitize_ai_provider(provider))
     except Exception as e:
         return error_response(f"创建AI配置失败: {str(e)}")
 
@@ -960,15 +973,22 @@ async def update_ai_provider(request: web.Request) -> web.Response:
         return error_response("无效的JSON数据")
     
     try:
+        api_key_value = data.get("api_key")
+        normalized_api_key = None
+        if api_key_value is not None:
+            normalized_value = str(api_key_value).strip()
+            if normalized_value != "":
+                normalized_api_key = normalized_value
+
         provider = await db.update_ai_provider(
             provider_id=provider_id,
             name=data.get("name", "").strip(),
             api_base=data.get("api_base", "").strip(),
             model=data.get("model", "").strip(),
-            api_key=data.get("api_key", "").strip(),
+            api_key=normalized_api_key,
         )
         if provider:
-            return json_response(provider)
+            return json_response(_sanitize_ai_provider(provider))
         else:
             return error_response("AI配置不存在", code=404)
     except Exception as e:
@@ -1134,7 +1154,7 @@ async def chat_note(request: web.Request) -> web.Response:
         )
         
         if not ai_response:
-            return error_response("AI 响应失败，请重试")
+            return error_response(llm_service.last_error_message or "AI 响应失败，请重试")
         
         # Save user message to history
         user_conv = db.NoteConversation(
@@ -1643,7 +1663,7 @@ async def llm_parse_expense(request: web.Request) -> web.Response:
     
     parsed = await llm_service.parse_expense(user_text, budgets=budget_list, auto_assign_budget=auto_assign_budget)
     if not parsed:
-        return error_response("AI解析失败，请检查网络连接或稍后重试")
+        return error_response(llm_service.last_error_message or "AI解析失败，请检查网络连接或稍后重试")
     
     # Ensure it's a list
     if isinstance(parsed, dict) and "expenses" in parsed:
