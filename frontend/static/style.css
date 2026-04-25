@@ -263,6 +263,7 @@ body {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
+    overflow-x: hidden;
 }
 
 .llm-queue-status {
@@ -3734,6 +3735,7 @@ textarea {
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
+    padding-bottom: calc(var(--tab-bar-height) + var(--safe-area-bottom) + var(--space-md));
 }
 
 .expense-day-group {
