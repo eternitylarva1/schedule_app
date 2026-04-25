@@ -6946,6 +6946,25 @@
         window.switchView = switchView;
         window.scheduleAppState = state;
         
+        // Expose budget functions for module system
+        window.ScheduleAppBudget = {
+            bindBudgetEvents,
+            showAllBudgetsList,
+            showBudgetExpenses,
+            openExpenseModalForBudget,
+            openBudgetModal,
+            updatePeriodButtons,
+            closeBudgetModal,
+            handleBudgetSave,
+            openExpenseModal,
+            renderExpenseBudgetSelector,
+            closeExpenseModal,
+            renderExpenseCategorySelector,
+            handleExpenseSave,
+            get selectedExpenseBudgetId() { return selectedExpenseBudgetId; },
+            set selectedExpenseBudgetId(v) { selectedExpenseBudgetId = v; },
+        };
+        
         console.log('Schedule App ready!');
     }
 
