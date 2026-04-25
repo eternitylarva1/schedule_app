@@ -5274,6 +5274,10 @@
         openExpenseModalForBudget,
     } = window.ScheduleAppBudget || {};
 
+    // Expose expense functions to ScheduleAppCore for notepad.js
+    window.ScheduleAppCore = window.ScheduleAppCore || {};
+    window.ScheduleAppCore.openExpenseModal = openExpenseModal;
+
     // Start the app
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
