@@ -1,0 +1,13 @@
+{
+  "name": "schedule-app",
+  "version": "1.0.0",
+  "description": "AI Schedule Management App",
+  "scripts": {
+    "build": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch",
+    "build:analyze": "node esbuild.config.js --analyze"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}

@@ -1,5 +1,51 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
 *.db
+*.sqlite
+*.sqlite3
+
+# Node.js
+node_modules/
+package-lock.json
+
+# Build output
+frontend/static/js/dist/
+
+# Logs
+*.log
+backend.log
+server.log
+nul
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Test output
 test_output/
+test_report_*.json
+test_report_*.txt
+
+# codenomad (working directory config)
+.codenomad/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.bak
+*.tmp
