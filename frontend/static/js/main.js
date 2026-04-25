@@ -5316,6 +5316,11 @@
     // Event Listeners
     // ============================================
     function bindEvents() {
+        if (state._eventsBound) {
+            return;
+        }
+        state._eventsBound = true;
+
         // Refresh button
         elements.refreshBtn.addEventListener('click', () => {
             elements.refreshBtn.classList.add('rotating');
