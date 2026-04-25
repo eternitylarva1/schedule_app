@@ -654,7 +654,7 @@ class LLMService:
     {{
       "action": "create|update|delete|complete|uncomplete",
       "title": "当action=create/update时必填，否则为null",
-      "start_time": "ISO时间或null（create/update使用）",
+      "start_time": "ISO格式如2026-04-25T18:00:00（create/update使用，create时必填）",
       "duration_minutes": 30,
       "category_id": "work/life/study/health（create/update使用）",
       "scope": "all|date（delete/complete/uncomplete使用）",
@@ -675,11 +675,13 @@ class LLMService:
    - original_title: 填写要修改的日程/待办的原标题（用于定位）
    - title: 修改后的新标题（如果不改标题则同original_title）
    - start_time: 修改后的新时间（必填）
-7) create时：
-   - 若用户给出明确时间则填 start_time
-   - 若无明确时间则 start_time = null
-   - "X月X号前/之前/以前" 视为截止约束，不给明确时刻时 start_time = null
-8) 不能确定时，宁可返回 start_time=null，也不要编造今天时间。
+7) create时：start_time 始终必须填写，不允许为null！
+   - "今天晚上"= 今天18:00，"今天下午"= 今天14:00，"今天上午"= 今天09:00
+   - "明天早上"= 明天09:00，"明天下午"= 明天14:00
+   - 多个任务应连续安排：第一个18:00开始，后续任务顺延
+   - duration已由用户给出，直接使用（如"半小时"=30分钟）
+   - 只在用户明确说"待定"、"不确定"、"有时间再说"时才用null
+   - 任何模糊时间都要推断为具体时间：晚上=18:00，下午=14:00，上午=09:00，中午=12:00
 """
 
         response = await self.chat([
