@@ -643,6 +643,7 @@ class LLMService:
 
 你必须在以下 action 中选择：
 - create: 创建日程/待办
+- update: 修改日程/待办（只修改时间/标题，保留原内容）
 - delete: 删除日程/待办（批量或按日期）
 - complete: 完成日程/待办（批量或按日期）
 - uncomplete: 撤销完成（批量或按日期）
@@ -651,13 +652,14 @@ class LLMService:
 {{
   "operations": [
     {{
-      "action": "create|delete|complete|uncomplete",
-      "title": "当action=create时必填，否则为null",
-      "start_time": "ISO时间或null（仅create使用）",
+      "action": "create|update|delete|complete|uncomplete",
+      "title": "当action=create/update时必填，否则为null",
+      "start_time": "ISO时间或null（create/update使用）",
       "duration_minutes": 30,
-      "category_id": "work/life/study/health（仅create使用）",
+      "category_id": "work/life/study/health（create/update使用）",
       "scope": "all|date（delete/complete/uncomplete使用）",
-      "date": "YYYY-MM-DD或null（scope=date时必填）"
+      "date": "YYYY-MM-DD或null（scope=date时必填）",
+      "original_title": "当action=update时必填，填写要修改的原有标题"
     }}
   ],
   "summary": "一句话总结"
@@ -665,14 +667,19 @@ class LLMService:
 
 规则：
 1) 支持一条输入中的多操作（按输入顺序输出）。
-2) 对“删除所有4月5号的代办”这类，输出 action=delete, scope=date, date=对应日期。
-3) 对“完成所有代办”这类，输出 action=complete, scope=all。
-4) 对“撤销所有完成”这类，输出 action=uncomplete, scope=all。
-5) create时：
+2) 对“把X改成时间Y”这类修改需求，输出 action=update。
+3) 对“删除所有4月5号的代办”这类，输出 action=delete, scope=date, date=对应日期。
+4) 对“完成所有代办”这类，输出 action=complete, scope=all。
+5) 对“撤销所有完成”这类，输出 action=uncomplete, scope=all。
+6) update时：
+   - original_title: 填写要修改的日程/待办的原标题（用于定位）
+   - title: 修改后的新标题（如果不改标题则同original_title）
+   - start_time: 修改后的新时间（必填）
+7) create时：
    - 若用户给出明确时间则填 start_time
    - 若无明确时间则 start_time = null
-   - “X月X号前/之前/以前” 视为截止约束，不给明确时刻时 start_time = null
-6) 不能确定时，宁可返回 start_time=null，也不要编造今天时间。
+   - "X月X号前/之前/以前" 视为截止约束，不给明确时刻时 start_time = null
+8) 不能确定时，宁可返回 start_time=null，也不要编造今天时间。
 """
 
         response = await self.chat([

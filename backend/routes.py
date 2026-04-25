@@ -383,8 +383,8 @@ async def llm_command(request: web.Request) -> web.Response:
         if not isinstance(op, dict):
             continue
 
-        action = str(op.get("action", "")).strip().lower()
-        if action not in {"create", "delete", "complete", "uncomplete"}:
+action = str(op.get("action", "")).strip().lower()
+        if action not in {"create", "update", "delete", "complete", "uncomplete"}:
             continue
 
         if action == "create":
