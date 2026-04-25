@@ -422,20 +422,21 @@
         }, 3000);
     }
 
-    // Custom confirm dialog
-    function showConfirm(message) {
+    function showModal({ message, mode = 'confirm', placeholder = '', initialValue = '' }) {
         return new Promise((resolve) => {
             const backdrop = document.createElement('div');
             backdrop.className = 'confirm-backdrop';
             
             const dialog = document.createElement('div');
             dialog.className = 'confirm-dialog';
+            const isPrompt = mode === 'prompt';
             
             dialog.innerHTML = `
                 <div class="confirm-message">${message}</div>
+                ${isPrompt ? `<input class="confirm-input" type="text" placeholder="${placeholder}" value="${initialValue || ''}" />` : ''}
                 <div class="confirm-buttons">
                     <button class="confirm-btn confirm-cancel">取消</button>
-                    <button class="confirm-btn confirm-ok">确定</button>
+                    <button class="confirm-btn confirm-ok">${isPrompt ? '提交' : '确定'}</button>
                 </div>
             `;
             
@@ -457,12 +458,31 @@
                 }, 200);
             };
             
-            dialog.querySelector('.confirm-cancel').addEventListener('click', () => cleanup(false));
-            dialog.querySelector('.confirm-ok').addEventListener('click', () => cleanup(true));
+            const inputEl = dialog.querySelector('.confirm-input');
+            dialog.querySelector('.confirm-cancel').addEventListener('click', () => cleanup(isPrompt ? null : false));
+            dialog.querySelector('.confirm-ok').addEventListener('click', () => cleanup(isPrompt ? inputEl.value : true));
             backdrop.addEventListener('click', (e) => {
-                if (e.target === backdrop) cleanup(false);
+                if (e.target === backdrop) cleanup(isPrompt ? null : false);
             });
+            if (inputEl) {
+                requestAnimationFrame(() => inputEl.focus());
+                inputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') cleanup(inputEl.value);
+                    if (e.key === 'Escape') cleanup(null);
+                });
+            }
         });
+    }
+
+    // Custom confirm dialog
+    function showConfirm(message) {
+        return showModal({ message, mode: 'confirm' });
+    }
+
+    // Custom prompt dialog
+    function showPrompt(message, options = {}) {
+        const { placeholder = '', initialValue = '' } = options;
+        return showModal({ message, mode: 'prompt', placeholder, initialValue });
     }
 
 
@@ -511,5 +531,6 @@
         deleteBudget,
         showToast,
         showConfirm,
+        showPrompt,
     };
 })(window);
