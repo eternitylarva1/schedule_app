@@ -427,6 +427,26 @@ async def llm_command(request: web.Request) -> web.Response:
                 deadline_dt = _extract_deadline_from_text(user_text)
                 if deadline_dt and not _has_explicit_clock_time_in_text(user_text):
                     start_time = None
+            
+            # Fallback: try to infer time from user text if start_time is still None
+            if not start_time:
+                now = datetime.now()
+                import re
+                user_text_lower = user_text.lower()
+                # Parse "今晚", "今晚8点", "今天晚上", "今晚6点", "今天晚上" etc.
+                if '今晚' in user_text or '今晚' in user_text_lower:
+                    hour = 20
+                    hour_match = re.search(r'(\d{1,2})\s*点', user_text)
+                    if hour_match:
+                        hour = int(hour_match.group(1))
+                    is_today = '今' in user_text[:3] or '今天' in user_text
+                    start_time = now.replace(hour=hour, minute=0, second=0, microsecond=0) if is_today else now.replace(hour=hour, minute=0, second=0, microsecond=0) + timedelta(days=1 if now.hour > hour else 0)
+                elif '明晚' in user_text or '明晚' in user_text_lower:
+                    start_time = now.replace(hour=20, minute=0, second=0, microsecond=0) + timedelta(days=1)
+                elif '晚上' in user_text or '晚上' in user_text_lower:
+                    hour_match = re.search(r'(\d{1,2})\s*点', user_text)
+                    hour = int(hour_match.group(1)) if hour_match else 18
+                    start_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
 
             if not start_time:
                 deadline_label = _extract_deadline_label_from_text(user_text)
