@@ -377,14 +377,43 @@ async def llm_command(request: web.Request) -> web.Response:
         "deleted": 0,
         "completed": 0,
         "uncompleted": 0,
-    }
+}
 
     for op in operations:
         if not isinstance(op, dict):
             continue
 
-action = str(op.get("action", "")).strip().lower()
+        action = str(op.get("action", "")).strip().lower()
         if action not in {"create", "update", "delete", "complete", "uncomplete"}:
+            continue
+
+        if action == "update":
+            original_title = (op.get("original_title") or "").strip()
+            new_title = (op.get("title") or original_title).strip()
+            new_start_time = _parse_datetime(op.get("start_time"))
+            if not new_start_time:
+                preview_ops.append({
+                    "action": "update",
+                    "title": new_title,
+                    "original_title": original_title,
+                    "start_time": None,
+                    "error": "缺少有效的时间",
+                })
+                continue
+
+            preview_item = {
+                "action": "update",
+                "title": new_title,
+                "original_title": original_title,
+                "start_time": new_start_time.isoformat(),
+            }
+
+            if not dry_run:
+                affected = await db.update_event_time_by_title(original_title, new_start_time)
+                preview_item["affected"] = affected
+                stats["updated"] = stats.get("updated", 0) + affected
+
+            preview_ops.append(preview_item)
             continue
 
         if action == "create":

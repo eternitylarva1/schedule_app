@@ -466,6 +466,21 @@ async def delete_event(event_id: int) -> bool:
         return cursor.rowcount > 0
 
 
+async def update_event_time_by_title(title: str, new_start_time: datetime) -> int:
+    """Update start_time of the first pending event matching title."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """UPDATE events SET start_time = ?, updated_at = ?
+               WHERE title = ? AND status = 'pending' AND id = (
+                   SELECT id FROM events WHERE title = ? AND status = 'pending' LIMIT 1
+               )""",
+            (new_start_time.isoformat(), now, title, title),
+        )
+        await db.commit()
+        return cursor.rowcount
+
+
 async def complete_event(event_id: int) -> Optional[Event]:
     """Mark an event as completed."""
     event = await get_event(event_id)
