@@ -130,6 +130,17 @@ async def init_db() -> None:
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('qq_reminder_enabled', 'true')")
         await db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('default_task_reminder_enabled', 'true')")
         
+        # User contexts table for multiple self-description entries
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS user_contexts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content TEXT NOT NULL DEFAULT '',
+                sort_order INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+        
         # Notes table for memo/notepad functionality
         await db.execute("""
             CREATE TABLE IF NOT EXISTS notes (
@@ -788,6 +799,67 @@ async def activate_ai_provider(provider_id: int) -> bool:
         await db.execute("UPDATE ai_providers SET is_active = 0")
         # Activate the selected one
         await db.execute("UPDATE ai_providers SET is_active = 1 WHERE id = ?", (provider_id,))
+        await db.commit()
+        return True
+
+
+async def get_user_contexts() -> list[dict]:
+    """Get all user contexts ordered by sort_order."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM user_contexts ORDER BY sort_order ASC, id ASC") as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def create_user_context(content: str) -> dict:
+    """Create a new user context."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO user_contexts (content, sort_order, created_at, updated_at)
+               VALUES (?, ?, ?, ?)""",
+            (content, 0, now, now),
+        )
+        await db.commit()
+        context_id = cursor.lastrowid
+        return {
+            "id": context_id,
+            "content": content,
+            "sort_order": 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+
+async def update_user_context(context_id: int, content: str) -> Optional[dict]:
+    """Update a user context."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """UPDATE user_contexts SET content = ?, updated_at = ? WHERE id = ?""",
+            (content, now, context_id),
+        )
+        await db.commit()
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM user_contexts WHERE id = ?", (context_id,)) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def delete_user_context(context_id: int) -> bool:
+    """Delete a user context."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM user_contexts WHERE id = ?", (context_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def reorder_user_contexts(context_ids: list[int]) -> bool:
+    """Reorder user contexts by updating sort_order based on position in list."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        for idx, ctx_id in enumerate(context_ids):
+            await db.execute("UPDATE user_contexts SET sort_order = ? WHERE id = ?", (idx, ctx_id))
         await db.commit()
         return True
 

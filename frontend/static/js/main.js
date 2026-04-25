@@ -3304,6 +3304,7 @@
         elements.goalsView.classList.add('hidden');
         elements.statsView && elements.statsView.classList.add('hidden');
         elements.notepadView.classList.add('hidden');
+        elements.settingsView && elements.settingsView.classList.add('hidden');
         
         stopStatsClock();
 
@@ -3386,6 +3387,12 @@
             case 'goals':
                 elements.goalsView.classList.remove('hidden');
                 await renderGoalsView();
+                break;
+            case 'settings':
+                if (elements.settingsView) {
+                    elements.settingsView.classList.remove('hidden');
+                }
+                await openSettingsView();
                 break;
             case 'add':
                 openEventModal();
@@ -3719,13 +3726,17 @@
     // Goal AI Discuss Modal
     // ============================================
     let goalDiscussState = {
-        goalId: null,        // null for new goal, goalId for existing
+        goalId: null,
         goalContent: '',
         conversationHistory: [],
         currentSubtasks: [],
         isComplete: false,
         mode: 'discuss',
-        isRequesting: false
+        isRequesting: false,
+        abortController: null,
+        loadingStartTime: null,
+        loadingMessageId: null,
+        lastUserMessage: ''
     };
 
     function openGoalDiscussModal(goalId = null) {
@@ -3736,7 +3747,11 @@
             currentSubtasks: [],
             isComplete: false,
             mode: 'discuss',
-            isRequesting: false
+            isRequesting: false,
+            abortController: null,
+            loadingStartTime: null,
+            loadingMessageId: null,
+            lastUserMessage: ''
         };
         
         // Show intro, hide conversation and results
@@ -3766,7 +3781,11 @@
             currentSubtasks: [],
             isComplete: false,
             mode: 'history',
-            isRequesting: false
+            isRequesting: false,
+            abortController: null,
+            loadingStartTime: null,
+            loadingMessageId: null,
+            lastUserMessage: ''
         };
 
         const titleEl = elements.goalDiscussModal.querySelector('.modal-header h2');
@@ -3821,6 +3840,14 @@
     }
 
     function closeGoalDiscussModal() {
+        if (goalDiscussState.abortController) {
+            goalDiscussState.abortController.abort();
+            goalDiscussState.abortController = null;
+        }
+        if (loadingTimerInterval) {
+            clearInterval(loadingTimerInterval);
+            loadingTimerInterval = null;
+        }
         elements.goalDiscussModal.classList.add('hidden');
     }
     
@@ -3977,24 +4004,42 @@
             return;
         }
 
+        if (goalDiscussState.abortController) {
+            goalDiscussState.abortController.abort();
+        }
+        goalDiscussState.abortController = new AbortController();
         goalDiscussState.isRequesting = true;
+        goalDiscussState.lastUserMessage = input;
         elements.goalDiscussStartBtn.disabled = true;
         elements.goalDiscussInput.disabled = true;
         
         goalDiscussState.goalContent = input;
         goalDiscussState.conversationHistory = [];
         
-        // Hide intro, show conversation
+        let draftGoalId = goalDiscussState.goalId;
+        if (!draftGoalId) {
+            try {
+                const draftGoal = await createGoal({
+                    title: input.slice(0, 50) + (input.length > 50 ? '...' : ''),
+                    horizon: state.goalsHorizon
+                });
+                if (draftGoal && draftGoal.id) {
+                    draftGoalId = draftGoal.id;
+                    goalDiscussState.goalId = draftGoalId;
+                }
+            } catch (e) {
+                console.error('Create draft goal failed:', e);
+            }
+        }
+        
         elements.goalDiscussModal.querySelector('.goal-discuss-intro').classList.add('hidden');
         elements.goalDiscussModal.querySelector('.goal-discuss-input-area').classList.add('hidden');
         elements.goalDiscussConversation.classList.remove('hidden');
         
-        // Add user message
         addDiscussMessage('user', input);
         goalDiscussState.conversationHistory.push({ role: 'user', content: input });
         await persistDiscussMessage('user', input);
         
-        // Show loading
         showDiscussLoading();
         
         try {
@@ -4006,32 +4051,43 @@
                     user_input: '',
                     conversation_history: []
                 })
+            }, goalDiscussState.abortController.signal);
+            
+            elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+                el.remove();
             });
+            if (loadingTimerInterval) {
+                clearInterval(loadingTimerInterval);
+                loadingTimerInterval = null;
+            }
             
             if (result) {
-                elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
-                    el.remove();
-                });
                 if (result.type === 'question') {
-                    // AI asked a question
                     addDiscussMessage('assistant', result.message);
                     goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message });
                     await persistDiscussMessage('assistant', result.message);
                     showDiscussInput();
                 } else if (result.type === 'subtasks') {
-                    // AI generated subtasks
                     goalDiscussState.currentSubtasks = normalizeSubtasksNoConflict(result.subtasks || []);
                     goalDiscussState.isComplete = true;
                     showDiscussResults();
                 }
             } else {
-                elements.goalDiscussConversation.innerHTML = '<div class="discuss-error">AI响应失败，请稍后重试</div>';
+                showDiscussError('AI响应失败，请稍后重试');
             }
         } catch (error) {
+            if (error.name === 'AbortError' || error.message === 'The user aborted a request.') {
+                elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+                    el.remove();
+                });
+                showDiscussInputForRetry();
+                return;
+            }
             console.error('Discuss error:', error);
-            elements.goalDiscussConversation.innerHTML = '<div class="discuss-error">请求失败: ' + error.message + '</div>';
+            showDiscussError(error.message || '请求失败');
         } finally {
             goalDiscussState.isRequesting = false;
+            goalDiscussState.abortController = null;
             elements.goalDiscussStartBtn.disabled = false;
             elements.goalDiscussInput.disabled = false;
         }
@@ -4044,23 +4100,41 @@
         const input = continueInputEl ? continueInputEl.value.trim() : '';
         if (!input) return;
 
+        if (goalDiscussState.abortController) {
+            goalDiscussState.abortController.abort();
+        }
+        goalDiscussState.abortController = new AbortController();
         goalDiscussState.isRequesting = true;
+        goalDiscussState.lastUserMessage = input;
         const continueBtnEl = continueInputEl ? continueInputEl.closest('.discuss-input-area')?.querySelector('.discuss-continue-btn') : null;
         if (continueInputEl) continueInputEl.disabled = true;
         if (continueBtnEl) continueBtnEl.disabled = true;
 
-        // Remove old input row immediately to avoid accumulating empty dialog rows
         const inputWrapper = continueInputEl ? continueInputEl.closest('.discuss-input-area') : null;
         if (inputWrapper) {
             inputWrapper.remove();
         }
         
-        // Add user message
+        let draftGoalId = goalDiscussState.goalId;
+        if (!draftGoalId) {
+            try {
+                const draftGoal = await createGoal({
+                    title: goalDiscussState.goalContent.slice(0, 50) + (goalDiscussState.goalContent.length > 50 ? '...' : ''),
+                    horizon: state.goalsHorizon
+                });
+                if (draftGoal && draftGoal.id) {
+                    draftGoalId = draftGoal.id;
+                    goalDiscussState.goalId = draftGoalId;
+                }
+            } catch (e) {
+                console.error('Create draft goal failed:', e);
+            }
+        }
+        
         addDiscussMessage('user', input);
         goalDiscussState.conversationHistory.push({ role: 'user', content: input });
         await persistDiscussMessage('user', input);
         
-        // Show loading
         showDiscussLoading();
         
         try {
@@ -4072,20 +4146,23 @@
                     user_input: input,
                     conversation_history: goalDiscussState.conversationHistory.slice(-6)
                 })
+            }, goalDiscussState.abortController.signal);
+            
+            elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+                el.remove();
             });
+            if (loadingTimerInterval) {
+                clearInterval(loadingTimerInterval);
+                loadingTimerInterval = null;
+            }
             
             if (result) {
-                elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
-                    el.remove();
-                });
                 if (result.type === 'question') {
-                    // AI asked another question
                     addDiscussMessage('assistant', result.message);
                     goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message });
                     await persistDiscussMessage('assistant', result.message);
                     showDiscussInput();
                 } else if (result.type === 'subtasks') {
-                    // AI generated subtasks
                     goalDiscussState.currentSubtasks = normalizeSubtasksNoConflict(result.subtasks || []);
                     goalDiscussState.isComplete = true;
                     showDiscussResults();
@@ -4094,10 +4171,18 @@
                 }
             }
         } catch (error) {
+            if (error.name === 'AbortError' || error.message === 'The user aborted a request.') {
+                elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+                    el.remove();
+                });
+                showDiscussInputForRetry();
+                return;
+            }
             console.error('Continue discuss error:', error);
-            elements.goalDiscussConversation.innerHTML += '<div class="discuss-error">请求失败: ' + error.message + '</div>';
+            showDiscussError(error.message || '请求失败');
         } finally {
             goalDiscussState.isRequesting = false;
+            goalDiscussState.abortController = null;
         }
     }
 
@@ -4113,8 +4198,151 @@
         elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
             el.remove();
         });
-        elements.goalDiscussConversation.innerHTML += '<div class="discuss-loading">🤔 AI思考中...</div>';
+        const loadingId = 'loading-' + Date.now();
+        goalDiscussState.loadingMessageId = loadingId;
+        goalDiscussState.loadingStartTime = Date.now();
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'discuss-loading';
+        wrapper.id = loadingId;
+        wrapper.innerHTML = `
+            <span class="loading-text">🤔 AI思考中...</span>
+            <span class="loading-time"></span>
+            <button class="btn btn-secondary btn-sm loading-stop-btn" style="margin-left: 8px;">停止</button>
+        `;
+        elements.goalDiscussConversation.appendChild(wrapper);
+        
+        const stopBtn = wrapper.querySelector('.loading-stop-btn');
+        if (stopBtn) {
+            stopBtn.addEventListener('click', () => {
+                if (goalDiscussState.abortController) {
+                    goalDiscussState.abortController.abort();
+                }
+            });
+        }
+        
+        updateLoadingTime(loadingId);
         elements.goalDiscussConversation.scrollTop = elements.goalDiscussConversation.scrollHeight;
+    }
+    
+    let loadingTimerInterval = null;
+    
+    function updateLoadingTime(loadingId) {
+        if (loadingTimerInterval) {
+            clearInterval(loadingTimerInterval);
+        }
+        loadingTimerInterval = setInterval(() => {
+            const loadingEl = document.getElementById(loadingId);
+            if (!loadingEl || !goalDiscussState.loadingStartTime) {
+                clearInterval(loadingTimerInterval);
+                return;
+            }
+            const elapsed = Math.floor((Date.now() - goalDiscussState.loadingStartTime) / 1000);
+            const timeEl = loadingEl.querySelector('.loading-time');
+            if (timeEl) {
+                timeEl.textContent = `${elapsed}s`;
+            }
+            if (elapsed >= 30 && !loadingEl.querySelector('.loading-retry-btn')) {
+                clearInterval(loadingTimerInterval);
+                showDiscussTimeout(loadingId);
+            }
+        }, 1000);
+    }
+    
+    function showDiscussTimeout(loadingId) {
+        const loadingEl = document.getElementById(loadingId);
+        if (!loadingEl) return;
+        loadingEl.innerHTML = `
+            <span class="loading-text">⏱️ AI响应超时</span>
+            <button class="btn btn-primary btn-sm loading-retry-btn" style="margin-left: 8px;">重试</button>
+            <button class="btn btn-secondary btn-sm loading-edit-btn" style="margin-left: 4px;">修改内容</button>
+        `;
+        const retryBtn = loadingEl.querySelector('.loading-retry-btn');
+        const editBtn = loadingEl.querySelector('.loading-edit-btn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                goalDiscussState.abortController = null;
+                if (goalDiscussState.goalContent && !goalDiscussState.lastUserMessage) {
+                    startGoalDiscuss();
+                } else {
+                    continueGoalDiscuss();
+                }
+            });
+        }
+        if (editBtn) {
+            editBtn.addEventListener('click', () => {
+                goalDiscussState.abortController = null;
+                showDiscussInputForRetry();
+            });
+        }
+    }
+    
+    function showDiscussError(message, isTimeout = false) {
+        elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+            el.remove();
+        });
+        const errorId = 'error-' + Date.now();
+        const errorEl = document.createElement('div');
+        errorEl.className = 'discuss-loading';
+        errorEl.id = errorId;
+        errorEl.innerHTML = `
+            <span class="loading-text">❌ ${escapeHtml(message)}</span>
+            <button class="btn btn-primary btn-sm loading-retry-btn" style="margin-left: 8px;">重试</button>
+            <button class="btn btn-secondary btn-sm loading-edit-btn" style="margin-left: 4px;">修改内容</button>
+        `;
+        elements.goalDiscussConversation.appendChild(errorEl);
+        
+        const retryBtn = errorEl.querySelector('.loading-retry-btn');
+        const editBtn = errorEl.querySelector('.loading-edit-btn');
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                goalDiscussState.abortController = null;
+                if (goalDiscussState.goalContent && !goalDiscussState.lastUserMessage) {
+                    startGoalDiscuss();
+                } else {
+                    continueGoalDiscuss();
+                }
+            });
+        }
+        if (editBtn) {
+            editBtn.addEventListener('click', () => {
+                goalDiscussState.abortController = null;
+                showDiscussInputForRetry();
+            });
+        }
+        elements.goalDiscussConversation.scrollTop = elements.goalDiscussConversation.scrollHeight;
+    }
+    
+    function showDiscussInputForRetry() {
+        elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+            el.remove();
+        });
+        elements.goalDiscussConversation.querySelectorAll('.discuss-input-area').forEach((el) => {
+            el.remove();
+        });
+        const wrapper = document.createElement('div');
+        wrapper.className = 'discuss-input-area';
+        wrapper.innerHTML = `
+            <input type="text" class="discuss-continue-input" placeholder="修改内容后重试..." value="${escapeHtml(goalDiscussState.lastUserMessage || '')}" />
+            <button class="btn btn-primary discuss-continue-btn">重新发送</button>
+        `;
+        elements.goalDiscussConversation.appendChild(wrapper);
+        const inputEl = wrapper.querySelector('.discuss-continue-input');
+        const btnEl = wrapper.querySelector('.discuss-continue-btn');
+        if (btnEl) btnEl.addEventListener('click', () => {
+            const newInput = inputEl.value.trim();
+            if (newInput && newInput !== goalDiscussState.lastUserMessage) {
+                if (goalDiscussState.conversationHistory.length > 0) {
+                    goalDiscussState.conversationHistory.pop();
+                }
+                goalDiscussState.lastUserMessage = newInput;
+            }
+            continueGoalDiscuss();
+        });
+        if (inputEl) {
+            inputEl.focus();
+            inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+        }
     }
 
     function showDiscussInput(placeholder = '回答AI的问题...') {
@@ -4173,6 +4401,7 @@
             </div>
             <div class="discuss-results-actions">
                 <button class="btn btn-secondary" id="discussRefineBtn">继续细化</button>
+                <button class="btn btn-secondary" id="discussRescheduleBtn">🔄 重新分配时间</button>
                 <button class="btn btn-primary" id="importSelectedBtn">导入到日程</button>
             </div>
         `;
@@ -4193,10 +4422,97 @@
             });
         }
 
+        // Bind reschedule button - ask AI to reschedule from global view
+        const rescheduleBtn = document.getElementById('discussRescheduleBtn');
+        if (rescheduleBtn) {
+            rescheduleBtn.addEventListener('click', rescheduleGoalDiscuss);
+        }
+
         // Bind import button
         const importBtn = document.getElementById('importSelectedBtn');
         if (importBtn) {
             importBtn.addEventListener('click', () => showImportModal());
+        }
+    }
+    
+    async function rescheduleGoalDiscuss() {
+        if (goalDiscussState.isRequesting) return;
+        
+        goalDiscussState.isRequesting = true;
+        const rescheduleBtn = document.getElementById('discussRescheduleBtn');
+        if (rescheduleBtn) {
+            rescheduleBtn.disabled = true;
+            rescheduleBtn.textContent = '🔄 重新分配中...';
+        }
+        
+        elements.goalDiscussResults.classList.add('hidden');
+        elements.goalDiscussConversation.classList.remove('hidden');
+        elements.goalDiscussConversation.querySelectorAll('.discuss-loading, .discuss-input-area').forEach((el) => {
+            el.remove();
+        });
+        
+        addDiscussMessage('user', '请根据当前的任务拆解结果，从全局角度重新优化时间分配。如果有不合理的地方请调整。');
+        goalDiscussState.conversationHistory.push({ role: 'user', content: '请根据当前的任务拆解结果，从全局角度重新优化时间分配。如果有不合理的地方请调整。' });
+        
+        showDiscussLoading();
+        
+        try {
+            const result = await apiCall('goals/ai/reschedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    goal_content: goalDiscussState.goalContent,
+                    current_subtasks: goalDiscussState.currentSubtasks,
+                    conversation_history: goalDiscussState.conversationHistory.slice(-8)
+                })
+            });
+            
+            elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+                el.remove();
+            });
+            if (loadingTimerInterval) {
+                clearInterval(loadingTimerInterval);
+                loadingTimerInterval = null;
+            }
+            
+            if (result) {
+                if (result.type === 'question') {
+                    addDiscussMessage('assistant', result.message);
+                    goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message });
+                    await persistDiscussMessage('assistant', result.message);
+                    showDiscussInput();
+                } else if (result.type === 'subtasks') {
+                    goalDiscussState.currentSubtasks = normalizeSubtasksNoConflict(result.subtasks || []);
+                    addDiscussMessage('assistant', result.message || '时间已重新分配，请查看结果。');
+                    goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message || '时间已重新分配，请查看结果。' });
+                    await persistDiscussMessage('assistant', result.message || '时间已重新分配');
+                    showDiscussResults();
+                } else if (result.type === 'message') {
+                    addDiscussMessage('assistant', result.message);
+                    goalDiscussState.conversationHistory.push({ role: 'assistant', content: result.message });
+                    await persistDiscussMessage('assistant', result.message);
+                    showDiscussInput();
+                }
+            } else {
+                showDiscussError('重新分配失败，请稍后重试');
+            }
+        } catch (error) {
+            if (error.name === 'AbortError' || error.message === 'The user aborted a request.') {
+                elements.goalDiscussConversation.querySelectorAll('.discuss-loading').forEach((el) => {
+                    el.remove();
+                });
+                elements.goalDiscussResults.classList.remove('hidden');
+                return;
+            }
+            console.error('Reschedule error:', error);
+            showDiscussError(error.message || '重新分配失败');
+        } finally {
+            goalDiscussState.isRequesting = false;
+            const btn = document.getElementById('discussRescheduleBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '🔄 重新分配时间';
+            }
         }
     }
     
@@ -4434,9 +4750,7 @@
     }
 
     async function saveGoalDiscuss() {
-        // In history mode (goalId set), save conversation history to existing goal, update subtasks
         if (goalDiscussState.goalId && goalDiscussState.mode === 'history') {
-            // Save conversation history
             if (goalDiscussState.conversationHistory.length > 0) {
                 for (const msg of goalDiscussState.conversationHistory) {
                     await createGoalConversation(goalDiscussState.goalId, {
@@ -4445,9 +4759,7 @@
                     });
                 }
             }
-            // Update goal with new subtasks if refined
             if (goalDiscussState.currentSubtasks.length > 0) {
-                // Delete existing subtasks and recreate
                 const existingGoal = state.goals.find(g => String(g.id) === String(goalDiscussState.goalId));
                 if (existingGoal && existingGoal.subtasks) {
                     for (const st of existingGoal.subtasks) {
@@ -4474,38 +4786,46 @@
         }
 
         try {
-            // Create main goal
-            const goalResult = await createGoal({
-                title: goalDiscussState.goalContent,
-                horizon: state.goalsHorizon
-            });
+            let finalGoalId = goalDiscussState.goalId;
+            
+            if (finalGoalId) {
+                await updateGoal(finalGoalId, {
+                    title: goalDiscussState.goalContent
+                });
+            } else {
+                const goalResult = await createGoal({
+                    title: goalDiscussState.goalContent,
+                    horizon: state.goalsHorizon
+                });
+                if (goalResult && goalResult.id) {
+                    finalGoalId = goalResult.id;
+                }
+            }
 
-            if (goalResult && goalResult.id) {
-                // Create subtasks
+            if (finalGoalId) {
                 for (let i = 0; i < goalDiscussState.currentSubtasks.length; i++) {
                     const st = goalDiscussState.currentSubtasks[i];
                     await createGoal({
                         title: st.title,
-                        parent_id: goalResult.id,
+                        parent_id: finalGoalId,
                         horizon: state.goalsHorizon,
                         order: i
                     });
                 }
 
-                // Save conversation history
                 if (goalDiscussState.conversationHistory.length > 0) {
                     for (const msg of goalDiscussState.conversationHistory) {
-                        await createGoalConversation(goalResult.id, {
+                        await createGoalConversation(finalGoalId, {
                             role: msg.role,
                             content: msg.content
                         });
                     }
                 }
-
-                showToast('目标已保存');
-                closeGoalDiscussModal();
-                await renderGoalsList();
             }
+
+            showToast('目标已保存');
+            closeGoalDiscussModal();
+            await renderGoalsList();
         } catch (error) {
             console.error('Save goal error:', error);
             showToast('保存失败: ' + error.message);
@@ -4513,47 +4833,46 @@
     }
 
     // ============================================
-    // Settings Modal
+    // Settings View
     // ============================================
-    async function openSettingsModal() {
-        // Load setting from localStorage
+    async function openSettingsView() {
         const saved = localStorage.getItem('enableDragResize');
         state.enableDragResize = saved === 'true';
         elements.enableDragResize.checked = state.enableDragResize;
         
-        // Load QQ reminder setting from API
         await fetchSettings();
         elements.enableQQReminder.checked = state.qqReminderEnabled;
         elements.defaultTaskReminderEnabled.checked = state.defaultTaskReminderEnabled;
         elements.autoAssignBudgetFromLlm.checked = state.autoAssignBudgetFromLlm;
         
-        // Load user self description from API
-        const settings = await apiCall('settings');
-        if (settings && settings.self_description) {
-            state.userSelfDescription = settings.self_description;
-            elements.userSelfDescription.value = settings.self_description;
-        } else {
-            state.userSelfDescription = '';
-            elements.userSelfDescription.value = '';
-        }
-        
-        // Load AI providers
+        await loadUserContexts();
         await loadAiProviders();
         
-        // Set version
+        elements.appVersion.textContent = 'v' + APP_VERSION;
+    }
+
+    // ============================================
+    // Settings Modal (Legacy - kept for reference)
+    // ============================================
+    async function openSettingsModal() {
+        const saved = localStorage.getItem('enableDragResize');
+        state.enableDragResize = saved === 'true';
+        elements.enableDragResize.checked = state.enableDragResize;
+        
+        await fetchSettings();
+        elements.enableQQReminder.checked = state.qqReminderEnabled;
+        elements.defaultTaskReminderEnabled.checked = state.defaultTaskReminderEnabled;
+        elements.autoAssignBudgetFromLlm.checked = state.autoAssignBudgetFromLlm;
+        
+        await loadUserContexts();
+        await loadAiProviders();
+        
         elements.appVersion.textContent = 'v' + APP_VERSION;
         
         elements.settingsModal.classList.remove('hidden');
     }
 
     function closeSettingsModal() {
-        // Save user self description to API
-        const desc = elements.userSelfDescription.value.trim();
-        if (desc !== state.userSelfDescription) {
-            state.userSelfDescription = desc;
-            updateSetting('self_description', desc);
-        }
-        
         elements.settingsModal.classList.add('hidden');
     }
 
@@ -4670,6 +4989,129 @@
             showToast('删除失败');
             console.error(e);
         }
+    }
+
+    // ============ User Contexts (我的现状) ============
+    async function loadUserContexts() {
+        try {
+            const contexts = await apiCall('user-contexts');
+            state.userContexts = contexts || [];
+            renderUserContexts();
+        } catch (e) {
+            console.error('Failed to load user contexts:', e);
+            state.userContexts = [];
+            renderUserContexts();
+        }
+    }
+
+    function renderUserContexts() {
+        const list = elements.userContextList;
+        if (!state.userContexts || state.userContexts.length === 0) {
+            list.innerHTML = '<div class="user-context-empty">暂无现状描述<br>点击上方"添加"新增</div>';
+            return;
+        }
+        
+        list.innerHTML = state.userContexts.map(ctx => `
+            <div class="user-context-item ${ctx.id === state.selectedUserContextId ? 'selected' : ''}" data-id="${ctx.id}">
+                <div class="user-context-item-content">${escapeHtml(ctx.content)}</div>
+            </div>
+        `).join('');
+        
+        list.querySelectorAll('.user-context-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = parseInt(item.dataset.id);
+                selectUserContext(id);
+            });
+        });
+    }
+
+    function selectUserContext(id) {
+        state.selectedUserContextId = id;
+        const context = state.userContexts.find(c => c.id === id);
+        
+        if (context) {
+            elements.userContextEditTitle.textContent = '编辑现状';
+            elements.userContextContent.value = context.content;
+            elements.userContextDeleteBtn.classList.remove('hidden');
+        }
+        
+        renderUserContexts();
+    }
+
+    async function openUserContextModal() {
+        state.selectedUserContextId = null;
+        elements.userContextEditTitle.textContent = '添加新现状';
+        elements.userContextContent.value = '';
+        elements.userContextDeleteBtn.classList.add('hidden');
+        if (!state.userContexts || state.userContexts.length === 0) {
+            await loadUserContexts();
+        }
+        renderUserContexts();
+        elements.userContextModal.classList.remove('hidden');
+    }
+
+    function closeUserContextModal() {
+        elements.userContextModal.classList.add('hidden');
+    }
+
+    async function saveUserContext() {
+        const content = elements.userContextContent.value.trim();
+        
+        if (!content) {
+            showToast('请输入现状描述');
+            return;
+        }
+        
+        try {
+            let result;
+            if (state.selectedUserContextId) {
+                result = await apiCall(`user-contexts/${state.selectedUserContextId}`, 'PUT', { content });
+            } else {
+                result = await apiCall('user-contexts', 'POST', { content });
+            }
+            
+            if (result && !result.error) {
+                showToast(state.selectedUserContextId ? '现状已更新' : '现状已添加');
+                await loadUserContexts();
+                await updateSelfDescriptionForLlm();
+            } else {
+                showToast(result?.message || '保存失败');
+            }
+        } catch (e) {
+            showToast('保存失败');
+            console.error(e);
+        }
+    }
+
+    async function deleteUserContext() {
+        if (!state.selectedUserContextId) return;
+        
+        const confirmed = await showConfirm('确定删除该现状？');
+        if (!confirmed) return;
+        
+        try {
+            const result = await apiCall(`user-contexts/${state.selectedUserContextId}`, 'DELETE');
+            if (result && !result.error) {
+                showToast('现状已删除');
+                state.selectedUserContextId = null;
+                elements.userContextEditTitle.textContent = '添加新现状';
+                elements.userContextContent.value = '';
+                elements.userContextDeleteBtn.classList.add('hidden');
+                await loadUserContexts();
+                await updateSelfDescriptionForLlm();
+            } else {
+                showToast('删除失败');
+            }
+        } catch (e) {
+            showToast('删除失败');
+            console.error(e);
+        }
+    }
+
+    async function updateSelfDescriptionForLlm() {
+        const allContent = state.userContexts.map(c => c.content).filter(Boolean).join('\n');
+        state.userSelfDescription = allContent;
+        await updateSetting('self_description', allContent);
     }
 
     function escapeHtml(str) {
@@ -5727,16 +6169,22 @@
         elements.goalDiscussCancelBtn.addEventListener('click', closeGoalDiscussModal);
         elements.goalDiscussSaveBtn.addEventListener('click', saveGoalDiscuss);
         
-        // Settings modal events
-        elements.settingsBtn.addEventListener('click', openSettingsModal);
-        elements.settingsBackdrop.addEventListener('click', closeSettingsModal);
-        elements.settingsClose.addEventListener('click', closeSettingsModal);
+        // Settings view events
+        elements.settingsBtn.addEventListener('click', () => {
+            window.location.hash = '/settings';
+        });
+        elements.settingsBackBtn?.addEventListener('click', () => {
+            window.history.back();
+        });
         elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
         elements.enableQQReminder.addEventListener('change', handleQQReminderToggle);
         elements.defaultTaskReminderEnabled.addEventListener('change', handleDefaultTaskReminderToggle);
         elements.autoAssignBudgetFromLlm.addEventListener('change', handleAutoAssignBudgetToggle);
         document.getElementById('cleanupTestEntriesBtn')?.addEventListener('click', handleCleanupTestEntries);
         document.getElementById('semanticHelpBtn')?.addEventListener('click', showSemanticHelpModal);
+        elements.openUserContextBtn?.addEventListener('click', () => {
+            openUserContextModal();
+        });
         
         // AI Provider modal events
         elements.addAiProviderBtn?.addEventListener('click', () => openAiProviderModal());
@@ -5744,6 +6192,14 @@
         elements.aiProviderClose?.addEventListener('click', closeAiProviderModal);
         elements.aiProviderCancelBtn?.addEventListener('click', closeAiProviderModal);
         elements.aiProviderSaveBtn?.addEventListener('click', saveAiProvider);
+        
+        // User Context modal events
+        elements.userContextAddBtn?.addEventListener('click', openUserContextModal);
+        elements.userContextBackdrop?.addEventListener('click', closeUserContextModal);
+        elements.userContextClose?.addEventListener('click', closeUserContextModal);
+        elements.userContextCancelBtn?.addEventListener('click', closeUserContextModal);
+        elements.userContextSaveBtn?.addEventListener('click', saveUserContext);
+        elements.userContextDeleteBtn?.addEventListener('click', deleteUserContext);
         
         // Budget modal events
         elements.budgetBackdrop?.addEventListener('click', closeBudgetModal);
@@ -6432,6 +6888,31 @@
     }
 
     // ============================================
+    // Hash Router
+    // ============================================
+    function parseHashRoute() {
+        const hash = window.location.hash;
+        if (hash === '' || hash === '#' || hash === '#/') {
+            return null;
+        }
+        const match = hash.match(/^#\/(.+)$/);
+        return match ? match[1] : null;
+    }
+
+    async function handleHashRoute() {
+        const route = parseHashRoute();
+        if (route === 'settings') {
+            await switchView('settings');
+        } else {
+            // Clear hash or unknown route - restore last view
+            const allowedViews = new Set(['day', 'todo', 'goals', 'notepad']);
+            const savedView = localStorage.getItem('lastView') || 'day';
+            const lastView = allowedViews.has(savedView) ? savedView : 'day';
+            await switchView(lastView);
+        }
+    }
+
+    // ============================================
     // Initialization
     // ============================================
     async function init() {
@@ -6444,15 +6925,22 @@
         syncPendingTimeState();
         initAIChatPanel();
         
-        // Load last view from localStorage (tab bar supports: day/todo/goals/notepad)
-        const allowedViews = new Set(['day', 'todo', 'goals', 'notepad']);
-        const savedView = localStorage.getItem('lastView') || 'day';
-        const lastView = allowedViews.has(savedView) ? savedView : 'day';
+        // Listen for hash changes
+        window.addEventListener('hashchange', handleHashRoute);
         
         await loadData();
         
-        // Switch to last view (this also saves it again)
-        await switchView(lastView);
+        // Check if there's a hash route
+        const route = parseHashRoute();
+        if (route === 'settings') {
+            await switchView('settings');
+        } else {
+            // Load last view from localStorage (tab bar supports: day/todo/goals/notepad)
+            const allowedViews = new Set(['day', 'todo', 'goals', 'notepad']);
+            const savedView = localStorage.getItem('lastView') || 'day';
+            const lastView = allowedViews.has(savedView) ? savedView : 'day';
+            await switchView(lastView);
+        }
         
         // Expose to window for external tools (Playwright, etc.)
         window.switchView = switchView;

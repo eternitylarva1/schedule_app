@@ -820,6 +820,70 @@ async def ai_discuss_goal(request: web.Request) -> web.Response:
         return error_response(f"AI 讨论失败: {str(e)}")
 
 
+async def ai_reschedule_goal(request: web.Request) -> web.Response:
+    """POST /api/goals/ai/reschedule - AI reschedule existing subtasks from global view.
+    
+    This endpoint takes existing subtasks and asks AI to optimize their time allocation
+    from a global perspective.
+    """
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        goal_content = data.get("goal_content", "").strip()
+        current_subtasks = data.get("current_subtasks", [])
+        conversation_history = data.get("conversation_history", [])
+        
+        if not current_subtasks:
+            return error_response("没有可重新分配的任务")
+        
+        # Get user's self description from settings
+        self_description = await db.get_setting("self_description") or await db.get_setting("user_self_description") or ""
+        
+        # Get this week's events for context
+        from datetime import timedelta
+        now = datetime.now()
+        week_start = now - timedelta(days=now.weekday())
+        week_end = week_start + timedelta(days=7)
+        events = await db.get_events("week")
+        week_events_str = ""
+        if events:
+            for e in events[:10]:
+                week_events_str += f"- {e.title}: {e.start_time.strftime('%m/%d %H:%M') if e.start_time else 'TBD'}\n"
+        else:
+            week_events_str = "本周暂无日程安排"
+        
+        # Build conversation context
+        history_context = ""
+        for msg in conversation_history[-6:]:
+            role = "用户" if msg.get("role") == "user" else "AI"
+            history_context += f"{role}: {msg.get('content', '')}\n"
+        
+        # Import LLM service
+        from .llm_service import llm_service
+        
+        # Call LLM for rescheduling
+        result = await llm_service.reschedule_goal(
+            goal_content=goal_content,
+            current_subtasks=current_subtasks,
+            history_context=history_context,
+            self_description=self_description,
+            week_events=week_events_str,
+        )
+        
+        if not result:
+            return error_response("AI 响应失败，请稍后重试")
+        
+        return json_response(result)
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return error_response(f"AI 重新分配失败: {str(e)}")
+
+
 async def get_settings(request: web.Request) -> web.Response:
     """GET /api/settings - get all settings."""
     try:
@@ -934,6 +998,83 @@ async def activate_ai_provider(request: web.Request) -> web.Response:
         return json_response({"activated": True})
     except Exception as e:
         return error_response(f"激活AI配置失败: {str(e)}")
+
+
+# ============ User Contexts Endpoints (我的现状) ============
+
+async def get_user_contexts(request: web.Request) -> web.Response:
+    """GET /api/user-contexts - list all user contexts."""
+    try:
+        contexts = await db.get_user_contexts()
+        return json_response(contexts)
+    except Exception as e:
+        return error_response(f"获取现状失败: {str(e)}")
+
+
+async def create_user_context(request: web.Request) -> web.Response:
+    """POST /api/user-contexts - create a new user context."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        context = await db.create_user_context(
+            content=data.get("content", "").strip(),
+        )
+        return json_response(context)
+    except Exception as e:
+        return error_response(f"创建现状失败: {str(e)}")
+
+
+async def update_user_context(request: web.Request) -> web.Response:
+    """PUT /api/user-contexts/{id} - update a user context."""
+    context_id = int(request.match_info["id"])
+    
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    
+    try:
+        context = await db.update_user_context(
+            context_id=context_id,
+            content=data.get("content", "").strip(),
+        )
+        if context:
+            return json_response(context)
+        else:
+            return error_response("现状不存在", code=404)
+    except Exception as e:
+        return error_response(f"更新现状失败: {str(e)}")
+
+
+async def delete_user_context(request: web.Request) -> web.Response:
+    """DELETE /api/user-contexts/{id} - delete a user context."""
+    context_id = int(request.match_info["id"])
+    
+    try:
+        success = await db.delete_user_context(context_id)
+        if success:
+            return json_response({"deleted": True})
+        else:
+            return error_response("现状不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除现状失败: {str(e)}")
+
+
+async def reorder_user_contexts(request: web.Request) -> web.Response:
+    """PUT /api/user-contexts/reorder - reorder user contexts."""
+    try:
+        data = await request.json()
+        context_ids = data.get("context_ids", [])
+        if not isinstance(context_ids, list):
+            return error_response("context_ids must be an array")
+        await db.reorder_user_contexts(context_ids)
+        return json_response({"reordered": True})
+    except Exception as e:
+        return error_response(f"重排现状失败: {str(e)}")
+
 
 # ============ Note Conversations Endpoints (AI Chat) ============
 
@@ -1661,6 +1802,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/goals/{id}/conversations", create_goal_conversation)
     # AI conversational breakdown endpoint
     app.router.add_post("/api/goals/ai/discuss", ai_discuss_goal)
+    app.router.add_post("/api/goals/ai/reschedule", ai_reschedule_goal)
     # Settings endpoints
     app.router.add_get("/api/settings", get_settings)
     app.router.add_put("/api/settings/{key}", update_setting)
@@ -1699,6 +1841,13 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_put("/api/ai-providers/{id}", update_ai_provider)
     app.router.add_delete("/api/ai-providers/{id}", delete_ai_provider)
     app.router.add_put("/api/ai-providers/{id}/activate", activate_ai_provider)
+    
+    # User Contexts (我的现状)
+    app.router.add_get("/api/user-contexts", get_user_contexts)
+    app.router.add_post("/api/user-contexts", create_user_context)
+    app.router.add_put("/api/user-contexts/{id}", update_user_context)
+    app.router.add_delete("/api/user-contexts/{id}", delete_user_context)
+    app.router.add_put("/api/user-contexts/reorder", reorder_user_contexts)
     # Budgets endpoints
     app.router.add_get("/api/budgets", get_budgets)
     app.router.add_post("/api/budgets", create_budget)

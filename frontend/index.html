@@ -112,6 +112,101 @@
                 </div>
                 <div class="notepad-container" id="notepadContainer"></div>
             </div>
+
+            <!-- Settings View -->
+            <div class="view settings-view hidden" id="settingsView">
+                <div class="settings-container">
+                    <div class="settings-header">
+                        <button class="settings-back-btn" id="settingsBackBtn">← 返回</button>
+                        <h2>设置</h2>
+                    </div>
+                    <div class="settings-content">
+                        <!-- 提醒设置 -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">📌 提醒设置</div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-title">开启QQ提醒</span>
+                                    <span class="settings-item-desc">在任务开始前通过QQ发送提醒通知</span>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="enableQQReminder">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-title">默认开启任务提醒</span>
+                                    <span class="settings-item-desc">新建任务时默认在开始前1分钟提醒</span>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="defaultTaskReminderEnabled">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 日历 -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">📅 日历</div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-title">允许拖动调整时间</span>
+                                    <span class="settings-item-desc">在日视图中拖动任务边缘来调整开始/结束时间</span>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="enableDragResize">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 个人 -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">👤 个人</div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-title">我的现状</span>
+                                    <span class="settings-item-desc">管理你的现状描述，作为任务拆解时的参考背景</span>
+                                </div>
+                                <button class="btn btn-secondary" id="openUserContextBtn">管理现状</button>
+                            </div>
+                        </div>
+
+                        <!-- AI 模型 -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">🤖 AI 模型</div>
+                            <div id="aiProvidersList"></div>
+                            <button class="btn btn-secondary" id="addAiProviderBtn" style="margin-top: var(--space-sm);">+ 添加 AI</button>
+                        </div>
+
+                        <!-- 其他 -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">⚙️ 其他</div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-title">功能帮助</span>
+                                    <span class="settings-item-desc">查看统一语义解析目前支持的能力与示例</span>
+                                </div>
+                                <button class="btn btn-secondary" id="semanticHelpBtn">查看说明</button>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-title">版本信息</span>
+                                    <span class="settings-item-desc" id="appVersion">v1.0.0</span>
+                                </div>
+                            </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-title">清理测试条目</span>
+                                    <span class="settings-item-desc">一键删除测试/示例/demo/debug相关的日程、笔记和记账条目</span>
+                                </div>
+                                <button class="btn btn-danger" id="cleanupTestEntriesBtn">一键清理</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
 
         <!-- AI Chat Floating Window -->
@@ -390,12 +485,12 @@
                         <!-- 个人 -->
                         <div class="settings-section">
                             <div class="settings-section-title">👤 个人</div>
-                            <div class="settings-item settings-item-textarea">
+                            <div class="settings-item">
                                 <div class="settings-item-info">
                                     <span class="settings-item-title">我的现状</span>
-                                    <span class="settings-item-desc">描述你的现状，作为任务拆解时的参考背景</span>
+                                    <span class="settings-item-desc">管理你的现状描述，作为任务拆解时的参考背景</span>
                                 </div>
-                                <textarea id="userSelfDescription" rows="3" placeholder="例如：我在准备考研，每天学习10小时..."></textarea>
+                                <button class="btn btn-secondary" id="openUserContextBtn">管理现状</button>
                             </div>
                         </div>
 
@@ -469,6 +564,43 @@
                     <div style="margin-top: var(--space-md); display: flex; gap: var(--space-sm);">
                         <button class="btn btn-primary" id="aiProviderSaveBtn" style="flex:1;">保存</button>
                         <button class="btn btn-secondary" id="aiProviderCancelBtn" style="flex:1;">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Context Modal (我的现状) -->
+        <div class="modal hidden" id="userContextModal">
+            <div class="modal-backdrop" id="userContextBackdrop"></div>
+            <div class="modal-content modal-lg">
+                <div class="modal-header">
+                    <h2>我的现状</h2>
+                    <button class="modal-close" id="userContextClose">×</button>
+                </div>
+                <div class="modal-body" style="padding: 0;">
+                    <div class="user-context-layout">
+                        <div class="user-context-edit-panel">
+                            <div class="user-context-edit-header">
+                                <span id="userContextEditTitle">添加新现状</span>
+                                <div class="user-context-edit-actions">
+                                    <button class="btn btn-sm btn-danger hidden" id="userContextDeleteBtn">删除</button>
+                                </div>
+                            </div>
+                            <div class="user-context-edit-body">
+                                <textarea id="userContextContent" rows="6" placeholder="描述你的现状，例如：&#10;• 我在准备考研，每天学习10小时&#10;• 最近在健身，一周3次&#10;• 工作比较忙，但想发展副业"></textarea>
+                                <div class="user-context-edit-footer">
+                                    <button class="btn btn-secondary" id="userContextCancelBtn">取消</button>
+                                    <button class="btn btn-primary" id="userContextSaveBtn">保存</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-context-list-panel">
+                            <div class="user-context-list-header">
+                                <span>现状列表</span>
+                                <button class="btn btn-sm btn-primary" id="userContextAddBtn">+ 添加</button>
+                            </div>
+                            <div class="user-context-list" id="userContextList"></div>
+                        </div>
                     </div>
                 </div>
             </div>

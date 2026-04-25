@@ -9,7 +9,7 @@
     // ============================================
     // API Functions
     // ============================================
-    async function apiCall(endpoint, options = {}) {
+    async function apiCall(endpoint, options = {}, signal = null) {
         const url = `/api/${endpoint}`;
         console.log('API call:', options.method || 'GET', url);
         
@@ -19,8 +19,13 @@
             }
         };
         
+        const fetchOptions = { ...defaultOptions, ...options };
+        if (signal) {
+            fetchOptions.signal = signal;
+        }
+        
         try {
-            const response = await fetch(url, { ...defaultOptions, ...options });
+            const response = await fetch(url, fetchOptions);
             console.log('Response status:', response.status);
             
             if (!response.ok) {
@@ -43,7 +48,7 @@
         } catch (error) {
             if (error && error.name === 'AbortError') {
                 console.log('API aborted:', endpoint);
-                return null;
+                throw error;
             }
             console.error('Network Error:', error);
             showToast('网络错误: ' + (error.message || '请检查连接'));

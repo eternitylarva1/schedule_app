@@ -472,6 +472,160 @@ class LLMService:
             "subtasks": []
         }
 
+    async def reschedule_goal(
+        self,
+        goal_content: str,
+        current_subtasks: List[Dict[str, Any]],
+        history_context: str,
+        self_description: str,
+        week_events: str
+    ) -> Optional[Dict[str, Any]]:
+        """Reschedule existing subtasks from a global view.
+        
+        Takes existing subtasks and asks AI to optimize their time allocation
+        considering the overall goal deadline and available time slots.
+        
+        Returns dict with:
+        - type: "question" or "subtasks"
+        - message: AI's explanation or summary
+        - subtasks: optimized list of subtasks (if type is "subtasks")
+        """
+        from datetime import datetime
+        now = datetime.now()
+        current_date = now.strftime("%Y年%m月%d日")
+        current_time = now.strftime("%H:%M")
+        
+        # Build subtasks context
+        subtasks_context = ""
+        for i, st in enumerate(current_subtasks):
+            subtasks_context += f"{i+1}. {st.get('title', '')}"
+            if st.get('date'):
+                subtasks_context += f" (日期: {st.get('date')})"
+            if st.get('start_time') and st.get('end_time'):
+                subtasks_context += f" (时间: {st.get('start_time')} - {st.get('end_time')})"
+            if st.get('duration_hint'):
+                subtasks_context += f" [时长: {st.get('duration_hint')}]"
+            subtasks_context += "\n"
+        
+        # Build context
+        context = f"""
+## 当前时间
+{current_date} {current_time}
+
+## 用户背景
+{self_description if self_description else "用户未提供背景介绍"}
+
+## 本周日程
+{week_events if week_events else "本周暂无安排"}
+
+## 对话历史
+{history_context if history_context else "（暂无对话历史）"}
+"""
+        
+        prompt = f"""用户已经有了一个初步的任务拆解方案，请从全局角度重新审视并优化时间分配。
+
+## 目标
+{goal_content if goal_content else "（未提供具体目标）"}
+
+## 当前任务拆解方案
+{subtasks_context}
+
+请从全局角度分析这个方案，检查以下问题：
+1. 各任务的日期和时间是否有重叠？
+2. 时间分配是否合理（是否考虑了用户的作息时间）？
+3. 是否考虑了任务的依赖关系（如：B任务需要先完成A任务）？
+4. 是否有更好的时间分配方案？
+
+请返回优化后的任务列表：
+
+返回格式：
+- 如果需要提问：返回JSON格式 {{"type": "question", "message": "你的问题", "subtasks": []}}
+- 如果直接优化：返回JSON格式
+{{
+    "type": "subtasks",
+    "message": "你的优化说明（简要）",
+    "subtasks": [
+        {{
+            "title": "任务名称",
+            "date": "YYYY-MM-DD",
+            "start_time": "HH:MM",
+            "end_time": "HH:MM",
+            "duration_minutes": 90,
+            "duration_hint": "1.5小时"
+        }}
+    ]
+}}
+
+注意：
+- 保持任务标题不变，只调整时间和日期
+- 如果发现严重问题（如任务重叠、时间冲突），必须调整
+- 如果时间分配明显不合理（如深夜安排任务），必须调整
+- 如果用户有明确的可用时段限制（如工作日20:00-23:00），必须遵循
+- 不要随意删除或合并任务，只调整时间和日期"""
+
+        response = await self.chat([
+            {"role": "system", "content": "你是一个任务规划优化专家，负责从全局角度优化已有任务的时间分配。"},
+            {"role": "user", "content": context},
+            {"role": "user", "content": prompt}
+        ], temperature=0.5)
+        
+        if not response:
+            return None
+        
+        # Check if response contains JSON
+        response = response.strip()
+
+        def _normalize_subtasks(raw_subtasks):
+            normalized_local = []
+            for st in raw_subtasks or []:
+                if not isinstance(st, dict):
+                    continue
+                normalized_local.append({
+                    "title": (st.get("title") or "").strip(),
+                    "date": (st.get("date") or "").strip(),
+                    "start_time": (st.get("start_time") or "").strip(),
+                    "end_time": (st.get("end_time") or "").strip(),
+                    "duration_minutes": st.get("duration_minutes"),
+                    "duration_hint": (st.get("duration_hint") or "").strip(),
+                })
+            return [x for x in normalized_local if x.get("title")][:8]
+        
+        # If response contains JSON, it's subtasks
+        if '{' in response and 'subtasks' in response.lower():
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start >= 0 and json_end > json_start:
+                    json_str = response[json_start:json_end]
+                    result = json.loads(json_str)
+                    subtasks = result.get("subtasks", []) if isinstance(result, dict) else []
+                    normalized = _normalize_subtasks(subtasks)
+                    
+                    def _has_complete_time_fields(items):
+                        return len(items) > 0 and all(i.get("date") and i.get("start_time") and i.get("end_time") for i in items)
+                    
+                    if not normalized:
+                        return {
+                            "type": "message",
+                            "message": "当前任务方案没有明显问题，可以直接使用。",
+                            "subtasks": current_subtasks
+                        }
+                    
+                    return {
+                        "type": "subtasks",
+                        "message": result.get("message", "时间已重新分配"),
+                        "subtasks": normalized
+                    }
+            except json.JSONDecodeError:
+                pass
+        
+        # If it's a question or feedback
+        return {
+            "type": "message",
+            "message": response,
+            "subtasks": current_subtasks
+        }
+
     async def parse_expense(self, user_text: str, budgets: Optional[List[Dict[str, Any]]] = None, 
                             auto_assign_budget: bool = False) -> Optional[List[Dict[str, Any]]]:
         """Parse natural language expense(s) into structured data.
@@ -675,13 +829,17 @@ class LLMService:
    - original_title: 填写要修改的日程/待办的原标题（用于定位）
    - title: 修改后的新标题（如果不改标题则同original_title）
    - start_time: 修改后的新时间（必填）
-7) create时：start_time 始终必须填写，不允许为null！
-   - "今天晚上"= 今天18:00，"今天下午"= 今天14:00，"今天上午"= 今天09:00
-   - "明天早上"= 明天09:00，"明天下午"= 明天14:00
-   - 多个任务应连续安排：第一个18:00开始，后续任务顺延
+7) create时：start_time 必须填写，格式为ISO如 "2026-04-25T18:00:00"
+   - 绝对不允许返回 null 作为 start_time
+   - 时间推断规则（按优先级）：
+     1) 用户给出具体时间如"8点"、"15:00" → 直接使用
+     2) "今晚"、"今晚8点"、"今晚6点" → 今天该时间（如20:00、18:00）
+     3) "今天晚上"、"今天下午"、"今天上午" → 今天18:00/14:00/09:00
+     4) "明晚"、"明晚8点" → 明天该时间
+     5) "明天晚上"、"明天下午" → 明天18:00/14:00
+     6) 只有模糊的"晚上"、"下午"、"上午" → 结合上下文推断
+   - 每个任务安排在合适的时段，如吃饭18:00，运动19:00，毕业设计20:00，视频21:00
    - duration已由用户给出，直接使用（如"半小时"=30分钟）
-   - 只在用户明确说"待定"、"不确定"、"有时间再说"时才用null
-   - 任何模糊时间都要推断为具体时间：晚上=18:00，下午=14:00，上午=09:00，中午=12:00
 """
 
         response = await self.chat([
