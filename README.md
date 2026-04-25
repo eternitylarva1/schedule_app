@@ -88,6 +88,22 @@ schedule_app/
 - 提交前必须通过调试回归测试
 - 提交后通过 QQ 发送更新通知
 
+## 前端脚本职责（避免重复实现）
+
+- `frontend/static/js/main.js`：**编排层**。只负责应用启动、视图切换（路由）、跨模块协调，不承载具体业务渲染实现。
+- `frontend/static/js/goals.js`：Goals 视图渲染与事件逻辑（目标列表、目标操作、多选行为等）。
+- `frontend/static/js/notepad.js`：Notepad 视图渲染与事件逻辑（笔记、记账主列表等）。
+- `frontend/static/js/settings.js`：Settings 视图渲染与事件逻辑（设置加载、用户现状 CRUD 入口）。
+- `frontend/static/js/budget.js`：预算弹层/预算操作相关逻辑。
+
+模块导出统一约定：
+- Goals：`window.ScheduleAppGoals`
+- Notepad：`window.ScheduleAppNotepad`
+- Settings：`window.ScheduleAppSettings`
+- Budget：`window.ScheduleAppBudget`
+
+`main.js` 只通过以上命名空间调用模块能力，避免在 `main.js` 与模块文件中“双份定义”同名功能（如 `renderGoalsView`、`renderNotepadView`）。
+
 ## API 接口文档
 
 基础 URL: `http://localhost:8080/api`

@@ -9,30 +9,41 @@
     const getState = () => (window.ScheduleAppCore && window.ScheduleAppCore.state) || {};
     const getElements = () => (window.ScheduleAppCore && window.ScheduleAppCore.elements) || {};
     const getUtils = () => window.ScheduleAppCore || {};
+    const escapeHtml = (text) => {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
 
     async function openSettingsView() {
         const state = getState();
         const elements = getElements();
-        const { fetchSettings, updateSetting, showToast } = getUtils();
+        const { fetchSettings } = getUtils();
 
         state.enableDragResize = localStorage.getItem('enableDragResize') === 'true';
-        elements.enableDragResize.checked = state.enableDragResize;
+        if (elements.enableDragResize) {
+            elements.enableDragResize.checked = state.enableDragResize;
+        }
 
         try {
-            const settings = await fetchSettings();
-            if (settings) {
-                state.qqReminderEnabled = settings.qq_reminder_enabled || false;
-                state.defaultTaskReminderEnabled = settings.default_task_reminder_enabled !== false;
-                state.userSelfDescription = settings.user_self_description || '';
-                state.userContexts = settings.user_contexts || [];
-                state.llmApiBase = settings.llm_api_base || '';
-                state.llmModel = settings.llm_model || '';
-            }
+            await fetchSettings();
         } catch (error) {
             console.error('Failed to load settings:', error);
         }
 
-        elements.settingsModal.classList.remove('hidden');
+        if (elements.enableQQReminder) {
+            elements.enableQQReminder.checked = !!state.qqReminderEnabled;
+        }
+        if (elements.defaultTaskReminderEnabled) {
+            elements.defaultTaskReminderEnabled.checked = state.defaultTaskReminderEnabled !== false;
+        }
+        if (elements.autoAssignBudgetFromLlm) {
+            elements.autoAssignBudgetFromLlm.checked = !!state.autoAssignBudgetFromLlm;
+        }
+        if (elements.appVersion) {
+            elements.appVersion.textContent = 'v1.0.0';
+        }
     }
 
     function closeSettingsView() {
@@ -72,24 +83,56 @@
 
     async function loadUserContexts() {
         const state = getState();
-        const { fetchSettings, showToast } = getUtils();
+        const elements = getElements();
+        const { apiCall } = getUtils();
 
         try {
-            const settings = await fetchSettings();
-            if (settings) {
-                state.userSelfDescription = settings.user_self_description || '';
-                state.userContexts = settings.user_contexts || [];
-            }
+            const contexts = await apiCall('user-contexts');
+            state.userContexts = contexts || [];
         } catch (error) {
             console.error('Failed to load user contexts:', error);
+            state.userContexts = [];
         }
+
+        if (!elements.userContextList) return;
+
+        if (!state.userContexts || state.userContexts.length === 0) {
+            elements.userContextList.innerHTML = '<div class="user-context-empty">暂无现状描述<br>点击上方"添加"新增</div>';
+            return;
+        }
+
+        elements.userContextList.innerHTML = state.userContexts.map(ctx => `
+            <div class="user-context-item ${ctx.id === state.selectedUserContextId ? 'selected' : ''}" data-id="${ctx.id}">
+                <div class="user-context-item-content">${escapeHtml(ctx.content || '')}</div>
+            </div>
+        `).join('');
     }
 
-    async function saveUserContext(context) {
-        const { updateSetting, showToast } = getUtils();
+    async function saveUserContext() {
+        const state = getState();
+        const elements = getElements();
+        const { apiCall, showToast } = getUtils();
+        const content = (elements.userContextContent && elements.userContextContent.value || '').trim();
+
+        if (!content) {
+            showToast('请输入现状描述');
+            return;
+        }
+
         try {
-            await updateSetting('user_contexts', context);
-            showToast('上下文已保存');
+            let result;
+            if (state.selectedUserContextId) {
+                result = await apiCall(`user-contexts/${state.selectedUserContextId}`, 'PUT', { content });
+            } else {
+                result = await apiCall('user-contexts', 'POST', { content });
+            }
+
+            if (result && !result.error) {
+                showToast(state.selectedUserContextId ? '现状已更新' : '现状已添加');
+                await loadUserContexts();
+            } else {
+                showToast(result?.message || '保存失败');
+            }
         } catch (error) {
             console.error('Failed to save user context:', error);
             showToast('保存失败');
