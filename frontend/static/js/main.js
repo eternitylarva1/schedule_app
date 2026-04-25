@@ -165,7 +165,7 @@
             if (!type) return;
             const ids = Array.from(getSelectionSet(type));
             if (ids.length === 0) return;
-            const ok = window.confirm(`确定删除选中的 ${ids.length} 项吗？`);
+            const ok = await showConfirm(`确定删除选中的 ${ids.length} 项吗？`);
             if (!ok) return;
             if (type === 'todo') {
                 for (const id of ids) {
@@ -250,6 +250,7 @@
         deleteBudget,
         showToast,
         showConfirm,
+        showPrompt,
     } = window.ScheduleAppCore;
 
     // ============================================
@@ -1592,7 +1593,7 @@
             btn.addEventListener('click', async (e) => {
                 if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
                 const parentId = parseInt(btn.dataset.parentId);
-                const title = prompt('输入子任务名称：');
+                const title = await showPrompt('输入子任务名称：', { placeholder: '例如：完成第一章复习' });
                 if (title && title.trim()) {
                     await createGoal({
                         title: title.trim(),
@@ -2018,7 +2019,7 @@
     }
     
     async function showAddGroupPrompt() {
-        const name = prompt('请输入分组名称：');
+        const name = await showPrompt('请输入分组名称：', { placeholder: '例如：项目灵感' });
         if (name && name.trim()) {
             const result = await createNoteGroup(name.trim());
             if (result) {
@@ -4656,7 +4657,7 @@
             }
 
             if (conflicts.length > 0) {
-                const shouldAutoResolve = window.confirm(`发现 ${conflicts.length} 个时间冲突。是否自动顺延到最近可用时段？`);
+                const shouldAutoResolve = await showConfirm(`发现 ${conflicts.length} 个时间冲突。是否自动顺延到最近可用时段？`);
                 if (!shouldAutoResolve) {
                     showToast(conflicts[0]);
                     return;

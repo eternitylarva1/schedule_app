@@ -381,8 +381,8 @@
     }
     
     async function showAddGroupPrompt() {
-        const { createNoteGroup, showToast } = getUtils();
-        const name = prompt('请输入分组名称：');
+        const { createNoteGroup, showToast, showPrompt } = getUtils();
+        const name = await showPrompt('请输入分组名称：', { placeholder: '例如：项目灵感' });
         if (name && name.trim()) {
             const result = await createNoteGroup(name.trim());
             if (result) {

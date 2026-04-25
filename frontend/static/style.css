@@ -2299,6 +2299,18 @@ textarea {
     line-height: 1.5;
 }
 
+.confirm-input {
+    width: 100%;
+    height: 44px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-md);
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    background: var(--bg-card);
+    margin-bottom: var(--space-md);
+}
+
 .confirm-buttons {
     display: flex;
     gap: var(--space-md);
@@ -2326,6 +2338,16 @@ textarea {
 .confirm-ok {
     background: var(--accent-danger);
     color: white;
+}
+
+@media (max-width: 480px) {
+    .confirm-dialog {
+        width: min(92vw, 360px);
+    }
+
+    .confirm-buttons {
+        flex-direction: column-reverse;
+    }
 }
 
 /* ============================================
@@ -4551,4 +4573,3 @@ textarea {
 .ai-floating-send:hover {
     transform: scale(1.05);
 }
-

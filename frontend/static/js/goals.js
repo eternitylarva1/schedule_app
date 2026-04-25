@@ -119,7 +119,7 @@
         const state = getState();
         const elements = getElements();
         const utils = getUtils();
-        const { fetchGoals, updateGoal, deleteGoal, showToast, showConfirm } = utils;
+        const { fetchGoals, updateGoal, deleteGoal, showToast, showConfirm, showPrompt } = utils;
 
         const listEl = elements.goalsContainer.querySelector('.goals-list');
         if (!listEl) return;
@@ -248,7 +248,7 @@
             btn.addEventListener('click', async (e) => {
                 if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
                 const parentId = parseInt(btn.dataset.parentId);
-                const title = prompt('输入子任务名称：');
+                const title = await showPrompt('输入子任务名称：', { placeholder: '例如：完成第一章复习' });
                 if (title && title.trim()) {
                     await createGoal({
                         title: title.trim(),
