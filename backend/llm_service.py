@@ -10,11 +10,12 @@ class LLMService:
     """OpenAI-compatible LLM service."""
     
     def __init__(self):
-        # 支持环境变量配置或硬编码默认值
+        # 使用环境变量作为兜底配置（不再使用硬编码密钥）
         self.api_base = os.getenv("LLM_API_BASE", "https://open.cherryin.net/v1")
-        self.api_key = os.getenv("LLM_API_KEY", "sk-nzCBqwmTVmDj137YyfMVKp1xAAVv0Pc2YrXHpHqwILKpDEEw")
+        self.api_key = os.getenv("LLM_API_KEY", "")
         self.model = os.getenv("LLM_MODEL", "minimax/minimax-m2.5-highspeed")
         self._db_path = None  # Will be set when app initializes
+        self.last_error_message: Optional[str] = None
     
     def set_db_path(self, db_path: str):
         """Set database path for runtime configuration."""
@@ -53,13 +54,29 @@ class LLMService:
                                 self.api_key = provider["api_key"]
         except Exception as e:
             print(f"Failed to load LLM settings from DB: {e}")
+
+    def _missing_config_error(self) -> str:
+        """Build a user-friendly error message when no API key is configured."""
+        return (
+            "未检测到 AI API Key。请前往“设置 → AI 提供商”添加或编辑配置并填写 API Key，"
+            "也可在服务端设置 LLM_API_KEY 环境变量。"
+        )
+
+    async def _ensure_runtime_config(self) -> bool:
+        """Ensure runtime config is loaded and valid before making requests."""
+        self.last_error_message = None
+        await self._load_settings_from_db()
+
+        if not self.api_key:
+            self.last_error_message = self._missing_config_error()
+            return False
+
+        return True
     
     async def chat(self, messages: list[dict[str, Any]], temperature: float = 0.7) -> Optional[str]:
         """Send chat request to LLM API."""
         # Load settings from database at runtime (allows user to change settings without restart)
-        await self._load_settings_from_db()
-        
-        if not self.api_key:
+        if not await self._ensure_runtime_config():
             return None
         
         headers = {
@@ -89,12 +106,15 @@ class LLMService:
                     else:
                         error_text = await resp.text()
                         print(f"LLM API error: {resp.status} - {error_text}")
+                        self.last_error_message = f"AI 服务调用失败（HTTP {resp.status}），请检查 API 配置或稍后重试。"
                         return None
         except asyncio.TimeoutError:
             print(f"LLM request timeout after 60s")
+            self.last_error_message = "AI 服务请求超时，请稍后重试。"
             return None
         except Exception as e:
             print(f"LLM request failed: {type(e).__name__}: {e}")
+            self.last_error_message = "AI 服务请求失败，请检查网络或 API 配置。"
             return None
     
     async def process_schedule_command(self, user_text: str) -> Optional[Dict[str, Any]]:

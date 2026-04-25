@@ -745,6 +745,15 @@ async def get_active_ai_provider() -> Optional[dict]:
             return dict(row) if row else None
 
 
+async def get_ai_provider(provider_id: int) -> Optional[dict]:
+    """Get an AI provider by id."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM ai_providers WHERE id = ?", (provider_id,)) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
 async def create_ai_provider(name: str, api_base: str, model: str, api_key: str) -> dict:
     """Create a new AI provider."""
     now = datetime.now().isoformat()
@@ -768,15 +777,28 @@ async def create_ai_provider(name: str, api_base: str, model: str, api_key: str)
         }
 
 
-async def update_ai_provider(provider_id: int, name: str, api_base: str, model: str, api_key: str) -> Optional[dict]:
+async def update_ai_provider(
+    provider_id: int,
+    name: str,
+    api_base: str,
+    model: str,
+    api_key: Optional[str] = None,
+) -> Optional[dict]:
     """Update an AI provider."""
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            """UPDATE ai_providers SET name = ?, api_base = ?, model = ?, api_key = ?, updated_at = ?
-               WHERE id = ?""",
-            (name, api_base, model, api_key, now, provider_id),
-        )
+        if api_key is None:
+            await db.execute(
+                """UPDATE ai_providers SET name = ?, api_base = ?, model = ?, updated_at = ?
+                   WHERE id = ?""",
+                (name, api_base, model, now, provider_id),
+            )
+        else:
+            await db.execute(
+                """UPDATE ai_providers SET name = ?, api_base = ?, model = ?, api_key = ?, updated_at = ?
+                   WHERE id = ?""",
+                (name, api_base, model, api_key, now, provider_id),
+            )
         await db.commit()
         db.row_factory = aiosqlite.Row
         async with db.execute("SELECT * FROM ai_providers WHERE id = ?", (provider_id,)) as cursor:
