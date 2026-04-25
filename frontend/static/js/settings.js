@@ -112,6 +112,11 @@
         const state = getState();
         const elements = getElements();
         const { apiCall, showToast } = getUtils();
+
+        if (state.isSavingUserContext) {
+            return;
+        }
+
         const content = (elements.userContextContent && elements.userContextContent.value || '').trim();
 
         if (!content) {
@@ -119,12 +124,23 @@
             return;
         }
 
+        state.isSavingUserContext = true;
+        if (elements.userContextSaveBtn) {
+            elements.userContextSaveBtn.disabled = true;
+        }
+
         try {
             let result;
             if (state.selectedUserContextId) {
-                result = await apiCall(`user-contexts/${state.selectedUserContextId}`, 'PUT', { content });
+                result = await apiCall(`user-contexts/${state.selectedUserContextId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ content }),
+                });
             } else {
-                result = await apiCall('user-contexts', 'POST', { content });
+                result = await apiCall('user-contexts', {
+                    method: 'POST',
+                    body: JSON.stringify({ content }),
+                });
             }
 
             if (result && !result.error) {
@@ -136,6 +152,11 @@
         } catch (error) {
             console.error('Failed to save user context:', error);
             showToast('保存失败');
+        } finally {
+            state.isSavingUserContext = false;
+            if (elements.userContextSaveBtn) {
+                elements.userContextSaveBtn.disabled = false;
+            }
         }
     }
 
