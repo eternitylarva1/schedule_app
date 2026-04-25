@@ -4314,13 +4314,19 @@
         try {
             let result;
             if (id) {
-                result = await apiCall(`ai-providers/${id}`, 'PUT', { name, api_base: apiBase, model, api_key: apiKey });
+                result = await apiCall(`ai-providers/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey })
+                });
             } else {
                 if (!apiKey) {
                     showToast('请填写 API Key');
                     return;
                 }
-                result = await apiCall('ai-providers', 'POST', { name, api_base: apiBase, model, api_key: apiKey });
+                result = await apiCall('ai-providers', {
+                    method: 'POST',
+                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey })
+                });
             }
             
             if (result && !result.error) {
@@ -4338,7 +4344,7 @@
 
     async function activateAiProvider(id) {
         try {
-            const result = await apiCall(`ai-providers/${id}/activate`, 'PUT');
+            const result = await apiCall(`ai-providers/${id}/activate`, { method: 'PUT' });
             if (result && !result.error) {
                 showToast('已切换到该AI');
                 await loadAiProviders();
@@ -4356,7 +4362,7 @@
         if (!confirmed) return;
         
         try {
-            const result = await apiCall(`ai-providers/${id}`, 'DELETE');
+            const result = await apiCall(`ai-providers/${id}`, { method: 'DELETE' });
             if (result && !result.error) {
                 showToast('AI配置已删除');
                 await loadAiProviders();
@@ -4435,7 +4441,7 @@
         if (!confirmed) return;
         
         try {
-            const result = await apiCall(`user-contexts/${state.selectedUserContextId}`, 'DELETE');
+            const result = await apiCall(`user-contexts/${state.selectedUserContextId}`, { method: 'DELETE' });
             if (result && !result.error) {
                 showToast('现状已删除');
                 state.selectedUserContextId = null;
