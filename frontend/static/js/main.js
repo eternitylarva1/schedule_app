@@ -4898,10 +4898,11 @@
         
         // Settings view events
         elements.settingsBtn.addEventListener('click', () => {
+            window.location.hash = '';
             window.location.hash = '/settings';
         });
         elements.settingsBackBtn?.addEventListener('click', () => {
-            window.history.back();
+            window.location.hash = '';
         });
         elements.enableDragResize.addEventListener('change', handleDragResizeToggle);
         elements.enableQQReminder.addEventListener('change', handleQQReminderToggle);
@@ -4954,10 +4955,22 @@
         elements.expenseSaveBtn?.addEventListener('click', handleExpenseSave);
         
         // Tab bar
-        elements.tabDay.addEventListener('click', () => switchView('day'));
-        elements.tabTodo.addEventListener('click', () => switchView('todo'));
-        elements.tabGoals.addEventListener('click', () => switchView('goals'));
-        elements.tabNotepad.addEventListener('click', () => switchView('notepad'));
+        elements.tabDay.addEventListener('click', () => {
+            window.location.hash = '';
+            switchView('day');
+        });
+        elements.tabTodo.addEventListener('click', () => {
+            window.location.hash = '';
+            switchView('todo');
+        });
+        elements.tabGoals.addEventListener('click', () => {
+            window.location.hash = '';
+            switchView('goals');
+        });
+        elements.tabNotepad.addEventListener('click', () => {
+            window.location.hash = '';
+            switchView('notepad');
+        });
 
         // Calendar segmented control (in day view)
         document.getElementById('calendarSegmented')?.addEventListener('click', async (e) => {

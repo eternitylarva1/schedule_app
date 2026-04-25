@@ -106,6 +106,21 @@
                 <div class="user-context-item-content">${escapeHtml(ctx.content || '')}</div>
             </div>
         `).join('');
+
+        elements.userContextList.querySelectorAll('.user-context-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const id = parseInt(item.dataset.id);
+                state.selectedUserContextId = id;
+                const context = state.userContexts.find(c => c.id === id);
+                if (context) {
+                    elements.userContextEditTitle.textContent = '编辑现状';
+                    elements.userContextContent.value = context.content;
+                    elements.userContextDeleteBtn.classList.remove('hidden');
+                }
+                elements.userContextList.querySelectorAll('.user-context-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+            });
+        });
     }
 
     async function saveUserContext() {
