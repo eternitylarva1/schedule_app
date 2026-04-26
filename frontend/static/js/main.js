@@ -112,6 +112,8 @@
         showPrompt,
     } = window.ScheduleAppCore;
 
+    const loadData = (...args) => window.ScheduleAppShell?.loadData?.(...args);
+
     selection.configure?.({
         loadData,
         renderTodoView,
@@ -4623,89 +4625,9 @@
             elements.ptrIndicator.classList.remove('visible', 'enough');
         }
     }
-
     // ============================================
-    // Data Loading
+    // Data Loading (moved to app-shell.js)
     // ============================================
-    async function renderActiveViewAfterDataLoad() {
-        if (state.currentView === 'day') {
-            if (state.calendarSubview === 'day') {
-                renderTimeline();
-            } else if (state.calendarSubview === 'week') {
-                renderWeekView();
-            } else if (state.calendarSubview === 'month') {
-                renderMonthView();
-            }
-            return;
-        }
-
-        if (state.currentView === 'todo') {
-            await renderTodoView();
-            return;
-        }
-
-        if (state.currentView === 'notepad') {
-            await renderNotepadView();
-            return;
-        }
-
-        if (state.currentView === 'goals') {
-            await renderGoalsView();
-            return;
-        }
-
-        if (state.currentView === 'stats') {
-            renderStatsView();
-        }
-    }
-
-    async function loadData() {
-        if (state.isLoading) {
-            state.reloadRequested = true;
-            return state.loadPromise || Promise.resolve();
-        }
-
-        state.isLoading = true;
-        state.loadPromise = (async () => {
-            do {
-                state.reloadRequested = false;
-
-                // Determine date filter based on active tab + calendar subview
-                let dateFilter = 'month';
-                if (state.currentView === 'day') {
-                    if (state.calendarSubview === 'month') {
-                        const year = state.currentMonth.getFullYear();
-                        const month = state.currentMonth.getMonth() + 1;
-                        dateFilter = `${year}-${String(month).padStart(2, '0')}`;
-                    } else {
-                        const year = state.currentDate.getFullYear();
-                        const month = state.currentDate.getMonth() + 1;
-                        dateFilter = `${year}-${String(month).padStart(2, '0')}`;
-                    }
-                }
-
-                try {
-                    await Promise.all([
-                        fetchCategories(),
-                        fetchEvents(dateFilter),
-                        fetchStats('today')
-                    ]);
-
-                    console.log('loadData fetched events:', state.events.length);
-                    renderHeaderTitle();
-                    await renderActiveViewAfterDataLoad();
-                } catch (error) {
-                    console.error('Load data error:', error);
-                }
-            } while (state.reloadRequested);
-        })().finally(() => {
-            state.isLoading = false;
-            state.loadPromise = null;
-            state.reloadRequested = false;
-        });
-
-        return state.loadPromise;
-    }
 
     // ============================================
     // Touch & Gesture Handling
@@ -5175,86 +5097,9 @@
         `;
         document.head.appendChild(style);
     }
-
     // ============================================
-    // Hash Router
+    // App shell bootstrap
     // ============================================
-    function parseHashRoute() {
-        const hash = window.location.hash;
-        if (hash === '' || hash === '#' || hash === '#/') {
-            return null;
-        }
-        const match = hash.match(/^#\/(.+)$/);
-        return match ? match[1] : null;
-    }
-
-    async function handleHashRoute() {
-        const route = parseHashRoute();
-        if (route === 'settings') {
-            await switchView('settings');
-        } else {
-            // Clear hash or unknown route - restore last view
-            const allowedViews = new Set(['day', 'todo', 'goals', 'notepad']);
-            const savedView = localStorage.getItem('lastView') || 'day';
-            const lastView = allowedViews.has(savedView) ? savedView : 'day';
-            await switchView(lastView);
-        }
-    }
-
-    // ============================================
-    // Initialization
-    // ============================================
-    async function init() {
-        console.log('Initializing Schedule App...');
-        
-        injectToastStyles();
-        registerGlobalErrorHandlers();
-        bindEvents();
-        renderCategorySelector();
-        syncPendingTimeState();
-        initAIChatPanel();
-        
-        // Listen for hash changes
-        window.addEventListener('hashchange', handleHashRoute);
-        
-        await loadData();
-        
-        // Check if there's a hash route
-        const route = parseHashRoute();
-        if (route === 'settings') {
-            await switchView('settings');
-        } else {
-            // Load last view from localStorage (tab bar supports: day/todo/goals/notepad)
-            const allowedViews = new Set(['day', 'todo', 'goals', 'notepad']);
-            const savedView = localStorage.getItem('lastView') || 'day';
-            const lastView = allowedViews.has(savedView) ? savedView : 'day';
-            await switchView(lastView);
-        }
-        
-        // Expose to window for external tools (Playwright, etc.)
-        window.switchView = switchView;
-        window.scheduleAppState = state;
-        
-        // Expose budget functions for module system
-        window.ScheduleAppBudget = {
-            bindBudgetEvents,
-            showAllBudgetsList,
-            showBudgetExpenses,
-            openExpenseModalForBudget,
-            openBudgetModal,
-            updatePeriodButtons,
-            setSelectedBudgetPeriod,
-            closeBudgetModal,
-            handleBudgetSave,
-            openExpenseModal,
-            renderExpenseBudgetSelector,
-            closeExpenseModal,
-            renderExpenseCategorySelector,
-            handleExpenseSave,
-        };
-        
-        console.log('Schedule App ready!');
-    }
 
     // Apply module overrides - use functions from budget.js
     const {
@@ -5280,10 +5125,43 @@
     window.ScheduleAppCore.showNoteDetail = showNoteDetail;
     window.ScheduleAppCore.showNoteEdit = showNoteEdit;
 
+    const appShellDeps = {
+        state,
+        elements,
+        views: {
+            renderHeaderTitle,
+            renderTimeline,
+            renderWeekView,
+            renderMonthView,
+            renderStatsView,
+        },
+        services: {
+            fetchCategories,
+            fetchEvents,
+            fetchStats,
+        },
+        controllers: {
+            switchView,
+            renderTodoView,
+            renderNotepadView,
+            renderGoalsView,
+            bindEvents,
+            injectToastStyles,
+            registerGlobalErrorHandlers,
+            renderCategorySelector,
+            syncPendingTimeState,
+            initAIChatPanel,
+        },
+    };
+
     // Start the app
+    const startApp = () => window.ScheduleAppShell?.init?.(appShellDeps);
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', startApp);
     } else {
-        init();
+        startApp();
     }
+
+    // 兼容接口保留
+    window.switchView = switchView;
 })();
