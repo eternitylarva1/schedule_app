@@ -364,7 +364,28 @@
                             if (input) input.focus();
                         }, 100);
                     } else {
-                        showNoteDetail(note);
+                        getUtils().showNoteDetail(note);
+                    }
+                }
+            });
+        });
+        
+        container.querySelectorAll('.note-swipe .swipe-action').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const noteId = parseInt(btn.dataset.noteId);
+                const { showNoteEdit, deleteNote, showToast, showConfirm } = getUtils();
+
+                if (action === 'edit') {
+                    const note = state.notes.find(n => n.id === noteId);
+                    if (note) showNoteEdit(note);
+                } else if (action === 'delete') {
+                    const confirmed = await showConfirm('确定删除这条笔记吗？');
+                    if (confirmed) {
+                        await deleteNote(noteId);
+                        showToast('已删除');
+                        await renderNotesList();
                     }
                 }
             });
@@ -786,15 +807,55 @@
     async function renderExpenseList() {
         const state = getState();
         const elements = getElements();
-        const { fetchExpenses, fetchExpenseStats, showToast, deleteExpense, openExpenseModal } = getUtils();
+        const { fetchExpenses, fetchExpenseStats, fetchBudgets, showToast, deleteExpense, openExpenseModal } = getUtils();
 
         const container = elements.notepadContainer;
         const expenses = await fetchExpenses();
         const stats = await fetchExpenseStats() || { total: 0, by_category: {} };
-        
-        const budgetCardsHtml = '';
+        const budgets = await fetchBudgets() || [];
         
         const textColor = (color) => getTextColorForBackground(color);
+        const periodLabels = {
+            weekly: '每周',
+            monthly: '每月',
+            quarterly: '每季度',
+            yearly: '每年',
+        };
+        const budgetCardsHtml = `
+            <div class="budget-header">
+                <span class="budget-header-title" id="budgetListTitle">我的预算${budgets.length ? `（${budgets.length}个）` : ''}</span>
+                <button class="budget-add-btn" id="addBudgetBtn">+ 添加预算</button>
+            </div>
+            ${budgets.length ? `
+                <div class="budget-cards">
+                    ${budgets.map(budget => {
+                        const amount = budget.effective_amount || budget.amount || 0;
+                        const spent = budget.spent || 0;
+                        const remaining = amount - spent;
+                        const percent = amount > 0 ? Math.min((spent / amount) * 100, 100) : 0;
+                        const overBudget = spent > amount;
+                        const periodLabel = budget.period && budget.period !== 'none' ? (periodLabels[budget.period] || '') : '';
+                        return `
+                            <div class="budget-card-wrapper">
+                                <div class="budget-card" data-budget-id="${budget.id}" style="background: ${budget.color}; color: ${textColor(budget.color)};">
+                                    ${periodLabel ? `<div class="budget-card-period">${periodLabel}</div>` : ''}
+                                    <div class="budget-card-name">${escapeHtml(budget.name)}</div>
+                                    <div class="budget-card-remaining ${overBudget ? 'over-budget' : ''}">
+                                        ${overBudget ? '超支' : '剩余'} ¥${Math.abs(remaining).toFixed(1)}
+                                    </div>
+                                    <div class="budget-card-progress">
+                                        <div class="budget-card-progress-bar" style="width: ${percent}%; background: ${textColor(budget.color)};"></div>
+                                    </div>
+                                    <div class="budget-card-spent">已用 ¥${spent.toFixed(1)} / ¥${amount.toFixed(1)}</div>
+                                    ${budget.rollover && budget.rollover_amount > 0 ? `<div class="budget-card-rollover">结转 ¥${budget.rollover_amount.toFixed(1)}</div>` : ''}
+                                </div>
+                                <button class="budget-card-delete" data-budget-id="${budget.id}" title="删除预算">×</button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            ` : ''}
+        `;
         
         const statsHtml = `
             <div class="expense-stats-card">
@@ -825,6 +886,7 @@
                     <div class="empty-hint">输入如：中午吃面15块</div>
                 </div>
             `;
+            window.ScheduleAppBudget?.bindBudgetEvents?.();
             return;
         }
         
@@ -873,6 +935,7 @@
         
         listHtml += '</div>';
         container.innerHTML = listHtml;
+        window.ScheduleAppBudget?.bindBudgetEvents?.();
         
         container.querySelectorAll('.expense-item-clickable').forEach(item => {
             item.addEventListener('click', async (e) => {
@@ -914,10 +977,6 @@
                 content.style.transform = '';
             }
         });
-    }
-
-    function showNoteDetail(note) {
-        console.log('showNoteDetail not fully implemented in extracted module');
     }
 
     window.ScheduleAppNotepad = {

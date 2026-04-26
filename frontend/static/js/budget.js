@@ -42,6 +42,80 @@
     let lastUsedBudgetId = null;
     let selectedExpenseBudgetId = null;
 
+    async function rerenderExpenseList() {
+        const fn = window.ScheduleAppNotepad?.renderExpenseList;
+        if (typeof fn === 'function') {
+            return await fn();
+        }
+    }
+
+    function daysInMonth(year, month) {
+        return new Date(year, month, 0).getDate();
+    }
+
+    function toLocalIsoNoTimezone(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mm = String(date.getMinutes()).padStart(2, '0');
+        const ss = String(date.getSeconds()).padStart(2, '0');
+        return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
+    }
+
+    function normalizeMonthlyStartDay(dayValue) {
+        const day = parseInt(dayValue, 10);
+        if (Number.isNaN(day)) return null;
+        if (day < 1 || day > 31) return null;
+        return day;
+    }
+
+    function getBudgetMonthlyStartDay(budget) {
+        const explicit = normalizeMonthlyStartDay(budget?.monthly_start_day);
+        if (explicit) return explicit;
+        if (budget?.period_start) {
+            const d = new Date(budget.period_start);
+            if (!Number.isNaN(d.getTime())) return d.getDate();
+        }
+        return new Date().getDate();
+    }
+
+    function buildMonthlyPeriodStartIso(monthlyStartDay) {
+        const now = new Date();
+        let year = now.getFullYear();
+        let month = now.getMonth() + 1;
+
+        let day = Math.min(monthlyStartDay, daysInMonth(year, month));
+        let candidate = new Date(year, month - 1, day, 0, 0, 0, 0);
+
+        if (candidate > now) {
+            month -= 1;
+            if (month < 1) {
+                month = 12;
+                year -= 1;
+            }
+            day = Math.min(monthlyStartDay, daysInMonth(year, month));
+            candidate = new Date(year, month - 1, day, 0, 0, 0, 0);
+        }
+
+        return toLocalIsoNoTimezone(candidate);
+    }
+
+    function updateMonthlyStartDayVisibility() {
+        const elements = getElements();
+        if (!elements.budgetMonthlyStartDayGroup) return;
+        elements.budgetMonthlyStartDayGroup.style.display = selectedBudgetPeriod === 'monthly' ? 'block' : 'none';
+    }
+
+    function formatBudgetPeriodLabel(budget) {
+        if (!budget?.period || budget.period === 'none') return '';
+        if (budget.period === 'monthly') {
+            const startDay = getBudgetMonthlyStartDay(budget);
+            return `每月·${startDay}号开始`;
+        }
+        return { weekly: '每周', quarterly: '每季度', yearly: '每年' }[budget.period] || '';
+    }
+
     function bindBudgetEvents() {
         const elements = getElements();
         const state = getState();
@@ -73,7 +147,7 @@
                     showAllBudgetsList();
                 } else {
                     state.budgetView = 'cards';
-                    renderExpenseList();
+                    rerenderExpenseList();
                 }
             });
         }
@@ -87,7 +161,7 @@
                 if (confirmed) {
                     await deleteBudget(budgetId);
                     showToast('已删除');
-                    await renderExpenseList();
+                    await rerenderExpenseList();
                 }
             });
         });
@@ -143,8 +217,7 @@
                     const remaining = effectiveAmount - budget.spent;
                     const percent = effectiveAmount > 0 ? Math.min((budget.spent / effectiveAmount) * 100, 100) : 0;
                     const isOver = budget.spent > effectiveAmount;
-                    const periodLabel = budget.period && budget.period !== 'none' ? 
-                        {weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年'}[budget.period] || '' : '';
+                    const periodLabel = formatBudgetPeriodLabel(budget);
                     return `
                         <div class="budget-list-item" data-budget-id="${budget.id}" style="
                             background: ${budget.color};
@@ -190,8 +263,7 @@
         const effectiveAmount = budget.effective_amount || budget.amount;
         const percent = effectiveAmount > 0 ? Math.min((budget.spent / effectiveAmount) * 100, 100) : 0;
         
-        const periodLabels = {weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年'};
-        const periodLabel = budget.period && budget.period !== 'none' ? periodLabels[budget.period] || '' : '';
+        const periodLabel = formatBudgetPeriodLabel(budget);
         
         const textColor = getTextColorForBackground(budget.color);
         let html = `
@@ -276,7 +348,7 @@
         container.innerHTML = html;
         
         container.querySelector('.budget-detail-back').addEventListener('click', () => {
-            renderExpenseList();
+            rerenderExpenseList();
         });
         
         container.querySelector('.budget-detail-edit')?.addEventListener('click', () => {
@@ -319,6 +391,10 @@
         
         selectedBudgetPeriod = budget ? (budget.period || 'none') : 'none';
         updatePeriodButtons();
+        updateMonthlyStartDayVisibility();
+        if (elements.budgetMonthlyStartDay) {
+            elements.budgetMonthlyStartDay.value = String(getBudgetMonthlyStartDay(budget));
+        }
         
         elements.budgetAutoReset.checked = budget ? (budget.auto_reset || false) : false;
         elements.budgetRollover.checked = budget ? (budget.rollover || false) : false;
@@ -336,6 +412,12 @@
             btn.classList.toggle('btn-primary', btn.dataset.period === selectedBudgetPeriod);
             btn.classList.toggle('btn-secondary', btn.dataset.period !== selectedBudgetPeriod);
         });
+        updateMonthlyStartDayVisibility();
+    }
+
+    function setSelectedBudgetPeriod(period) {
+        selectedBudgetPeriod = period || 'none';
+        updateMonthlyStartDayVisibility();
     }
 
     function closeBudgetModal() {
@@ -356,6 +438,7 @@
         const auto_reset = elements.budgetAutoReset.checked;
         const rollover = elements.budgetRollover.checked;
         const rollover_limit = elements.budgetRolloverLimit.value ? parseInt(elements.budgetRolloverLimit.value) : null;
+        const monthly_start_day = period === 'monthly' ? normalizeMonthlyStartDay(elements.budgetMonthlyStartDay?.value) : null;
         
         if (!name) {
             showToast('请输入预算名称');
@@ -366,7 +449,24 @@
             return;
         }
         
-        const budgetData = { name, amount, color, period, auto_reset, rollover, rollover_limit };
+        if (period === 'monthly' && !monthly_start_day) {
+            showToast('请输入有效的每月开始日（1-31）');
+            return;
+        }
+
+        const budgetData = {
+            name,
+            amount,
+            color,
+            period,
+            auto_reset,
+            rollover,
+            rollover_limit,
+            monthly_start_day,
+        };
+        if (period === 'monthly' && monthly_start_day) {
+            budgetData.period_start = buildMonthlyPeriodStartIso(monthly_start_day);
+        }
         
         if (id) {
             await updateBudget(parseInt(id), budgetData);
@@ -377,7 +477,7 @@
         }
         
         closeBudgetModal();
-        await renderExpenseList();
+        await rerenderExpenseList();
     }
 
     function openExpenseModal(expense = null) {
@@ -497,7 +597,7 @@
         }
         
         closeExpenseModal();
-        await renderExpenseList();
+        await rerenderExpenseList();
     }
 
     window.ScheduleAppBudget = {
@@ -507,6 +607,7 @@
         openExpenseModalForBudget,
         openBudgetModal,
         updatePeriodButtons,
+        setSelectedBudgetPeriod,
         closeBudgetModal,
         handleBudgetSave,
         openExpenseModal,

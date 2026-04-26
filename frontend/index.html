@@ -641,6 +641,11 @@
                             <button class="btn btn-sm period-btn" data-period="yearly">每年</button>
                         </div>
                     </div>
+                    <div class="form-group" id="budgetMonthlyStartDayGroup" style="display: none;">
+                        <label for="budgetMonthlyStartDay">每月开始日</label>
+                        <input type="number" id="budgetMonthlyStartDay" placeholder="15" min="1" max="31" style="width: 100px;">
+                        <div class="empty-hint">例如：15 表示每月15号开始统计</div>
+                    </div>
                     <div class="form-group">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                             <input type="checkbox" id="budgetAutoReset" style="width: 18px; height: 18px;">
@@ -706,12 +711,12 @@
         </div>
     </div>
 
-    <script src="/static/js/core/state-elements.js?v=20260412-08"></script>
+    <script src="/static/js/core/state-elements.js?v=20260426-09"></script>
     <script src="/static/js/core/utils.js?v=20260412-04"></script>
     <script src="/static/js/core/api-toast.js?v=20260412-04"></script>
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
     <script src="/static/js/utils2.js?v=20260425-01"></script>
-    <script src="/static/js/budget.js?v=20260426-06"></script>
+    <script src="/static/js/budget.js?v=20260426-08"></script>
     <script src="/static/js/notepad.js?v=20260426-06"></script>
     <script src="/static/js/goals.js?v=20260425-01"></script>
     <script src="/static/js/settings.js?v=20260426-05"></script>

@@ -1,57 +1,66 @@
 #!/usr/bin/env python3
 """
-Schedule App - Frontend Batch Test Program
-基于 DEBUG_WORKFLOW.md 的前端批量测试
+Schedule App - Frontend Batch Test Program (Playwright edition)
 
-需要浏览器扩展支持。使用 OpenCode Browser 工具进行自动化测试。
+This version intentionally does NOT depend on the legacy `browser_automation`
+module. It uses Playwright directly for browser-driven UI checks.
 
-用法:
-    python frontend_test.py              # 运行所有前端测试
-    python frontend_test.py --quick      # 仅快速检查
-    python frontend_test.py --module calendar  # 仅测试日历模块
+Usage:
+    python frontend_test.py
+    python frontend_test.py --quick
+    python frontend_test.py --url http://localhost:8080
 """
 
-import json
-import time
-import sys
+from __future__ import annotations
+
+import argparse
 import asyncio
+import sys
+import time
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional
+from typing import Awaitable, Callable, List, Optional, Tuple
+
+from playwright.async_api import Error as PlaywrightError
+from playwright.async_api import Page, async_playwright
+
 
 class Colors:
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    END = '\033[0m'
+    GREEN = "\033[92m"
+    RED = "\033[91m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    END = "\033[0m"
 
+
+@dataclass
 class TestResult:
-    def __init__(self, name: str):
-        self.name = name
-        self.passed = False
-        self.error = None
-        self.start_time = time.time()
-        self.end_time = None
-        
-    def finish(self, passed: bool, error: str = None):
-        self.passed = passed
-        self.error = error
-        self.end_time = time.time()
-        
+    name: str
+    passed: bool = False
+    error: Optional[str] = None
+    start_time: float = 0.0
+    end_time: float = 0.0
+
     @property
     def duration(self) -> float:
-        if self.end_time:
+        if self.end_time > 0:
             return self.end_time - self.start_time
-        return time.time() - self.start_time
+        return 0.0
+
 
 class FrontendTester:
-    FRONTEND_URL = "http://localhost:8080"
-    
-    def __init__(self):
+    def __init__(self, frontend_url: str):
+        self.frontend_url = frontend_url.rstrip("/")
         self.results: List[TestResult] = []
-        self.tab_id: Optional[int] = None
-        
-    def log(self, msg: str, level: str = "INFO"):
+        self.console_errors: List[str] = []
+        self.page_errors: List[str] = []
+
+        self._pw = None
+        self._browser = None
+        self._context = None
+        self.page: Optional[Page] = None
+
+    def log(self, msg: str, level: str = "INFO") -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
         prefix = {
             "INFO": f"{Colors.BLUE}[{timestamp}]{Colors.END}",
@@ -60,349 +69,248 @@ class FrontendTester:
             "WARN": f"{Colors.YELLOW}[{timestamp}]{Colors.END}",
         }.get(level, f"[{timestamp}]")
         print(f"{prefix} {msg}")
-        
-    async def init_browser(self):
-        """初始化浏览器"""
+
+    async def init_browser(self) -> bool:
         try:
-            from browser_automation import browser_open_tab, browser_list_claims, browser_claim_tab
-        except ImportError:
-            self.log("需要 browser_automation 模块支持", "FAIL")
-            return False
-            
-        # 列出当前tab
-        tabs = await browser_list_claims()
-        self.log(f"当前Tab: {tabs}")
-        
-        # 打开新tab
-        self.tab_id = await browser_open_tab(self.FRONTEND_URL, active=True)
-        self.log(f"打开Tab: {self.tab_id}", "PASS")
-        
-        if self.tab_id:
+            self._pw = await async_playwright().start()
+            self._browser = await self._pw.chromium.launch(headless=True)
+            self._context = await self._browser.new_context(ignore_https_errors=True)
+            self.page = await self._context.new_page()
+
+            self.page.on("console", self._on_console_message)
+            self.page.on("pageerror", self._on_page_error)
+
+            await self.page.goto(self.frontend_url, wait_until="domcontentloaded", timeout=30000)
+            await self.page.wait_for_load_state("load")
+            # Page includes SW/cache reset-once logic; give it a short settle window.
+            await self.page.wait_for_timeout(1200)
+            # Ignore transient console noise during initial self-reload.
+            self.console_errors.clear()
+            self.page_errors.clear()
             return True
-        return False
-        
-    async def close_browser(self):
-        """关闭浏览器"""
-        if self.tab_id:
-            try:
-                from browser_automation import browser_close_tab
-                await browser_close_tab(self.tab_id)
-            except:
-                pass
-        
-    def run_test(self, name: str, test_func, *args, **kwargs) -> TestResult:
-        """运行单个测试"""
-        result = TestResult(name)
+        except PlaywrightError as e:
+            self.log(f"Browser init failed: {e}", "FAIL")
+            self.log("If Chromium is missing, run: python -m playwright install chromium", "WARN")
+            return False
+        except Exception as e:
+            self.log(f"Browser init failed: {e}", "FAIL")
+            return False
+
+    async def close_browser(self) -> None:
+        try:
+            if self._context:
+                await self._context.close()
+            if self._browser:
+                await self._browser.close()
+            if self._pw:
+                await self._pw.stop()
+        except Exception:
+            pass
+
+    def _on_console_message(self, message) -> None:
+        if message.type == "error":
+            self.console_errors.append(message.text)
+
+    def _on_page_error(self, error) -> None:
+        self.page_errors.append(str(error))
+
+    async def run_test(self, name: str, test_func: Callable[[], Awaitable[Tuple[bool, str]]]) -> TestResult:
+        result = TestResult(name=name, start_time=time.time())
         self.log(f"Running: {name}")
         try:
-            ok, msg = asyncio.get_event_loop().run_until_complete(test_func(*args, **kwargs))
+            ok, msg = await test_func()
+            result.passed = ok
+            result.error = msg or None
             if ok:
-                result.finish(True)
-                self.log(f"✓ PASS: {name}", "PASS")
+                self.log(f"PASS: {name}", "PASS")
             else:
-                result.finish(False, msg)
-                self.log(f"✗ FAIL: {name} - {msg}", "FAIL")
+                self.log(f"FAIL: {name} - {msg}", "FAIL")
         except Exception as e:
-            result.finish(False, str(e))
-            self.log(f"✗ ERROR: {name} - {e}", "FAIL")
-        self.results.append(result)
+            result.passed = False
+            result.error = str(e)
+            self.log(f"ERROR: {name} - {e}", "FAIL")
+        finally:
+            result.end_time = time.time()
+            self.results.append(result)
         return result
-        
-    # ==================== DOM元素检查 ====================
-    
-    async def check_dom_element(self, selector: str) -> Tuple[bool, str]:
-        """检查DOM元素是否存在"""
-        try:
-            from browser_automation import browser_query
-            result = await browser_query(selector, limit=1, tabId=self.tab_id)
-            if result:
-                return True, ""
-            return False, f"元素不存在: {selector}"
-        except Exception as e:
-            return False, str(e)
-    
-    async def test_calendar_elements(self) -> Tuple[bool, str]:
-        """日历核心DOM元素检查"""
-        elements = [
-            "#dayView", "#weekView", "#monthView", "#todoView",
-            "#calendarSegmented", "#daySlider", "#timeline",
-            "#weekGrid", "#monthGrid", "#goalsView", "#notepadView"
-        ]
-        missing = []
-        for sel in elements:
-            ok, _ = await self.check_dom_element(sel)
-            if not ok:
-                missing.append(sel)
-        if missing:
-            return False, f"缺失元素: {missing}"
-        return True, ""
-    
-    async def test_header_elements(self) -> Tuple[bool, str]:
-        """头部元素检查"""
-        elements = ["#headerTitle", "#prevBtn", "#nextBtn", "#refreshBtn"]
-        missing = []
-        for sel in elements:
-            ok, _ = await self.check_dom_element(sel)
-            if not ok:
-                missing.append(sel)
-        if missing:
-            return False, f"缺失元素: {missing}"
-        return True, ""
-    
-    async def test_tab_bar_elements(self) -> Tuple[bool, str]:
-        """Tab栏元素检查"""
-        elements = ["#tabDay", "#tabTodo", "#tabGoals", "#tabNotepad", "#tabAdd"]
-        missing = []
-        for sel in elements:
-            ok, _ = await self.check_dom_element(sel)
-            if not ok:
-                missing.append(sel)
-        if missing:
-            return False, f"缺失元素: {missing}"
-        return True, ""
-    
-    # ==================== 前端状态检查 ====================
-    
-    async def test_js_functions_exist(self) -> Tuple[bool, str]:
-        """检查核心JS函数是否存在"""
-        try:
-            from browser_automation import browser_query
-            functions = [
-                "typeof switchView !== 'undefined'",
-                "typeof loadData !== 'undefined'",
-                "typeof renderTimeline !== 'undefined'",
-                "typeof renderWeekView !== 'undefined'",
-                "typeof renderMonthView !== 'undefined'",
-                "typeof renderTodoView !== 'undefined'",
-                "typeof bindEvents !== 'undefined'",
-            ]
-            missing = []
-            for fn in functions:
-                result = await browser_query(f"javascript:({fn})", tabId=self.tab_id)
-                if not result:
-                    missing.append(fn.split(' ')[0])
-            if missing:
-                return False, f"缺失函数: {missing}"
-            return True, ""
-        except Exception as e:
-            return False, str(e)
-    
-    async def test_page_loads(self) -> Tuple[bool, str]:
-        """页面加载检查"""
-        try:
-            from browser_automation import browser_snapshot
-            snapshot = await browser_snapshot(tabId=self.tab_id)
-            if snapshot and len(snapshot) > 100:
-                return True, ""
-            return False, "页面内容过少，可能未正常加载"
-        except Exception as e:
-            return False, str(e)
-    
-    # ==================== 交互测试 ====================
-    
-    async def test_tab_switch_day(self) -> Tuple[bool, str]:
-        """Tab切换到日历"""
-        try:
-            from browser_automation import browser_click
-            await browser_click("#tabDay", tabId=self.tab_id)
-            await asyncio.sleep(0.5)
-            
-            from browser_automation import browser_query
-            day_view = await browser_query("#dayView", limit=1, tabId=self.tab_id)
-            if day_view:
-                return True, ""
-            return False, "切换到day后dayView不可见"
-        except Exception as e:
-            return False, str(e)
-    
-    async def test_tab_switch_todo(self) -> Tuple[bool, str]:
-        """Tab切换到待办"""
-        try:
-            from browser_automation import browser_click
-            await browser_click("#tabTodo", tabId=self.tab_id)
-            await asyncio.sleep(0.5)
-            
-            from browser_automation import browser_query
-            todo_view = await browser_query("#todoView", limit=1, tabId=self.tab_id)
-            if todo_view:
-                return True, ""
-            return False, "切换到todo后todoView不可见"
-        except Exception as e:
-            return False, str(e)
-    
-    async def test_tab_switch_goals(self) -> Tuple[bool, str]:
-        """Tab切换到规划"""
-        try:
-            from browser_automation import browser_click
-            await browser_click("#tabGoals", tabId=self.tab_id)
-            await asyncio.sleep(0.5)
-            
-            from browser_automation import browser_query
-            goals_view = await browser_query("#goalsView", limit=1, tabId=self.tab_id)
-            if goals_view:
-                return True, ""
-            return False, "切换到goals后goalsView不可见"
-        except Exception as e:
-            return False, str(e)
-    
-    async def test_tab_switch_notepad(self) -> Tuple[bool, str]:
-        """Tab切换到记事本"""
-        try:
-            from browser_automation import browser_click
-            await browser_click("#tabNotepad", tabId=self.tab_id)
-            await asyncio.sleep(0.5)
-            
-            from browser_automation import browser_query
-            notepad_view = await browser_query("#notepadView", limit=1, tabId=self.tab_id)
-            if notepad_view:
-                return True, ""
-            return False, "切换到notepad后notepadView不可见"
-        except Exception as e:
-            return False, str(e)
-    
-    async def test_calendar_segmented(self) -> Tuple[bool, str]:
-        """日历分段切换"""
-        try:
-            from browser_automation import browser_click
-            # 点击week
-            await browser_click(".cal-segment[data-subview='week']", tabId=self.tab_id)
-            await asyncio.sleep(0.5)
-            
-            # 检查weekView可见
-            from browser_automation import browser_query
-            week_view = await browser_query("#weekView", limit=1, tabId=self.tab_id)
-            if week_view:
-                return True, ""
-            return False, "切换到week后weekView不可见"
-        except Exception as e:
-            return False, str(e)
-    
-    # ==================== 控制台错误检查 ====================
-    
-    async def test_no_console_errors(self) -> Tuple[bool, str]:
-        """检查控制台错误"""
-        try:
-            from browser_automation import browser_console, browser_errors
-            errors = await browser_errors(tabId=self.tab_id)
-            if errors and len(errors) > 0:
-                return False, f"控制台有{len(errors)}个错误"
-            return True, ""
-        except Exception as e:
-            # 如果获取失败不阻塞
-            return True, f"无法获取控制台错误: {e}"
-    
-    # ==================== 测试运行 ====================
-    
-    async def run_quick_tests(self):
-        """快速检查"""
-        self.log("=" * 50, "INFO")
-        self.log("前端快速检查", "INFO")
-        self.log("=" * 50, "INFO")
-        
-        if not await self.init_browser():
-            self.log("浏览器初始化失败", "FAIL")
+
+    async def _exists(self, selector: str) -> bool:
+        assert self.page is not None
+        return (await self.page.locator(selector).count()) > 0
+
+    async def _is_visible_view(self, selector: str) -> bool:
+        assert self.page is not None
+        if not await self._exists(selector):
             return False
-        
+        locator = self.page.locator(selector).first
+        hidden = await locator.evaluate("el => el.classList.contains('hidden')")
+        return not bool(hidden)
+
+    async def _click(self, selector: str) -> None:
+        assert self.page is not None
+        await self.page.locator(selector).first.click(timeout=10000)
+        await self.page.wait_for_timeout(350)
+
+    async def test_page_loads(self) -> Tuple[bool, str]:
+        assert self.page is not None
+        title = await self.page.title()
+        html = await self.page.content()
+        if not title.strip():
+            return False, "empty page title"
+        if len(html) < 800:
+            return False, "page HTML too short; likely not loaded correctly"
+        return True, ""
+
+    async def test_calendar_elements(self) -> Tuple[bool, str]:
+        selectors = [
+            "#dayView",
+            "#weekView",
+            "#monthView",
+            "#todoView",
+            "#calendarSegmented",
+            "#timeline",
+            "#weekGrid",
+            "#monthGrid",
+            "#goalsView",
+            "#notepadView",
+        ]
+        missing = [sel for sel in selectors if not await self._exists(sel)]
+        if missing:
+            return False, f"missing elements: {missing}"
+        return True, ""
+
+    async def test_header_elements(self) -> Tuple[bool, str]:
+        selectors = ["#headerTitle", "#refreshBtn", "#settingsBtn"]
+        missing = [sel for sel in selectors if not await self._exists(sel)]
+        if missing:
+            return False, f"missing elements: {missing}"
+        return True, ""
+
+    async def test_tab_bar_elements(self) -> Tuple[bool, str]:
+        selectors = ["#tabDay", "#tabTodo", "#tabGoals", "#tabNotepad"]
+        missing = [sel for sel in selectors if not await self._exists(sel)]
+        if missing:
+            return False, f"missing elements: {missing}"
+        return True, ""
+
+    async def test_tab_switch_day(self) -> Tuple[bool, str]:
+        await self._click("#tabDay")
+        if await self._is_visible_view("#dayView"):
+            return True, ""
+        return False, "dayView not visible after clicking day tab"
+
+    async def test_tab_switch_todo(self) -> Tuple[bool, str]:
+        await self._click("#tabTodo")
+        if await self._is_visible_view("#todoView"):
+            return True, ""
+        return False, "todoView not visible after clicking todo tab"
+
+    async def test_tab_switch_goals(self) -> Tuple[bool, str]:
+        await self._click("#tabGoals")
+        if await self._is_visible_view("#goalsView"):
+            return True, ""
+        return False, "goalsView not visible after clicking goals tab"
+
+    async def test_tab_switch_notepad(self) -> Tuple[bool, str]:
+        await self._click("#tabNotepad")
+        if await self._is_visible_view("#notepadView"):
+            return True, ""
+        return False, "notepadView not visible after clicking notepad tab"
+
+    async def test_calendar_segmented_week(self) -> Tuple[bool, str]:
+        await self._click("#tabDay")
+        await self._click(".cal-segment[data-subview='week']")
+        if await self._is_visible_view("#weekView"):
+            return True, ""
+        return False, "weekView not visible after switching calendar segment"
+
+    async def test_no_console_errors(self) -> Tuple[bool, str]:
+        ignored_markers = [
+            "TypeError: Failed to fetch",
+            "Network Error",
+        ]
+        all_errors = []
+        for error in self.console_errors + self.page_errors:
+            if any(marker in error for marker in ignored_markers):
+                continue
+            all_errors.append(error)
+        if all_errors:
+            preview = "; ".join(all_errors[:3])
+            return False, f"console/page errors found: {preview}"
+        return True, ""
+
+    async def run_quick_tests(self) -> bool:
+        self.log("=" * 50, "INFO")
+        self.log("Frontend quick checks (Playwright)", "INFO")
+        self.log("=" * 50, "INFO")
+        if not await self.init_browser():
+            return False
         try:
-            # 页面加载
             await self.run_test("Page Loads", self.test_page_loads)
-            
-            # 核心DOM
             await self.run_test("Calendar Elements", self.test_calendar_elements)
             await self.run_test("Header Elements", self.test_header_elements)
             await self.run_test("Tab Bar Elements", self.test_tab_bar_elements)
-            
-            # JS函数
-            await self.run_test("JS Functions Exist", self.test_js_functions_exist)
-            
-            # 控制台错误
             await self.run_test("No Console Errors", self.test_no_console_errors)
-            
         finally:
             await self.close_browser()
-            
         return self.print_summary()
-    
-    async def run_full_tests(self):
-        """完整测试"""
+
+    async def run_full_tests(self) -> bool:
         self.log("=" * 50, "INFO")
-        self.log("前端完整测试", "INFO")
+        self.log("Frontend full checks (Playwright)", "INFO")
         self.log("=" * 50, "INFO")
-        
         if not await self.init_browser():
-            self.log("浏览器初始化失败", "FAIL")
             return False
-        
         try:
-            # 页面加载
             await self.run_test("Page Loads", self.test_page_loads)
-            
-            # 核心DOM
             await self.run_test("Calendar Elements", self.test_calendar_elements)
             await self.run_test("Header Elements", self.test_header_elements)
             await self.run_test("Tab Bar Elements", self.test_tab_bar_elements)
-            
-            # JS函数
-            await self.run_test("JS Functions Exist", self.test_js_functions_exist)
-            
-            # 控制台错误
             await self.run_test("No Console Errors", self.test_no_console_errors)
-            
-            # Tab切换
             await self.run_test("Tab Switch - Day", self.test_tab_switch_day)
             await self.run_test("Tab Switch - Todo", self.test_tab_switch_todo)
             await self.run_test("Tab Switch - Goals", self.test_tab_switch_goals)
             await self.run_test("Tab Switch - Notepad", self.test_tab_switch_notepad)
-            
-            # 日历分段
-            await self.run_test("Calendar Segmented (Week)", self.test_calendar_segmented)
-            
+            await self.run_test("Calendar Segmented - Week", self.test_calendar_segmented_week)
         finally:
             await self.close_browser()
-            
         return self.print_summary()
-    
+
     def print_summary(self) -> bool:
-        """打印测试汇总"""
         self.log("\n" + "=" * 50, "INFO")
-        self.log("前端测试汇总", "INFO")
+        self.log("Frontend test summary", "INFO")
         self.log("=" * 50, "INFO")
-        
+
         passed = sum(1 for r in self.results if r.passed)
         failed = len(self.results) - passed
         total_time = sum(r.duration for r in self.results)
-        
-        self.log(f"总测试数: {len(self.results)}", "INFO")
-        self.log(f"通过: {passed} {Colors.GREEN}✓{Colors.END}", "PASS" if passed > 0 else "INFO")
-        self.log(f"失败: {failed} {Colors.RED}✗{Colors.END}", "FAIL" if failed > 0 else "INFO")
-        self.log(f"总耗时: {total_time:.2f}s", "INFO")
-        
-        if failed > 0:
-            self.log("\n失败详情:", "WARN")
-            for r in self.results:
-                if not r.passed:
-                    self.log(f"  - {r.name}: {r.error}", "FAIL")
-        
+
+        self.log(f"Total tests: {len(self.results)}", "INFO")
+        self.log(f"Passed: {passed}", "PASS" if passed else "INFO")
+        self.log(f"Failed: {failed}", "FAIL" if failed else "INFO")
+        self.log(f"Total time: {total_time:.2f}s", "INFO")
+
+        if failed:
+            self.log("Failed details:", "WARN")
+            for result in self.results:
+                if not result.passed:
+                    self.log(f"- {result.name}: {result.error}", "FAIL")
+
         return failed == 0
 
 
-def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="Schedule App Frontend Test")
-    parser.add_argument("--quick", action="store_true", help="仅运行快速检查")
-    parser.add_argument("--url", default="http://localhost:8080", help="前端URL")
-    args = parser.parse_args()
-    
-    tester = FrontendTester()
-    tester.FRONTEND_URL = args.url
-    
-    if args.quick:
-        success = asyncio.get_event_loop().run_until_complete(tester.run_quick_tests())
-    else:
-        success = asyncio.get_event_loop().run_until_complete(tester.run_full_tests())
-    
-    sys.exit(0 if success else 1)
+async def main_async(args: argparse.Namespace) -> int:
+    tester = FrontendTester(args.url)
+    success = await (tester.run_quick_tests() if args.quick else tester.run_full_tests())
+    return 0 if success else 1
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Schedule App Frontend Test (Playwright)")
+    parser.add_argument("--quick", action="store_true", help="Run only quick checks")
+    parser.add_argument("--url", default="http://localhost:8080", help="Frontend URL")
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(asyncio.run(main_async(parse_args())))

@@ -225,6 +225,8 @@
     budgetAmount: document.getElementById('budgetAmount'),
     budgetColor: document.getElementById('budgetColor'),
     budgetPeriodGroup: document.getElementById('budgetPeriodGroup'),
+    budgetMonthlyStartDayGroup: document.getElementById('budgetMonthlyStartDayGroup'),
+    budgetMonthlyStartDay: document.getElementById('budgetMonthlyStartDay'),
     budgetAutoReset: document.getElementById('budgetAutoReset'),
     budgetRollover: document.getElementById('budgetRollover'),
     budgetRolloverLimit: document.getElementById('budgetRolloverLimit'),

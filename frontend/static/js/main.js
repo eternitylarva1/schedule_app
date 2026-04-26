@@ -4938,7 +4938,7 @@
         // Budget period buttons
         elements.budgetPeriodGroup?.querySelectorAll('.period-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                selectedBudgetPeriod = btn.dataset.period;
+                setSelectedBudgetPeriod?.(btn.dataset.period);
                 updatePeriodButtons();
             });
         });
@@ -5243,6 +5243,7 @@
             openExpenseModalForBudget,
             openBudgetModal,
             updatePeriodButtons,
+            setSelectedBudgetPeriod,
             closeBudgetModal,
             handleBudgetSave,
             openExpenseModal,
@@ -5250,8 +5251,6 @@
             closeExpenseModal,
             renderExpenseCategorySelector,
             handleExpenseSave,
-            get selectedExpenseBudgetId() { return selectedExpenseBudgetId; },
-            set selectedExpenseBudgetId(v) { selectedExpenseBudgetId = v; },
         };
         
         console.log('Schedule App ready!');
@@ -5264,6 +5263,7 @@
         showBudgetExpenses,
         openBudgetModal,
         updatePeriodButtons,
+        setSelectedBudgetPeriod,
         closeBudgetModal,
         handleBudgetSave,
         openExpenseModal,
@@ -5274,9 +5274,11 @@
         openExpenseModalForBudget,
     } = window.ScheduleAppBudget || {};
 
-    // Expose expense functions to ScheduleAppCore for notepad.js
+    // Expose expense and note functions to ScheduleAppCore for notepad.js
     window.ScheduleAppCore = window.ScheduleAppCore || {};
     window.ScheduleAppCore.openExpenseModal = openExpenseModal;
+    window.ScheduleAppCore.showNoteDetail = showNoteDetail;
+    window.ScheduleAppCore.showNoteEdit = showNoteEdit;
 
     // Start the app
     if (document.readyState === 'loading') {

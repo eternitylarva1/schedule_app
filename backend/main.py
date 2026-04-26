@@ -39,6 +39,16 @@ async def service_worker(request: web.Request) -> web.StreamResponse:
     return response
 
 
+async def manifest(request: web.Request) -> web.StreamResponse:
+    """Serve manifest.json from frontend root."""
+    manifest_path = FRONTEND_DIR / "manifest.json"
+    if not manifest_path.exists():
+        raise web.HTTPNotFound()
+    response = web.FileResponse(manifest_path)
+    response.content_type = "application/manifest+json"
+    return response
+
+
 @web.middleware
 async def log_middleware(request, handler):
     """Log all requests."""
@@ -104,6 +114,7 @@ async def init_app() -> web.Application:
         app.router.add_static("/static/", FRONTEND_DIR / "static", show_index=True)
         # Add index for root - but NOT a catch-all to avoid intercepting /api/*
         app.router.add_get("/", index)
+        app.router.add_get("/manifest.json", manifest)
         app.router.add_get("/service-worker.js", service_worker)
 
     # CORS setup
