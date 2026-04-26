@@ -498,6 +498,20 @@ async def llm_command(request: web.Request) -> web.Response:
 
         scope = str(op.get("scope") or "all").strip().lower()
         date_str = (op.get("date") or "").strip() if scope == "date" else ""
+        # Extract target_title from any available field for delete/complete/uncomplete actions
+        target_title = (op.get("target_title") or op.get("title") or "").strip()
+        
+        # For delete/complete/uncomplete, try to extract title from user text if not provided
+        if action in ("delete", "complete", "uncomplete") and not target_title:
+            import re
+            # Try to extract patterns like "删除X的待办", "完成X的待办"
+            match = re.search(r'[删完]除.*?的[待办事]', user_text)
+            if match:
+                matched = match.group()
+                # Extract the part between "删除" and "的待办"
+                title_match = re.search(r'[删完]除(.+?)的', matched)
+                if title_match:
+                    target_title = title_match.group(1).strip()
 
         start = None
         end = None
@@ -516,17 +530,30 @@ async def llm_command(request: web.Request) -> web.Response:
             "action": action,
             "scope": scope,
             "date": date_str if scope == "date" else None,
+            "target_title": target_title if target_title else None,
         }
 
         if not dry_run:
+            # If target_title is provided, use title-based filtering regardless of scope
+            use_title_filter = bool(target_title)
+            
             if action == "delete":
-                affected = await db.batch_delete_events(start, end)
+                if use_title_filter:
+                    affected = await db.delete_events_by_title(target_title)
+                else:
+                    affected = await db.batch_delete_events(start, end)
                 stats["deleted"] += affected
             elif action == "complete":
-                affected = await db.batch_complete_events(start, end)
+                if use_title_filter:
+                    affected = await db.complete_events_by_title(target_title)
+                else:
+                    affected = await db.batch_complete_events(start, end)
                 stats["completed"] += affected
             else:  # uncomplete
-                affected = await db.batch_uncomplete_events(start, end)
+                if use_title_filter:
+                    affected = await db.uncomplete_events_by_title(target_title)
+                else:
+                    affected = await db.batch_uncomplete_events(start, end)
                 stats["uncompleted"] += affected
             preview_item["affected"] = affected
 

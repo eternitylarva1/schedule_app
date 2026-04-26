@@ -477,6 +477,41 @@ async def delete_event(event_id: int) -> bool:
         return cursor.rowcount > 0
 
 
+async def delete_events_by_title(title: str) -> int:
+    """Delete all events matching title (supports partial match)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM events WHERE title LIKE ?",
+            (f"%{title}%",)
+        )
+        await db.commit()
+        return cursor.rowcount
+
+
+async def complete_events_by_title(title: str) -> int:
+    """Mark all pending events matching title as completed."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE events SET status = 'done', updated_at = ? WHERE title LIKE ? AND status = 'pending'",
+            (now, f"%{title}%")
+        )
+        await db.commit()
+        return cursor.rowcount
+
+
+async def uncomplete_events_by_title(title: str) -> int:
+    """Mark all done events matching title as pending."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE events SET status = 'pending', updated_at = ? WHERE title LIKE ? AND status = 'done'",
+            (now, f"%{title}%")
+        )
+        await db.commit()
+        return cursor.rowcount
+
+
 async def update_event_time_by_title(title: str, new_start_time: datetime) -> int:
     """Update start_time of the first pending event matching title."""
     now = datetime.now().isoformat()
