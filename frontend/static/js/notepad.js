@@ -948,6 +948,7 @@
         container.querySelectorAll('.expense-swipe .swipe-action').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                const { showConfirm, deleteExpense, showToast } = getUtils();
                 const action = btn.dataset.action;
                 const expenseId = parseInt(btn.dataset.expenseId);
                 if (action === 'delete') {
