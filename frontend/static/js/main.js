@@ -3145,9 +3145,12 @@
                             ${(st.date && st.start_time && st.end_time) ? `<div class="discuss-subtask-hint">🗓️ ${escapeHtml(st.date)} ${escapeHtml(st.start_time)} - ${escapeHtml(st.end_time)}</div>` : ''}
                             ${st.duration_hint ? `<div class="discuss-subtask-hint">⏱️ ${escapeHtml(st.duration_hint)}</div>` : ''}
                         </div>
-                        <label class="discuss-subtask-select">
-                            <input type="checkbox" data-index="${i}" checked>
-                        </label>
+                        <div class="discuss-subtask-actions">
+                            <button class="btn btn-xs btn-outline discuss-subtask-decompose" data-index="${i}" title="细分此任务">📋</button>
+                            <label class="discuss-subtask-select">
+                                <input type="checkbox" data-index="${i}" checked>
+                            </label>
+                        </div>
                     </div>
                 `).join('')}
             </div>
@@ -3180,10 +3183,195 @@
             rescheduleBtn.addEventListener('click', rescheduleGoalDiscuss);
         }
 
+        // Bind decompose button for each subtask
+        document.querySelectorAll('.discuss-subtask-decompose').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const index = parseInt(e.target.dataset.index);
+                await decomposeSubtask(index);
+            });
+        });
+
         // Bind import button
         const importBtn = document.getElementById('importSelectedBtn');
         if (importBtn) {
             importBtn.addEventListener('click', () => showImportModal());
+        }
+    }
+    
+    async function decomposeSubtask(index) {
+        if (goalDiscussState.isRequesting) return;
+        const subtask = goalDiscussState.currentSubtasks[index];
+        if (!subtask) return;
+        
+        const subtaskItem = document.querySelector(`.discuss-subtask[data-index="${index}"]`);
+        if (!subtaskItem) return;
+        
+        const existingInput = subtaskItem.querySelector('.subtask-decompose-input');
+        if (existingInput) {
+            existingInput.focus();
+            return;
+        }
+        
+        subtaskItem.querySelector('.discuss-subtask-actions').insertAdjacentHTML(
+            'beforeend',
+            `<div class="subtask-decompose-input">
+                <input type="text" placeholder="如何细分这个任务？" value="${escapeHtml(subtask.title)}" />
+                <button class="btn btn-xs btn-primary decompose-confirm">AI分解</button>
+                <button class="btn btn-xs btn-outline decompose-add">+手动添加</button>
+                <button class="btn btn-xs btn-outline decompose-cancel">取消</button>
+            </div>`
+        );
+        
+        const inputEl = subtaskItem.querySelector('.subtask-decompose-input input');
+        const confirmBtn = subtaskItem.querySelector('.subtask-decompose-input .decompose-confirm');
+        const addBtn = subtaskItem.querySelector('.subtask-decompose-input .decompose-add');
+        const cancelBtn = subtaskItem.querySelector('.subtask-decompose-input .decompose-cancel');
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                subtaskItem.querySelector('.subtask-decompose-input')?.remove();
+            });
+        }
+        
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', async () => {
+                const taskDesc = inputEl.value.trim();
+                if (!taskDesc) return;
+                await performSubtaskDecompose(index, taskDesc);
+            });
+        }
+        
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                subtaskItem.querySelector('.subtask-decompose-input')?.remove();
+                showManualAddSubtask(index);
+            });
+        }
+        
+        if (inputEl) {
+            inputEl.focus();
+            inputEl.setSelectionRange(0, inputEl.value.length);
+        }
+    }
+    
+    function showManualAddSubtask(parentIndex) {
+        const subtaskItem = document.querySelector(`.discuss-subtask[data-index="${parentIndex}"]`);
+        if (!subtaskItem) return;
+        
+        subtaskItem.insertAdjacentHTML('beforeend',
+            `<div class="subtask-decompose-input manual-add">
+                <input type="text" class="manual-subtask-title" placeholder="输入子任务标题..." />
+                <button class="btn btn-xs btn-primary manual-subtask-add">添加</button>
+                <button class="btn btn-xs btn-outline manual-subtask-cancel">取消</button>
+            </div>`
+        );
+        
+        const titleInput = subtaskItem.querySelector('.manual-subtask-title');
+        const addBtn = subtaskItem.querySelector('.manual-subtask-add');
+        const cancelBtn = subtaskItem.querySelector('.manual-subtask-cancel');
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                subtaskItem.querySelector('.subtask-decompose-input')?.remove();
+            });
+        }
+        
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                const title = titleInput.value.trim();
+                if (!title) return;
+                addManualSubtask(parentIndex, title);
+            });
+        }
+        
+        if (titleInput) {
+            titleInput.focus();
+        }
+    }
+    
+    function addManualSubtask(parentIndex, title) {
+        const subtaskItem = document.querySelector(`.discuss-subtask[data-index="${parentIndex}"]`);
+        if (!subtaskItem) return;
+        
+        subtaskItem.querySelector('.subtask-decompose-input')?.remove();
+        
+        let childrenContainer = subtaskItem.querySelector('.subtask-children');
+        if (!childrenContainer) {
+            childrenContainer = document.createElement('div');
+            childrenContainer.className = 'subtask-children';
+            childrenContainer.innerHTML = '<div class="subtask-children-title">子任务：</div>';
+            subtaskItem.appendChild(childrenContainer);
+        }
+        
+        if (!goalDiscussState.currentSubtasks[parentIndex]._children) {
+            goalDiscussState.currentSubtasks[parentIndex]._children = [];
+        }
+        
+        const childIndex = goalDiscussState.currentSubtasks[parentIndex]._children.length;
+        goalDiscussState.currentSubtasks[parentIndex]._children.push({ title });
+        
+        const childEl = document.createElement('div');
+        childEl.className = 'discuss-subtask discuss-subtask-child';
+        childEl.dataset.parent = parentIndex;
+        childEl.dataset.index = childIndex;
+        childEl.innerHTML = `
+            <div class="discuss-subtask-num">${childIndex + 1}</div>
+            <div class="discuss-subtask-content">
+                <div class="discuss-subtask-title">${escapeHtml(title)}</div>
+            </div>
+        `;
+        childrenContainer.appendChild(childEl);
+    }
+    
+    async function performSubtaskDecompose(index, taskDesc) {
+        if (goalDiscussState.isRequesting) return;
+        
+        goalDiscussState.isRequesting = true;
+        const subtask = goalDiscussState.currentSubtasks[index];
+        const subtaskItem = document.querySelector(`.discuss-subtask[data-index="${index}"]`);
+        
+        subtaskItem.querySelector('.subtask-decompose-input')?.remove();
+        subtaskItem.insertAdjacentHTML('beforeend', '<div class="subtask-decompose-loading">🤔 分解中...</div>');
+        
+        try {
+            const result = await apiCall('llm/breakdown', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    text: taskDesc,
+                    horizon: state.goalsHorizon || 'short'
+                })
+            });
+            
+            subtaskItem.querySelector('.subtask-decompose-loading')?.remove();
+            
+            if (result && result.subtasks && result.subtasks.length > 0) {
+                const subtaskId = `subtask-${index}`;
+                const childrenContainer = document.createElement('div');
+                childrenContainer.className = 'subtask-children';
+                childrenContainer.id = subtaskId;
+                childrenContainer.innerHTML = `<div class="subtask-children-title">子任务：</div>` + 
+                    result.subtasks.map((st, i) => `
+                        <div class="discuss-subtask discuss-subtask-child" data-parent="${index}" data-index="${i}">
+                            <div class="discuss-subtask-num">${i + 1}</div>
+                            <div class="discuss-subtask-content">
+                                <div class="discuss-subtask-title">${escapeHtml(st.title)}</div>
+                                ${(st.date && st.start_time && st.end_time) ? `<div class="discuss-subtask-hint">🗓️ ${escapeHtml(st.date)} ${escapeHtml(st.start_time)} - ${escapeHtml(st.end_time)}</div>` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                subtaskItem.appendChild(childrenContainer);
+                
+                goalDiscussState.currentSubtasks[index]._children = result.subtasks;
+            } else {
+                showToast('无法分解此任务');
+            }
+        } catch (error) {
+            console.error('Decompose error:', error);
+            subtaskItem.querySelector('.subtask-decompose-loading')?.remove();
+            showToast('分解失败: ' + error.message);
+        } finally {
+            goalDiscussState.isRequesting = false;
         }
     }
     
@@ -5279,6 +5467,8 @@
     window.ScheduleAppCore.openExpenseModal = openExpenseModal;
     window.ScheduleAppCore.showNoteDetail = showNoteDetail;
     window.ScheduleAppCore.showNoteEdit = showNoteEdit;
+    window.ScheduleAppCore.openGoalDiscussModal = openGoalDiscussModal;
+    window.ScheduleAppCore.bindSwipeItem = bindSwipeItem;
 
     // Start the app
     if (document.readyState === 'loading') {

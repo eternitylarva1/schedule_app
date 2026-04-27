@@ -81,28 +81,56 @@ curl -s http://localhost:8080/api/events?date=today
 
 > 若缺任一函数，优先修复结构完整性，再继续功能调试。
 
-### 2.4 OpenCode Browser Console/Error 通道健康检查
+### 2.4 浏览器自动化健康检查（agent-browser）
 
-当 `browser_console` / `browser_errors` 返回 `Debugger not attached` 时，按下面顺序处理：
+使用 `agent-browser` CLI 进行前端调试。安装方式：
 
-1. **确认标签页归属**
-   - 使用 `browser_status`、`browser_list_claims` 检查当前会话是否已 claim 目标 tab。
-   - 若 tab 归属于其他会话，先 release 后重新 claim，或新开 tab 再调试。
+```bash
+npm i -g agent-browser
+agent-browser install  # 首次安装需要
+```
 
-2. **排除调试器占用冲突**
-   - 关闭目标页的 DevTools（避免与扩展调试器竞争）。
-   - 避免多个自动化会话同时附加同一个 tab。
+**常用命令：**
 
-3. **重建调试通道**
-   - 新开一个业务页面 tab（如 `http://localhost:8080/?v=debug-reprobe`）。
-   - 在新 tab 上重新执行 `browser_console` 与 `browser_errors`。
+| 命令 | 作用 |
+|------|------|
+| `agent-browser open <url>` | 打开 URL |
+| `agent-browser snapshot` | 获取无障碍树快照（含 @eN 元素引用）|
+| `agent-browser click <sel>` | 点击元素（支持 CSS selector 或 @ref）|
+| `agent-browser get text <sel>` | 获取元素文本 |
+| `agent-browser errors` | 查看页面 JS 错误 |
+| `agent-browser console` | 查看控制台日志 |
+| `agent-browser screenshot` | 截图 |
 
-4. **恢复扩展宿主（必要时）**
-   - 若仍失败，执行：`npx @different-ai/opencode-browser install` 重新安装 native host。
-   - 重新加载扩展后，再次 claim 新 tab 并复测。
+**调试流程：**
 
-5. **兜底原则**
-   - 若 Console/Error 通道暂时不可用，不得阻塞功能调试；至少保留 DOM 快照与关键交互验证结果。
+1. **打开页面**
+   ```bash
+   agent-browser open http://localhost:8080
+   ```
+
+2. **获取快照确认元素**
+   ```bash
+   agent-browser snapshot
+   ```
+   找到要操作的元素引用（如 `@e8` 表示"待办"按钮）
+
+3. **执行操作**
+   ```bash
+   agent-browser click @e8  # 点击待办tab
+   agent-browser snapshot    # 确认切换结果
+   ```
+
+4. **检查错误**
+   ```bash
+   agent-browser errors      # 查看 JS 错误
+   agent-browser console     # 查看 console 日志
+   ```
+
+**注意：**
+- agent-browser 使用独立 Chrome 进程，不依赖浏览器扩展
+- 若需重置状态：`agent-browser close --all` 后重新 `open`
+- 查看所有命令：`agent-browser --help`
 
 ---
 

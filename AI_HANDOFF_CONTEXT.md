@@ -37,7 +37,7 @@
 
 2. 调试必须遵循：
    - `DEBUG_WORKFLOW.md`
-   - 使用 `@different-ai/opencode-browser` 做交互与可视化验证
+   - 使用 `agent-browser` 做交互与可视化验证
 
 3. 新增功能后必须：
    - 同步更新调试规范（新增检查项）

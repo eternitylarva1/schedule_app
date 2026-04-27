@@ -3949,29 +3949,7 @@ textarea {
     background: var(--bg-card);
     border-radius: var(--radius-md);
     padding: var(--space-md);
-}
-
-.expense-item-left {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    flex: 1;
-    min-width: 0;
-}
-
-.expense-item-cat {
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
-    white-space: nowrap;
-}
-
-.expense-item-note {
-    color: var(--text-primary);
-    font-size: var(--font-size-sm);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    margin-bottom: 0;
 }
 
 .expense-item-right {
@@ -3993,6 +3971,16 @@ textarea {
 
 .expense-item-clickable {
     cursor: pointer;
+}
+
+.expense-swipe .swipe-action-right {
+    background: var(--accent-danger);
+    font-size: var(--font-size-lg);
+    font-weight: 300;
+}
+
+.expense-swipe .swipe-action-right::before {
+    content: '删除';
 }
 
 .expense-action-btn {

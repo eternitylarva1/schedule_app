@@ -38,6 +38,13 @@ test_output/
 test_report_*.json
 test_report_*.txt
 
+# Test files (development testing)
+test_*.py
+send_fix.py
+send_qq*.py
+test.png
+$null
+
 # codenomad (working directory config)
 .codenomad/
 

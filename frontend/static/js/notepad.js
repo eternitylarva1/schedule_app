@@ -917,14 +917,18 @@
                     ${dayExpenses.map(exp => {
                         const cat = state.expenseCategories.find(c => c.id === exp.category) || { name: '其他', color: '#6B7280' };
                         return `
-                            <div class="expense-item expense-item-clickable" data-expense-id="${exp.id}">
-                                <div class="expense-item-left">
-                                    <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
-                                    <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
-                                </div>
-                                <div class="expense-item-right">
-                                    <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
-                                    <button class="expense-item-delete" data-expense-id="${exp.id}">×</button>
+                            <div class="swipe-item expense-swipe" data-expense-id="${exp.id}">
+                                <div class="swipe-action swipe-action-right" data-action="delete" data-expense-id="${exp.id}">删除</div>
+                                <div class="swipe-content">
+                                    <div class="expense-item expense-item-clickable" data-expense-id="${exp.id}">
+                                        <div class="expense-item-left">
+                                            <span class="expense-item-cat" style="background: ${cat.color}20; color: ${cat.color}">${cat.name}</span>
+                                            <span class="expense-item-note">${escapeHtml(exp.note || '')}</span>
+                                        </div>
+                                        <div class="expense-item-right">
+                                            <span class="expense-item-amount">¥${exp.amount.toFixed(1)}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         `;
@@ -937,24 +941,34 @@
         container.innerHTML = listHtml;
         window.ScheduleAppBudget?.bindBudgetEvents?.();
         
+        const bindSwipe = window.ScheduleAppCore?.bindSwipeItem;
+        if (bindSwipe) {
+            container.querySelectorAll('.expense-swipe').forEach(bindSwipe);
+        }
+        container.querySelectorAll('.expense-swipe .swipe-action').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const expenseId = parseInt(btn.dataset.expenseId);
+                if (action === 'delete') {
+                    const confirmed = await showConfirm('确定删除这条支出吗？');
+                    if (confirmed) {
+                        await deleteExpense(expenseId);
+                        showToast('已删除');
+                        await renderExpenseList();
+                    }
+                }
+            });
+        });
+        
         container.querySelectorAll('.expense-item-clickable').forEach(item => {
             item.addEventListener('click', async (e) => {
-                if (e.target.closest('.expense-item-delete')) return;
+                if (e.target.closest('.swipe-action')) return;
                 const expenseId = parseInt(item.dataset.expenseId);
                 const exp = expenses.find(x => x.id === expenseId);
                 if (exp) {
                     openExpenseModal(exp);
                 }
-            });
-        });
-        
-        container.querySelectorAll('.expense-item-delete').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const expenseId = parseInt(btn.dataset.expenseId);
-                await deleteExpense(expenseId);
-                showToast('已删除');
-                await renderExpenseList();
             });
         });
     }

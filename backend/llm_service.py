@@ -810,60 +810,60 @@ class LLMService:
         current_date = now.strftime("%Y年%m月%d日")
         current_time = now.strftime("%H:%M")
 
-prompt = f"""用户输入了一条自然语言指令，请解析为可执行操作列表并返回JSON。
+        prompt = f"""用户输入了一条自然语言指令，请解析为可执行操作列表并返回JSON。
 
-当前日期：{current_date} {current_time}
-用户输入：{user_text}
+        当前日期：{current_date} {current_time}
+        用户输入：{user_text}
 
-你必须在以下 action 中选择：
-- create: 创建日程/待办
-- update: 修改日程/待办（只修改时间/标题，保留原内容）
-- delete: 删除日程/待办（批量或按标题）
-- complete: 完成日程/待办（批量或按标题）
-- uncomplete: 撤销完成（批量或按标题）
+        你必须在以下 action 中选择：
+        - create: 创建日程/待办
+        - update: 修改日程/待办（只修改时间/标题，保留原内容）
+        - delete: 删除日程/待办（批量或按标题）
+        - complete: 完成日程/待办（批量或按标题）
+        - uncomplete: 撤销完成（批量或按标题）
 
-返回格式（只返回JSON，不要任何解释文字）：
-{{
-  "operations": [
-    {{
-      "action": "create|update|delete|complete|uncomplete",
-      "title": "当action=create/update时必填，否则为null",
-      "start_time": "ISO格式如2026-04-25T18:00:00（create/update使用，create时必填）",
-      "duration_minutes": 30,
-      "category_id": "work/life/study/health（create/update使用）",
-      "scope": "all|title（delete/complete/uncomplete使用，scope=title表示按标题匹配删除）",
-      "date": "YYYY-MM-DD或null（仅scope=date时使用）",
-      "target_title": "当action=delete/complete/uncomplete时必填！填写能从描述中提取的标题关键词，如'洗澡'、'早上8点'等",
-      "original_title": "当action=update时必填，填写要修改的原有标题"
-    }}
-  ],
-  "summary": "一句话总结"
-}}
+        返回格式（只返回JSON，不要任何解释文字）：
+        {{
+          "operations": [
+            {{
+              "action": "create|update|delete|complete|uncomplete",
+              "title": "当action=create/update时必填，否则为null",
+              "start_time": "ISO格式如2026-04-25T18:00:00（create/update使用，create时必填）",
+              "duration_minutes": 30,
+              "category_id": "work/life/study/health（create/update使用）",
+              "scope": "all|title（delete/complete/uncomplete使用，scope=title表示按标题匹配删除）",
+              "date": "YYYY-MM-DD或null（仅scope=date时使用）",
+              "target_title": "当action=delete/complete/uncomplete时必填！填写能从描述中提取的标题关键词，如'洗澡'、'早上8点'等",
+              "original_title": "当action=update时必填，填写要修改的原有标题"
+            }}
+          ],
+          "summary": "一句话总结"
+        }}
 
-规则：
-1) 支持一条输入中的多操作（按输入顺序输出）。
-2) 对"把X改成时间Y"这类修改需求，输出 action=update。
-3) 重要：所有delete/complete/uncomplete操作都必须提供target_title！
-   - "删除洗澡的待办" → action=delete, scope=title, target_title="洗澡"
-   - "完成早上8点的待办" → action=complete, scope=title, target_title="早上8点"
-   - "删除所有代办" → action=delete, scope=all, target_title="代办" 或直接action=delete, scope=all
-4) scope=title表示按标题关键词匹配，支持部分匹配。
-5) update时：
-   - original_title: 填写要修改的日程/待办的原标题（用于定位）
-   - title: 修改后的新标题（如果不改标题则同original_title）
-   - start_time: 修改后的新时间（必填）
-6) create时：start_time 必须填写，格式为ISO如 "2026-04-25T18:00:00"
-   - 绝对不允许返回 null 作为 start_time
-   - 时间推断规则（按优先级）：
-     1) 用户给出具体时间如"8点"、"15:00" → 直接使用
-     2) "今晚"、"今晚8点"、"今晚6点" → 今天该时间（如20:00、18:00）
-     3) "今天晚上"、"今天下午"、"今天上午" → 今天18:00/14:00/09:00
-     4) "明晚"、"明晚8点" → 明天该时间
-     5) "明天晚上"、"明天下午" → 明天18:00/14:00
-     6) 只有模糊的"晚上"、"下午"、"上午" → 结合上下文推断
-   - 每个任务安排在合适的时段，如吃饭18:00，运动19:00，毕业设计20:00，视频21:00
-   - duration已由用户给出，直接使用（如"半小时"=30分钟）
-"""
+        规则：
+        1) 支持一条输入中的多操作（按输入顺序输出）。
+        2) 对"把X改成时间Y"这类修改需求，输出 action=update。
+        3) 重要：所有delete/complete/uncomplete操作都必须提供target_title！
+           - "删除洗澡的待办" → action=delete, scope=title, target_title="洗澡"
+           - "完成早上8点的待办" → action=complete, scope=title, target_title="早上8点"
+           - "删除所有代办" → action=delete, scope=all, target_title="代办" 或直接action=delete, scope=all
+        4) scope=title表示按标题关键词匹配，支持部分匹配。
+        5) update时：
+           - original_title: 填写要修改的日程/待办的原标题（用于定位）
+           - title: 修改后的新标题（如果不改标题则同original_title）
+           - start_time: 修改后的新时间（必填）
+        6) create时：start_time 必须填写，格式为ISO如 "2026-04-25T18:00:00"
+           - 绝对不允许返回 null 作为 start_time
+           - 时间推断规则（按优先级）：
+             1) 用户给出具体时间如"8点"、"15:00" → 直接使用
+             2) "今晚"、"今晚8点"、"今晚6点" → 今天该时间（如20:00、18:00）
+             3) "今天晚上"、"今天下午"、"今天上午" → 今天18:00/14:00/09:00
+             4) "明晚"、"明晚8点" → 明天该时间
+             5) "明天晚上"、"明天下午" → 明天18:00/14:00
+             6) 只有模糊的"晚上"、"下午"、"上午" → 结合上下文推断
+           - 每个任务安排在合适的时段，如吃饭18:00，运动19:00，毕业设计20:00，视频21:00
+           - duration已由用户给出，直接使用（如"半小时"=30分钟）
+        """
 
         response = await self.chat([
             {"role": "system", "content": "你是一个任务执行解析器，只返回严格JSON。"},

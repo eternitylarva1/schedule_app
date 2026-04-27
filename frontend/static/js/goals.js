@@ -393,7 +393,12 @@
     }
 
     async function openGoalDiscussModal(goalId = null) {
-        console.log('openGoalDiscussModal - goalId:', goalId);
+        const utils = getUtils();
+        if (utils.openGoalDiscussModal) {
+            utils.openGoalDiscussModal(goalId);
+        } else {
+            console.log('openGoalDiscussModal from main.js not available');
+        }
     }
 
     async function openGoalHistoryModal(goalId) {
