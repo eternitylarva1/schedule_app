@@ -3948,25 +3948,49 @@ textarea {
     align-items: center;
     background: var(--bg-card);
     border-radius: var(--radius-md);
-    padding: var(--space-md);
-    margin-bottom: 0;
+    padding: var(--space-sm) var(--space-md);
+}
+
+.expense-item-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex: 1;
+    min-width: 0;
+}
+
+.expense-item-cat {
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.expense-item-note {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .expense-item-right {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
+    flex-shrink: 0;
 }
 
 .expense-item-amount {
     color: var(--accent-danger);
     font-size: var(--font-size-md);
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .expense-item-budget {
     font-size: var(--font-size-xs);
-    margin-left: var(--space-xs);
+    color: var(--text-muted);
 }
 
 .expense-item-clickable {
@@ -3975,8 +3999,9 @@ textarea {
 
 .expense-swipe .swipe-action-right {
     background: var(--accent-danger);
-    font-size: var(--font-size-lg);
-    font-weight: 300;
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 1px;
 }
 
 .expense-swipe .swipe-action-right::before {
