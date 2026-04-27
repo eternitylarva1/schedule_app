@@ -3948,7 +3948,9 @@ textarea {
     align-items: center;
     background: var(--bg-card);
     border-radius: var(--radius-md);
-    padding: var(--space-sm) var(--space-md);
+    padding: 12px var(--space-md);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    transition: all var(--transition-fast);
 }
 
 .expense-item-left {
@@ -3960,19 +3962,21 @@ textarea {
 }
 
 .expense-item-cat {
-    padding: 2px 8px;
+    padding: 4px 10px;
     border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
+    font-size: 12px;
+    font-weight: 500;
     white-space: nowrap;
     flex-shrink: 0;
 }
 
 .expense-item-note {
-    color: var(--text-secondary);
+    color: var(--text-primary);
     font-size: var(--font-size-sm);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 120px;
 }
 
 .expense-item-right {
@@ -3986,6 +3990,7 @@ textarea {
     color: var(--accent-danger);
     font-size: var(--font-size-md);
     font-weight: 600;
+    letter-spacing: -0.3px;
 }
 
 .expense-item-budget {
@@ -3997,11 +4002,16 @@ textarea {
     cursor: pointer;
 }
 
+.expense-item:active {
+    transform: scale(0.99);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
 .expense-swipe .swipe-action-right {
     background: var(--accent-danger);
-    font-size: 15px;
-    font-weight: 400;
-    letter-spacing: 1px;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
 }
 
 .expense-swipe .swipe-action-right::before {
