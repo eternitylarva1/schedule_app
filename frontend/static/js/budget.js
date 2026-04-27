@@ -120,26 +120,26 @@
     function bindBudgetEvents() {
         const elements = getElements();
         const state = getState();
-        const { showToast, showConfirm, fetchBudgets, deleteBudget, apiCall } = getUtils();
+        const { showToast, showConfirm, fetchBudgets, deleteBudget, fetchExpenseCategories, createExpenseCategory, deleteExpenseCategory } = getUtils();
 
         // Initialize default expense categories if not set
         if (!state.expenseCategories) {
             state.expenseCategories = [
-                { id: 'food', name: '餐饮', color: '#F59E0B' },
+                { id: 'food', name: '餐饮', color: '#F97316' },
                 { id: 'transport', name: '交通', color: '#3B82F6' },
                 { id: 'shopping', name: '购物', color: '#EC4899' },
-                { id: 'entertainment', name: '娱乐', color: '#8B5CF6' },
-                { id: 'health', name: '医疗', color: '#EF4444' },
-                { id: 'education', name: '教育', color: '#06B6D4' },
                 { id: 'other', name: '其他', color: '#6B7280' },
             ];
         }
+
+        // Fetch custom categories from API
+        fetchExpenseCategories().catch(err => console.error('Failed to fetch expense categories:', err));
 
         const addBtn = document.getElementById('addBudgetBtn');
         if (addBtn) {
             addBtn.addEventListener('click', () => openBudgetModal());
         }
-        
+
         const budgetListTitle = document.getElementById('budgetListTitle');
         if (budgetListTitle) {
             budgetListTitle.addEventListener('click', () => {
@@ -539,25 +539,53 @@
         elements.expenseModal.classList.add('hidden');
     }
 
+    const CATEGORY_COLORS = ['#F97316', '#3B82F6', '#EC4899', '#8B5CF6', '#EF4444', '#06B6D4', '#10B981', '#F59E0B', '#6B7280'];
+
     function renderExpenseCategorySelector() {
         const state = getState();
         const elements = getElements();
         if (!elements.expenseCategorySelector) return;
-        
-        elements.expenseCategorySelector.innerHTML = state.expenseCategories.map(cat => `
-            <button class="expense-category-btn ${cat.id === selectedExpenseCategory ? 'selected' : ''}" 
-                    data-category="${cat.id}" 
+
+        const { showPrompt, showToast, createExpenseCategory, fetchExpenseCategories } = getUtils();
+
+        const isCustomCat = (cat) => typeof cat.id === 'number';
+
+        let html = state.expenseCategories.map(cat => `
+            <button class="expense-category-btn ${cat.id === selectedExpenseCategory ? 'selected' : ''}"
+                    data-category="${cat.id}"
+                    data-is-custom="${isCustomCat(cat)}"
                     style="border-color: ${cat.id === selectedExpenseCategory ? cat.color : 'var(--border-color)'}; color: ${cat.id === selectedExpenseCategory ? cat.color : 'var(--text-secondary)'}">
-                ${cat.name}
+                ${cat.name}${isCustomCat(cat) ? ' ×' : ''}
             </button>
         `).join('');
-        
-        elements.expenseCategorySelector.querySelectorAll('.expense-category-btn').forEach(btn => {
+
+        html += `<button class="expense-category-btn expense-category-add" id="addExpenseCategoryBtn">+ 添加</button>`;
+
+        elements.expenseCategorySelector.innerHTML = html;
+
+        elements.expenseCategorySelector.querySelectorAll('.expense-category-btn:not(.expense-category-add)').forEach(btn => {
             btn.addEventListener('click', () => {
                 selectedExpenseCategory = btn.dataset.category;
                 renderExpenseCategorySelector();
             });
         });
+
+        const addBtn = document.getElementById('addExpenseCategoryBtn');
+        if (addBtn) {
+            addBtn.addEventListener('click', async () => {
+                const name = await showPrompt('输入新分类名称：', { placeholder: '例如：咖啡' });
+                if (name && name.trim()) {
+                    const color = CATEGORY_COLORS[Math.floor(Math.random() * CATEGORY_COLORS.length)];
+                    const newCat = await createExpenseCategory(name.trim(), color);
+                    if (newCat) {
+                        await fetchExpenseCategories();
+                        selectedExpenseCategory = newCat.id;
+                        showToast('分类已添加');
+                        renderExpenseCategorySelector();
+                    }
+                }
+            });
+        }
     }
 
     async function handleExpenseSave() {

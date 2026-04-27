@@ -383,6 +383,38 @@
     }
 
     // ============================================
+    // Expense Categories API Functions
+    // ============================================
+    const DEFAULT_EXPENSE_CATEGORIES = [
+        { id: 'food', name: '餐饮', color: '#F97316' },
+        { id: 'transport', name: '交通', color: '#3B82F6' },
+        { id: 'shopping', name: '购物', color: '#EC4899' },
+        { id: 'other', name: '其他', color: '#6B7280' }
+    ];
+
+    async function fetchExpenseCategories() {
+        const data = await apiCall('expenses/categories');
+        if (data && Array.isArray(data)) {
+            state.expenseCategories = data;
+            return data;
+        }
+        return DEFAULT_EXPENSE_CATEGORIES;
+    }
+
+    async function createExpenseCategory(name, color) {
+        return await apiCall('expenses/categories', {
+            method: 'POST',
+            body: JSON.stringify({ name, color })
+        });
+    }
+
+    async function deleteExpenseCategory(catId) {
+        return await apiCall(`expenses/categories/${catId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // ============================================
     // Budgets API Functions
     // ============================================
     async function fetchBudgets() {
@@ -546,6 +578,9 @@
         deleteExpense,
         fetchExpenseStats,
         parseExpenseWithLLM,
+        fetchExpenseCategories,
+        createExpenseCategory,
+        deleteExpenseCategory,
         fetchBudgets,
         createBudget,
         updateBudget,

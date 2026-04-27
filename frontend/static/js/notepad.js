@@ -80,20 +80,20 @@
         const state = getState();
         const elements = getElements();
         const utils = getUtils();
-        const { showToast } = utils;
+        const { showToast, fetchExpenseCategories } = utils;
 
         // Initialize default expense categories if not set
         if (!state.expenseCategories) {
             state.expenseCategories = [
-                { id: 'food', name: '餐饮', color: '#F59E0B' },
+                { id: 'food', name: '餐饮', color: '#F97316' },
                 { id: 'transport', name: '交通', color: '#3B82F6' },
                 { id: 'shopping', name: '购物', color: '#EC4899' },
-                { id: 'entertainment', name: '娱乐', color: '#8B5CF6' },
-                { id: 'health', name: '医疗', color: '#EF4444' },
-                { id: 'education', name: '教育', color: '#06B6D4' },
                 { id: 'other', name: '其他', color: '#6B7280' },
             ];
         }
+
+        // Fetch custom categories from API
+        fetchExpenseCategories().catch(err => console.error('Failed to fetch expense categories:', err));
 
         try {
             if (!elements.notepadTabs || !elements.notepadContainer) {

@@ -1311,8 +1311,56 @@ async def get_expense_stats(request: web.Request) -> web.Response:
 
 
 async def get_expense_categories(request: web.Request) -> web.Response:
-    """GET /api/expenses/categories - list expense categories."""
-    return json_response(EXPENSE_CATEGORIES)
+    """GET /api/expenses/categories - list expense categories (merged default + custom)."""
+    try:
+        custom_cats = await db.get_expense_categories()
+        merged = list(EXPENSE_CATEGORIES) + custom_cats
+        return json_response(merged)
+    except Exception as e:
+        return error_response(f"获取分类失败: {str(e)}")
+
+
+async def create_expense_category(request: web.Request) -> web.Response:
+    """POST /api/expenses/categories - create a new expense category."""
+    try:
+        data = await request.json()
+        name = data.get("name", "").strip()
+        color = data.get("color", "#6B7280")
+        if not name:
+            return error_response("分类名称不能为空")
+        cat = await db.create_expense_category(name, color)
+        return json_response(cat)
+    except Exception as e:
+        return error_response(f"创建分类失败: {str(e)}")
+
+
+async def update_expense_category(request: web.Request) -> web.Response:
+    """PUT /api/expenses/categories/{id} - update an expense category."""
+    cat_id = int(request.match_info["id"])
+    try:
+        data = await request.json()
+        name = data.get("name", "").strip()
+        color = data.get("color", "#6B7280")
+        if not name:
+            return error_response("分类名称不能为空")
+        cat = await db.update_expense_category(cat_id, name, color)
+        if cat:
+            return json_response(cat)
+        return error_response("分类不存在", code=404)
+    except Exception as e:
+        return error_response(f"更新分类失败: {str(e)}")
+
+
+async def delete_expense_category(request: web.Request) -> web.Response:
+    """DELETE /api/expenses/categories/{id} - delete an expense category."""
+    cat_id = int(request.match_info["id"])
+    try:
+        deleted = await db.delete_expense_category(cat_id)
+        if deleted:
+            return json_response({"success": True})
+        return error_response("分类不存在", code=404)
+    except Exception as e:
+        return error_response(f"删除分类失败: {str(e)}")
 
 
 # ============================================
@@ -1881,6 +1929,9 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_delete("/api/expenses/{id}", delete_expense)
     app.router.add_get("/api/expenses/stats", get_expense_stats)
     app.router.add_get("/api/expenses/categories", get_expense_categories)
+    app.router.add_post("/api/expenses/categories", create_expense_category)
+    app.router.add_put("/api/expenses/categories/{id}", update_expense_category)
+    app.router.add_delete("/api/expenses/categories/{id}", delete_expense_category)
 
     # AI Providers
     app.router.add_get("/api/ai-providers", get_ai_providers)

@@ -257,7 +257,7 @@ async def init_db() -> None:
             await db.execute("ALTER TABLE expenses ADD COLUMN is_test INTEGER DEFAULT 0")
         except Exception:
             pass
-        
+
         # Budget templates table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS budget_templates (
@@ -269,6 +269,16 @@ async def init_db() -> None:
                 auto_reset INTEGER DEFAULT 0,
                 rollover INTEGER DEFAULT 0,
                 rollover_limit INTEGER,
+                created_at TEXT
+            )
+        """)
+
+        # Expense categories table (custom user categories)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS expense_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                color TEXT NOT NULL,
                 created_at TEXT
             )
         """)
@@ -2023,5 +2033,52 @@ async def delete_budget_template(template_id: int) -> bool:
     """Delete a budget template."""
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("DELETE FROM budget_templates WHERE id = ?", (template_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+# Expense categories CRUD
+
+async def get_expense_categories() -> List[dict]:
+    """Get all custom expense categories."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM expense_categories ORDER BY id ASC") as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def create_expense_category(name: str, color: str) -> dict:
+    """Create a new expense category."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            "INSERT INTO expense_categories (name, color, created_at) VALUES (?, ?, ?)",
+            (name, color, now)
+        )
+        await db.commit()
+        return {"id": cursor.lastrowid, "name": name, "color": color, "created_at": now}
+
+
+async def update_expense_category(cat_id: int, name: str, color: str) -> Optional[dict]:
+    """Update an expense category."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "UPDATE expense_categories SET name = ?, color = ? WHERE id = ?",
+            (name, color, cat_id)
+        )
+        await db.commit()
+        if cursor.rowcount > 0:
+            async with db.execute("SELECT * FROM expense_categories WHERE id = ?", (cat_id,)) as sel:
+                row = await sel.fetchone()
+                if row:
+                    return dict(row)
+        return None
+
+
+async def delete_expense_category(cat_id: int) -> bool:
+    """Delete an expense category."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM expense_categories WHERE id = ?", (cat_id,))
         await db.commit()
         return cursor.rowcount > 0
