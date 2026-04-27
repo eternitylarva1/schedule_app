@@ -678,6 +678,7 @@ async def create_goal(request: web.Request) -> web.Response:
             root_goal_id=data.get("root_goal_id"),
             order=data.get("order", 0),
             ai_context=data.get("ai_context", ""),
+            is_test=bool(data.get("is_test", False)),
         )
         if not goal.title:
             return error_response("目标标题不能为空")
@@ -714,6 +715,7 @@ async def update_goal(request: web.Request) -> web.Response:
             root_goal_id=data.get("root_goal_id", existing.root_goal_id),
             order=data.get("order", existing.order),
             ai_context=data.get("ai_context", existing.ai_context),
+            is_test=data.get("is_test", existing.is_test),
         )
         if not updated_goal.title:
             return error_response("目标标题不能为空")

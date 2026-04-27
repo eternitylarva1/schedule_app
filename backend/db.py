@@ -85,6 +85,12 @@ async def init_db() -> None:
             )
         """)
 
+        # Add is_test column to goals table
+        try:
+            await db.execute("ALTER TABLE goals ADD COLUMN is_test INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
         # Goal conversations table for storing AI dialogue history
         await db.execute("""
             CREATE TABLE IF NOT EXISTS goal_conversations (
@@ -945,9 +951,9 @@ async def create_goal(goal: Goal) -> Goal:
         
         cursor = await db.execute(
             """INSERT INTO goals
-               (title, description, horizon, status, start_date, end_date, 
-                parent_id, root_goal_id, goal_order, ai_context, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (title, description, horizon, status, start_date, end_date,
+                parent_id, root_goal_id, goal_order, ai_context, is_test, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 goal.title,
                 goal.description,
@@ -959,6 +965,7 @@ async def create_goal(goal: Goal) -> Goal:
                 root_goal_id,
                 goal.order,
                 goal.ai_context,
+                1 if goal.is_test else 0,
                 now,
                 now,
             ),
@@ -1012,6 +1019,7 @@ async def get_goals(horizon: str | None = None, include_subtasks: bool = True) -
                     root_goal_id=row["root_goal_id"],
                     order=row["goal_order"] or 0,
                     ai_context=row["ai_context"] or "",
+                    is_test=bool(row["is_test"]) if "is_test" in row.keys() and row["is_test"] is not None else False,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                 ))
@@ -1038,6 +1046,7 @@ async def get_goal(goal_id: int) -> Optional[Goal]:
                 root_goal_id=row["root_goal_id"],
                 order=row["goal_order"] or 0,
                 ai_context=row["ai_context"] or "",
+                is_test=bool(row["is_test"]) if "is_test" in row.keys() and row["is_test"] is not None else False,
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
             )
@@ -1066,6 +1075,7 @@ async def get_goal_subtasks(goal_id: int) -> List[Goal]:
                     root_goal_id=row["root_goal_id"],
                     order=row["goal_order"] or 0,
                     ai_context=row["ai_context"] or "",
+                    is_test=bool(row["is_test"]) if "is_test" in row.keys() and row["is_test"] is not None else False,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                     updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                 ))
@@ -1109,7 +1119,7 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
             """UPDATE goals SET
                title = ?, description = ?, horizon = ?, status = ?,
                start_date = ?, end_date = ?, parent_id = ?, root_goal_id = ?,
-               goal_order = ?, ai_context = ?, updated_at = ?
+               goal_order = ?, ai_context = ?, is_test = ?, updated_at = ?
                WHERE id = ?""",
             (
                 goal.title,
@@ -1122,6 +1132,7 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
                 goal.root_goal_id,
                 goal.order,
                 goal.ai_context,
+                1 if goal.is_test else 0,
                 now,
                 goal_id,
             ),
@@ -1626,11 +1637,11 @@ async def delete_note_group(group_id: int) -> bool:
 
 
 async def cleanup_test_entries() -> dict[str, int]:
-    """Delete test/demo/debug entries across events, notes, expenses and budgets.
-    
+    """Delete test/demo/debug entries across events, notes, expenses, budgets and goals.
+
     Cleans by:
     1. Keyword matching (测试/test/debug/demo/etc) in title/content
-    2. is_test flag for events, expenses and budgets
+    2. is_test flag for events, expenses, budgets and goals
     """
     patterns = [
         "%测试%", "%test%", "%debug%", "%demo%", "%样例%", "%示例%", "%tmp%", "%临时%"
@@ -1664,6 +1675,13 @@ async def cleanup_test_entries() -> dict[str, int]:
             "DELETE FROM budgets WHERE is_test = 1",
         )
 
+        # Goals by title OR is_test flag
+        goal_keyword_where = " OR ".join(["LOWER(title) LIKE LOWER(?)" for _ in patterns])
+        goal_result = await db.execute(
+            f"DELETE FROM goals WHERE ({goal_keyword_where}) OR is_test = 1",
+            patterns,
+        )
+
         await db.commit()
 
     return {
@@ -1671,6 +1689,7 @@ async def cleanup_test_entries() -> dict[str, int]:
         "notes_deleted": note_result.rowcount or 0,
         "expenses_deleted": expense_result.rowcount or 0,
         "budgets_deleted": budget_result.rowcount or 0,
+        "goals_deleted": goal_result.rowcount or 0,
     }
 
 

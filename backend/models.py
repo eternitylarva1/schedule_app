@@ -68,6 +68,7 @@ class Goal:
     order: int = 0  # Sort order within same parent
     # AI conversation context
     ai_context: str = ""  # Stored conversation history
+    is_test: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
