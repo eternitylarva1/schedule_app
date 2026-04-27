@@ -964,6 +964,7 @@
         container.querySelectorAll('.expense-item-clickable').forEach(item => {
             item.addEventListener('click', async (e) => {
                 if (e.target.closest('.swipe-action')) return;
+                if (item.closest('.swipe-item')?.classList.contains('swipe-just-dragged')) return;
                 const expenseId = parseInt(item.dataset.expenseId);
                 const exp = expenses.find(x => x.id === expenseId);
                 if (exp) {

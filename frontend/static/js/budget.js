@@ -41,6 +41,7 @@
     let editingExpenseId = null;
     let lastUsedBudgetId = null;
     let selectedExpenseBudgetId = null;
+    let isExpenseSaving = false;
 
     async function rerenderExpenseList() {
         const fn = window.ScheduleAppNotepad?.renderExpenseList;
@@ -560,6 +561,9 @@
     }
 
     async function handleExpenseSave() {
+        if (isExpenseSaving) return;
+        isExpenseSaving = true;
+
         const elements = getElements();
         const { showToast, updateExpense, createExpense } = getUtils();
 
@@ -568,12 +572,13 @@
         const note = elements.expenseNote.value.trim();
         const budgetId = selectedExpenseBudgetId;
         const isTest = elements.expenseIsTest.checked;
-        
+
         if (isNaN(amount) || amount <= 0) {
             showToast('请输入有效的金额');
+            isExpenseSaving = false;
             return;
         }
-        
+
         if (expenseId) {
             await updateExpense(expenseId, {
                 amount,
@@ -595,9 +600,10 @@
                 lastUsedBudgetId = budgetId;
             }
         }
-        
+
         closeExpenseModal();
         await rerenderExpenseList();
+        isExpenseSaving = false;
     }
 
     window.ScheduleAppBudget = {
