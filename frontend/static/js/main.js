@@ -2369,18 +2369,27 @@
 
     function showEventDetail(event) {
         state.selectedEvent = event;
-        
+
         const content = elements.detailContent;
         const reminderEnabled = event.reminder_enabled === true || event.reminder_enabled === 'true';
-        
+
+        const startTime = event.start_time ? event.start_time.slice(0, 16) : '';
+        const endTime = event.end_time ? event.end_time.slice(0, 16) : '';
+
         content.innerHTML = `
             <div class="detail-row">
                 <span class="detail-label">标题</span>
                 <span class="detail-value">${escapeHtml(event.title)}</span>
             </div>
-            <div class="detail-row">
-                <span class="detail-label">时间</span>
-                <span class="detail-value">${formatTimeRange(event)}</span>
+            <div class="detail-row detail-time-row">
+                <div class="detail-time-item">
+                    <span class="detail-label">开始</span>
+                    <input type="datetime-local" id="detailStartTime" value="${startTime}">
+                </div>
+                <div class="detail-time-item">
+                    <span class="detail-label">结束</span>
+                    <input type="datetime-local" id="detailEndTime" value="${endTime}">
+                </div>
             </div>
             <div class="detail-row">
                 <span class="detail-label">分类</span>
@@ -2393,10 +2402,6 @@
                 <span class="detail-value">${event.status === 'done' ? '已完成' : '待完成'}</span>
             </div>
             <div class="detail-row">
-                <span class="detail-label">提醒</span>
-                <span class="detail-value">${reminderEnabled ? '开始前1分钟' : '未开启'}</span>
-            </div>
-            <div class="detail-row">
                 <span class="detail-label">提醒开关</span>
                 <label class="switch">
                     <input type="checkbox" id="detailReminderEnabled" ${reminderEnabled ? 'checked' : ''}>
@@ -2404,35 +2409,53 @@
                 </label>
             </div>
         `;
-        
+
         elements.detailModal.classList.remove('hidden');
     }
     
-    async function saveDetailReminder() {
+    async function saveDetailChanges() {
         if (!state.selectedEvent || !state.selectedEvent.id) return;
-        
+
+        const detailStartTime = document.getElementById('detailStartTime');
+        const detailEndTime = document.getElementById('detailEndTime');
         const detailReminderEnabled = document.getElementById('detailReminderEnabled');
-        if (!detailReminderEnabled) return;
-        
+
+        if (!detailStartTime || !detailEndTime || !detailReminderEnabled) return;
+
+        const startTime = detailStartTime.value || null;
+        const endTime = detailEndTime.value || null;
         const reminderEnabled = detailReminderEnabled.checked;
         const reminderMinutes = reminderEnabled ? 1 : 0;
-        
+
         const result = await updateEvent(state.selectedEvent.id, {
+            start_time: startTime,
+            end_time: endTime,
             reminder_enabled: reminderEnabled,
             reminder_minutes: reminderMinutes
         });
-        
+
         if (result) {
-            showToast('提醒已更新');
+            showToast('日程已更新');
             // Update local state
+            state.selectedEvent.start_time = startTime;
+            state.selectedEvent.end_time = endTime;
             state.selectedEvent.reminder_enabled = reminderEnabled;
             state.selectedEvent.reminder_minutes = reminderMinutes;
             // Also update event in state.events array so it persists across tab switches
             const idx = state.events.findIndex(e => e.id === state.selectedEvent.id);
             if (idx !== -1) {
+                state.events[idx].start_time = startTime;
+                state.events[idx].end_time = endTime;
                 state.events[idx].reminder_enabled = reminderEnabled;
                 state.events[idx].reminder_minutes = reminderMinutes;
             }
+            // Re-render current view
+            if (state.currentView === 'day') {
+                if (state.calendarSubview === 'day') renderTimeline();
+                else if (state.calendarSubview === 'week') renderWeekView();
+                else if (state.calendarSubview === 'month') renderMonthView();
+            }
+            closeDetailModal();
         }
     }
 
@@ -5340,7 +5363,7 @@
         elements.detailBackdrop.addEventListener('click', closeDetailModal);
         elements.detailClose.addEventListener('click', closeDetailModal);
         elements.deleteEventBtn.addEventListener('click', deleteSelectedEvent);
-        elements.saveDetailBtn.addEventListener('click', saveDetailReminder);
+        elements.saveDetailBtn.addEventListener('click', saveDetailChanges);
         
         // Touch gestures
         elements.mainContent.addEventListener('touchstart', handleTouchStart, { passive: true });

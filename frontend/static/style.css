@@ -1815,6 +1815,27 @@ body {
     gap: var(--space-md);
 }
 
+.detail-time-row {
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.detail-time-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.detail-time-item input {
+    flex: 1;
+    padding: var(--space-sm);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
 .detail-label {
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
