@@ -40,7 +40,10 @@
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'semester' ? 'active' : ''}" data-horizon="semester">学期</button>
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'long' ? 'active' : ''}" data-horizon="long">长期</button>
                 </div>
-                <button class="goals-discuss-btn" id="goalsDiscussBtn">💬 AI规划</button>
+                <div class="goals-toolbar-right">
+                    <button class="goals-add-btn" id="goalsAddBtn">+ 添加目标</button>
+                    <button class="goals-discuss-btn" id="goalsDiscussBtn">💬 AI规划</button>
+                </div>
             </div>
             <div class="goals-reference hidden" id="goalsReference"></div>
             <div class="goals-list"></div>
@@ -53,6 +56,10 @@
                 renderGoalsViewSkeleton();
                 await renderGoalsList();
             });
+        });
+        
+        container.querySelector('#goalsAddBtn').addEventListener('click', () => {
+            showAddGoalModal();
         });
         
         container.querySelector('#goalsDiscussBtn').addEventListener('click', () => {
@@ -392,7 +399,7 @@
         if (bar) bar.classList.add('hidden');
     }
 
-    async function openGoalDiscussModal(goalId = null) {
+async function openGoalDiscussModal(goalId = null) {
         const utils = getUtils();
         if (utils.openGoalDiscussModal) {
             utils.openGoalDiscussModal(goalId);
@@ -400,44 +407,78 @@
             console.log('openGoalDiscussModal from main.js not available');
         }
     }
-
-    async function openGoalHistoryModal(goalId) {
-        console.log('openGoalHistoryModal - goalId:', goalId);
-    }
-
-    async function openGoalEditModal(goal) {
-        console.log('openGoalEditModal - goal:', goal);
-    }
-
-    async function createGoal(data) {
+    
+    function showAddGoalModal() {
         const utils = getUtils();
-        const { createGoal: apiCreateGoal } = utils;
-        if (apiCreateGoal) {
-            return await apiCreateGoal(data);
-        }
-    }
-
-    async function updateGoal(id, data) {
-        const utils = getUtils();
-        const { updateGoal: apiUpdateGoal } = utils;
-        if (apiUpdateGoal) {
-            return await apiUpdateGoal(id, data);
-        }
-    }
-
-    function showToast(message) {
-        const utils = getUtils();
-        if (utils.showToast) {
-            utils.showToast(message);
-        }
-    }
-
-    function showConfirm(message) {
-        const utils = getUtils();
-        if (utils.showConfirm) {
-            return utils.showConfirm(message);
-        }
-        return Promise.resolve(true);
+        const state = getState();
+        const createGoalFn = utils.createGoal;
+        
+        const modalHtml = `
+            <div class="modal" id="addGoalModal">
+                <div class="modal-backdrop" id="addGoalBackdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>添加目标</h2>
+                        <button class="modal-close" id="addGoalClose">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="addGoalTitle">目标内容</label>
+                            <input type="text" id="addGoalTitle" placeholder="输入目标内容..." />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn" id="addGoalCancel">取消</button>
+                        <button class="btn btn-primary" id="addGoalConfirm">添加</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const existingModal = document.getElementById('addGoalModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modal = document.getElementById('addGoalModal');
+        const backdrop = document.getElementById('addGoalBackdrop');
+        const closeBtn = document.getElementById('addGoalClose');
+        const cancelBtn = document.getElementById('addGoalCancel');
+        const confirmBtn = document.getElementById('addGoalConfirm');
+        const titleInput = document.getElementById('addGoalTitle');
+        
+        const closeModal = () => modal.remove();
+        backdrop.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        
+        confirmBtn.addEventListener('click', async () => {
+            const title = titleInput.value.trim();
+            if (!title) {
+                showToast('请输入目标内容');
+                return;
+            }
+            
+            if (createGoalFn) {
+                try {
+                    await createGoalFn({
+                        title: title,
+                        horizon: state.goalsHorizon || 'short'
+                    });
+                    closeModal();
+                    await renderGoalsList();
+                    showToast('目标已添加');
+                } catch (error) {
+                    console.error('Create goal error:', error);
+                    showToast('添加失败');
+                }
+            }
+        });
+        
+        requestAnimationFrame(() => {
+            modal.classList.remove('hidden');
+            titleInput.focus();
+        });
     }
 
     window.ScheduleAppGoals = {
