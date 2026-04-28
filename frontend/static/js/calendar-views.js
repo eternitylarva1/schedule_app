@@ -109,7 +109,8 @@
         });
     }
 
-    function updateCurrentTimeLine() {
+    function updateCurrentTimeLine(deps) {
+        const { elements } = deps || window.ScheduleAppCore || {};
         const timeline = elements?.timeline;
         if (!timeline) return;
 

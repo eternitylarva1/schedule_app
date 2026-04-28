@@ -2123,7 +2123,7 @@
                         if (state.currentTimeTimer) clearInterval(state.currentTimeTimer);
                         state.currentTimeTimer = setInterval(() => {
                             if (state.currentView === 'day' && state.calendarSubview === 'day' && isToday(state.currentDate)) {
-                                window.ScheduleAppCalendarViews?.updateCurrentTimeLine?.();
+                                window.ScheduleAppCalendarViews?.updateCurrentTimeLine?.(getCalendarViewDeps());
                             } else {
                                 clearInterval(state.currentTimeTimer);
                                 state.currentTimeTimer = null;
