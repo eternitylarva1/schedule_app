@@ -2065,6 +2065,12 @@
             elements.app.classList.toggle('notepad-immersive', view === 'notepad');
         }
 
+        // Show/hide prev/next navigation buttons (only for day view with week/month subview)
+        const showNavArrows = view === 'day' && (state.calendarSubview === 'week' || state.calendarSubview === 'month');
+        if (elements.headerLeft) {
+            elements.headerLeft.classList.toggle('hidden', !showNavArrows);
+        }
+
         // Show/hide floating add button (day/todo/notepad)
         if (view === 'day' || view === 'todo' || view === 'notepad') {
             elements.contentAddBtn.classList.remove('hidden');
@@ -5017,6 +5023,10 @@
             });
         });
         
+        // Prev/Next navigation buttons
+        elements.prevBtn.addEventListener('click', () => navigateDate(-1));
+        elements.nextBtn.addEventListener('click', () => navigateDate(1));
+        
         // LLM input
         elements.llmBtn.addEventListener('click', handleLlmSubmit);
         elements.llmInput.addEventListener('keypress', (e) => {
@@ -5169,6 +5179,11 @@
             document.querySelectorAll('.cal-segment').forEach(s => {
                 s.classList.toggle('active', s.dataset.subview === state.calendarSubview);
             });
+            // Show/hide prev/next nav buttons for week/month
+            const showNavArrows = state.calendarSubview === 'week' || state.calendarSubview === 'month';
+            if (elements.headerLeft) {
+                elements.headerLeft.classList.toggle('hidden', !showNavArrows);
+            }
             // Re-render based on subview
             if (state.calendarSubview === 'day') {
                 elements.dayView.classList.remove('hidden');

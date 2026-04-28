@@ -242,6 +242,34 @@ body {
     gap: var(--space-xs);
 }
 
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.nav-arrow-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 300;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.nav-arrow-btn:active {
+    background: var(--bg-hover);
+    transform: scale(0.95);
+}
+
 .refresh-btn {
     font-size: var(--font-size-md);
 }
