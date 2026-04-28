@@ -38,6 +38,7 @@
 2. 调试必须遵循：
    - `DEBUG_WORKFLOW.md`
    - 使用 `agent-browser` 做交互与可视化验证
+   - **Windows 环境必须使用 `start /b agent-browser <command>` 后台执行**
 
 3. 新增功能后必须：
    - 同步更新调试规范（新增检查项）

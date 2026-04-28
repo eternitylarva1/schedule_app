@@ -132,6 +132,33 @@ agent-browser install  # 首次安装需要
 - 若需重置状态：`agent-browser close --all` 后重新 `open`
 - 查看所有命令：`agent-browser --help`
 
+**Windows Git Bash / WSL 环境注意事项：**
+
+直接执行 `agent-browser open <url>` 会阻塞终端。必须使用 `start /b` 后台启动：
+
+```bash
+# 1. 后台启动浏览器（关键！）
+start /b agent-browser open http://localhost:8080
+
+# 2. 后续命令独立执行
+start /b agent-browser snapshot
+start /b agent-browser click "#selector"
+start /b agent-browser screenshot
+
+# 3. 结束调试时关闭会话
+agent-browser close --all
+```
+
+| 问题现象 | 原因 | 解决方案 |
+|---------|------|---------|
+| 命令执行后卡住不返回 | agent-browser 默认保持会话，阻塞终端 | 使用 `start /b agent-browser <command>` |
+| 每次命令都需要重新 open | 未理解会话保持机制 | 后台启动后持续交互，最后 close |
+
+**为什么需要 start /b：**
+- agent-browser 设计为持续会话模式，打开后等待后续命令
+- 在 Windows bash 环境中，不使用 `start /b` 会导致进程占用终端无法释放
+- `start /b` 将命令转为后台执行，允许终端继续接受新命令
+
 ---
 
 ## 3. 分层调试清单（定位根因）
