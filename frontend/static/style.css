@@ -701,6 +701,19 @@ body {
     background: var(--accent-primary);
 }
 
+.current-time-label {
+    position: absolute;
+    left: -48px;
+    top: -8px;
+    font-size: var(--font-size-xs);
+    color: var(--accent-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--bg-secondary);
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+}
+
 /* Event cards on timeline */
 .timeline-event {
     position: absolute;

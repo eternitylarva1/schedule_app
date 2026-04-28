@@ -40,6 +40,13 @@
             const timeLine = document.createElement('div');
             timeLine.className = 'current-time-line';
             timeLine.style.top = `${currentTop}px`;
+            timeLine.dataset.minutes = currentMinutes;
+
+            const timeLabel = document.createElement('span');
+            timeLabel.className = 'current-time-label';
+            timeLabel.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            timeLine.appendChild(timeLabel);
+
             timeline.appendChild(timeLine);
         }
 
@@ -100,6 +107,33 @@
             });
             timeline.appendChild(eventEl);
         });
+    }
+
+    function updateCurrentTimeLine() {
+        const timeline = elements?.timeline;
+        if (!timeline) return;
+
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const currentTop = currentMinutes;
+
+        let timeLine = timeline.querySelector('.current-time-line');
+        if (!timeLine) {
+            timeLine = document.createElement('div');
+            timeLine.className = 'current-time-line';
+            timeline.appendChild(timeLine);
+        }
+
+        timeLine.style.top = `${currentTop}px`;
+        timeLine.dataset.minutes = currentMinutes;
+
+        let timeLabel = timeLine.querySelector('.current-time-label');
+        if (!timeLabel) {
+            timeLabel = document.createElement('span');
+            timeLabel.className = 'current-time-label';
+            timeLine.appendChild(timeLabel);
+        }
+        timeLabel.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     }
 
     function renderAgendaList(mode, deps) {
@@ -554,6 +588,7 @@
 
     window.ScheduleAppCalendarViews = {
         renderTimeline,
+        updateCurrentTimeLine,
         renderAgendaList,
         renderWeekView,
         renderMonthView,

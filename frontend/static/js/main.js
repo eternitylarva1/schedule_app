@@ -2118,6 +2118,21 @@
                         const currentMinutes = now.getHours() * 60 + now.getMinutes();
                         const scrollTop = Math.max(0, currentMinutes - 60);
                         elements.dayView.scrollTop = scrollTop;
+                        // Start real-time clock for current time line
+                        if (state.currentTimeTimer) clearInterval(state.currentTimeTimer);
+                        state.currentTimeTimer = setInterval(() => {
+                            if (state.currentView === 'day' && state.calendarSubview === 'day' && isToday(state.currentDate)) {
+                                window.ScheduleAppCalendarViews?.updateCurrentTimeLine?.();
+                            } else {
+                                clearInterval(state.currentTimeTimer);
+                                state.currentTimeTimer = null;
+                            }
+                        }, 60000);
+                    } else {
+                        if (state.currentTimeTimer) {
+                            clearInterval(state.currentTimeTimer);
+                            state.currentTimeTimer = null;
+                        }
                     }
                 } else if (state.calendarSubview === 'week') {
                     elements.dayView.classList.add('hidden');

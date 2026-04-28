@@ -57,6 +57,7 @@
     userContexts: [],
     selectedUserContextId: null,
     statsClockTimer: null,
+    currentTimeTimer: null,
     notepadSubview: 'notes',
     notes: [],
     noteGroups: [],
