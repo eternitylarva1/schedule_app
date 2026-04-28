@@ -2116,7 +2116,8 @@
                     if (isToday(state.currentDate)) {
                         const now = new Date();
                         const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                        const scrollTop = Math.max(0, currentMinutes - 60);
+                        // Position current time line at top of viewport for better visibility
+                        const scrollTop = Math.max(0, currentMinutes - 30);
                         elements.dayView.scrollTop = scrollTop;
                         // Start real-time clock for current time line
                         if (state.currentTimeTimer) clearInterval(state.currentTimeTimer);

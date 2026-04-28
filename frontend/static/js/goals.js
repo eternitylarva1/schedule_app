@@ -408,6 +408,24 @@ async function openGoalDiscussModal(goalId = null) {
         }
     }
     
+    async function openGoalHistoryModal(goalId) {
+        const utils = getUtils();
+        if (utils.openGoalHistoryModal) {
+            utils.openGoalHistoryModal(goalId);
+        } else {
+            console.log('openGoalHistoryModal from main.js not available');
+        }
+    }
+    
+    async function openGoalEditModal(goal) {
+        const utils = getUtils();
+        if (utils.openGoalEditModal) {
+            utils.openGoalEditModal(goal);
+        } else {
+            console.log('openGoalEditModal from main.js not available');
+        }
+    }
+    
     function showAddGoalModal() {
         const utils = getUtils();
         const state = getState();
