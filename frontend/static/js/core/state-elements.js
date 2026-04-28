@@ -89,7 +89,6 @@
     app: document.getElementById('app'),
     header: document.querySelector('.header'),
     headerTitle: document.getElementById('headerTitle'),
-    headerLeft: document.getElementById('headerLeft'),
     prevBtn: document.getElementById('prevBtn'),
     nextBtn: document.getElementById('nextBtn'),
     refreshBtn: document.getElementById('refreshBtn'),

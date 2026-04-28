@@ -2067,8 +2067,11 @@
 
         // Show/hide prev/next navigation buttons (only for day view with week/month subview)
         const showNavArrows = view === 'day' && (state.calendarSubview === 'week' || state.calendarSubview === 'month');
-        if (elements.headerLeft) {
-            elements.headerLeft.classList.toggle('hidden', !showNavArrows);
+        if (elements.prevBtn) {
+            elements.prevBtn.classList.toggle('hidden', !showNavArrows);
+        }
+        if (elements.nextBtn) {
+            elements.nextBtn.classList.toggle('hidden', !showNavArrows);
         }
 
         // Show/hide floating add button (day/todo/notepad)
@@ -3163,6 +3166,7 @@
             <div class="discuss-results-actions">
                 <button class="btn btn-secondary" id="discussRefineBtn">继续细化</button>
                 <button class="btn btn-secondary" id="discussRescheduleBtn">🔄 重新分配时间</button>
+                <button class="btn btn-secondary" id="discussAddTaskBtn">+ 添加任务</button>
                 <button class="btn btn-primary" id="importSelectedBtn">导入到日程</button>
             </div>
         `;
@@ -3189,6 +3193,12 @@
             rescheduleBtn.addEventListener('click', rescheduleGoalDiscuss);
         }
 
+        // Bind add task button - manually add a task
+        const addTaskBtn = document.getElementById('discussAddTaskBtn');
+        if (addTaskBtn) {
+            addTaskBtn.addEventListener('click', () => showManualAddTask());
+        }
+
         // Bind decompose button for each subtask
         document.querySelectorAll('.discuss-subtask-decompose').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -3202,6 +3212,87 @@
         if (importBtn) {
             importBtn.addEventListener('click', () => showImportModal());
         }
+    }
+    
+    function showManualAddTask() {
+        const inputHtml = `
+            <div class="modal" id="addTaskModal">
+                <div class="modal-backdrop" id="addTaskBackdrop"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>添加任务</h2>
+                        <button class="modal-close" id="addTaskClose">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="addTaskTitle">任务标题</label>
+                            <input type="text" id="addTaskTitle" placeholder="输入任务标题..." />
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="addTaskDate">日期</label>
+                                <input type="date" id="addTaskDate" />
+                            </div>
+                            <div class="form-group">
+                                <label for="addTaskStart">开始时间</label>
+                                <input type="time" id="addTaskStart" />
+                            </div>
+                            <div class="form-group">
+                                <label for="addTaskEnd">结束时间</label>
+                                <input type="time" id="addTaskEnd" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn" id="addTaskCancel">取消</button>
+                        <button class="btn btn-primary" id="addTaskConfirm">添加</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const existingModal = document.getElementById('addTaskModal');
+        if (existingModal) existingModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', inputHtml);
+        
+        const modal = document.getElementById('addTaskModal');
+        const backdrop = document.getElementById('addTaskBackdrop');
+        const closeBtn = document.getElementById('addTaskClose');
+        const cancelBtn = document.getElementById('addTaskCancel');
+        const confirmBtn = document.getElementById('addTaskConfirm');
+        const titleInput = document.getElementById('addTaskTitle');
+        
+        const closeModal = () => modal.remove();
+        backdrop.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        
+        confirmBtn.addEventListener('click', () => {
+            const title = titleInput.value.trim();
+            if (!title) {
+                showToast('请输入任务标题');
+                return;
+            }
+            
+            const date = document.getElementById('addTaskDate').value;
+            const startTime = document.getElementById('addTaskStart').value;
+            const endTime = document.getElementById('addTaskEnd').value;
+            
+            const newTask = { title };
+            if (date) newTask.date = date;
+            if (startTime) newTask.start_time = startTime;
+            if (endTime) newTask.end_time = endTime;
+            
+            goalDiscussState.currentSubtasks.push(newTask);
+            closeModal();
+            showDiscussResults();
+        });
+        
+        requestAnimationFrame(() => {
+            modal.classList.remove('hidden');
+            titleInput.focus();
+        });
     }
     
     async function decomposeSubtask(index) {
@@ -5181,8 +5272,11 @@
             });
             // Show/hide prev/next nav buttons for week/month
             const showNavArrows = state.calendarSubview === 'week' || state.calendarSubview === 'month';
-            if (elements.headerLeft) {
-                elements.headerLeft.classList.toggle('hidden', !showNavArrows);
+            if (elements.prevBtn) {
+                elements.prevBtn.classList.toggle('hidden', !showNavArrows);
+            }
+            if (elements.nextBtn) {
+                elements.nextBtn.classList.toggle('hidden', !showNavArrows);
             }
             // Re-render based on subview
             if (state.calendarSubview === 'day') {

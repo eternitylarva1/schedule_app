@@ -8,24 +8,24 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=20260412-10">
+    <link rel="stylesheet" href="/static/style.css?v=20260428-02">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
     <div id="app">
         <!-- Header -->
         <header class="header">
-            <div class="header-left hidden" id="headerLeft">
-                <button class="nav-arrow-btn" id="prevBtn" title="上一页">‹</button>
-                <button class="nav-arrow-btn" id="nextBtn" title="下一页">›</button>
-            </div>
             <!-- Calendar Segmented Control -->
             <div class="calendar-segmented" id="calendarSegmented">
                 <button class="cal-segment active" data-subview="day">日</button>
                 <button class="cal-segment" data-subview="week">周</button>
                 <button class="cal-segment" data-subview="month">月</button>
             </div>
-            <h1 class="header-title" id="headerTitle">今天</h1>
+            <div class="header-center">
+                <button class="nav-arrow-btn hidden" id="prevBtn" title="上一页">‹</button>
+                <h1 class="header-title" id="headerTitle">今天</h1>
+                <button class="nav-arrow-btn hidden" id="nextBtn" title="下一页">›</button>
+            </div>
             <div class="header-right">
                 <button class="header-btn header-btn-purple" id="refreshBtn" title="刷新">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
@@ -726,7 +726,7 @@
     <script src="/static/js/settings.js?v=20260426-05"></script>
     <script src="/static/js/selection.js?v=20260425-01"></script>
     <script src="/static/js/calendar-views.js?v=20260425-01"></script>
-    <script src="/static/js/main.js?v=20260426-07"></script>
+    <script src="/static/js/main.js?v=20260428-02"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {

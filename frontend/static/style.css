@@ -242,7 +242,7 @@ body {
     gap: var(--space-xs);
 }
 
-.header-left {
+.header-center {
     display: flex;
     align-items: center;
     gap: var(--space-xs);
@@ -252,7 +252,7 @@ body {
     width: 36px;
     height: 36px;
     border: none;
-    background: var(--bg-card);
+    background: transparent;
     color: var(--text-primary);
     font-size: 24px;
     font-weight: 300;
