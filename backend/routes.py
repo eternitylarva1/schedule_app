@@ -229,8 +229,22 @@ async def llm_chat(request: web.Request) -> web.Response:
         return error_response("输入不能为空")
     
     from .llm_service import llm_service
+    from .db import get_events
+    from datetime import datetime
     
-    result = await llm_service.process_schedule_command(user_text)
+    # 获取当天已有事件
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_events = await get_events(today_str)
+    existing_events = [
+        {
+            "title": ev.title,
+            "start_time": ev.start_time.isoformat() if ev.start_time else "",
+            "end_time": ev.end_time.isoformat() if ev.end_time else "",
+        }
+        for ev in today_events
+    ] if today_events else []
+    
+    result = await llm_service.process_schedule_command(user_text, existing_events)
     if result:
         return json_response(result)
     else:
@@ -271,9 +285,23 @@ async def llm_create(request: web.Request) -> web.Response:
         return error_response("输入不能为空")
     
     from .llm_service import llm_service
+    from .db import get_events
+    from datetime import datetime
+    
+    # 获取当天已有事件
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_events = await get_events(today_str)
+    existing_events = [
+        {
+            "title": ev.title,
+            "start_time": ev.start_time.isoformat() if ev.start_time else "",
+            "end_time": ev.end_time.isoformat() if ev.end_time else "",
+        }
+        for ev in today_events
+    ] if today_events else []
     
     print(f"LLM create request: {user_text}")
-    result = await llm_service.process_schedule_command(user_text)
+    result = await llm_service.process_schedule_command(user_text, existing_events)
     print(f"LLM create result: {result}")
     
     if not result:

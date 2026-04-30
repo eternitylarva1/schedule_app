@@ -759,6 +759,10 @@
         return await window.ScheduleAppGoals?.renderGoalsView?.();
     }
 
+    function showAddGoalModal() {
+        return window.ScheduleAppGoals?.showAddGoalModal?.();
+    }
+
     // ============================================
     // Notepad View (Notes + Expense)
     // ============================================
@@ -5616,6 +5620,10 @@
     window.ScheduleAppCore.showNoteDetail = showNoteDetail;
     window.ScheduleAppCore.showNoteEdit = showNoteEdit;
     window.ScheduleAppCore.openGoalDiscussModal = openGoalDiscussModal;
+    window.ScheduleAppCore.showAddGoalModal = showAddGoalModal;
+    window.ScheduleAppCore.createGoal = function(payload) {
+        return window.ScheduleAppGoals?.createGoal?.(payload);
+    };
     window.ScheduleAppCore.bindSwipeItem = bindSwipeItem;
 
     // Start the app

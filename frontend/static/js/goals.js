@@ -17,6 +17,33 @@
         return div.innerHTML;
     }
 
+    async function createGoal(goalData) {
+        const utils = getUtils();
+        const createGoalFn = (utils || {}).createGoal;
+        if (createGoalFn) {
+            return await createGoalFn(goalData);
+        }
+        throw new Error('createGoal not available');
+    }
+
+    async function updateGoal(goalId, updates) {
+        const utils = getUtils();
+        const updateGoalFn = (utils || {}).updateGoal;
+        if (updateGoalFn) {
+            return await updateGoalFn(goalId, updates);
+        }
+        throw new Error('updateGoal not available');
+    }
+
+    async function deleteGoal(goalId) {
+        const utils = getUtils();
+        const deleteGoalFn = (utils || {}).deleteGoal;
+        if (deleteGoalFn) {
+            return await deleteGoalFn(goalId);
+        }
+        throw new Error('deleteGoal not available');
+    }
+
     function formatTime(date) {
         if (!date) return '';
         const d = new Date(date);
@@ -257,13 +284,16 @@
                 const parentId = parseInt(btn.dataset.parentId);
                 const title = await showPrompt('输入子任务名称：', { placeholder: '例如：完成第一章复习' });
                 if (title && title.trim()) {
-                    await createGoal({
-                        title: title.trim(),
-                        parent_id: parentId,
-                        horizon: state.goalsHorizon,
-                    });
-                    showToast('子任务已添加');
-                    await renderGoalsList();
+                    const createGoalFn = (window.ScheduleAppCore || {}).createGoal;
+                    if (createGoalFn) {
+                        await createGoalFn({
+                            title: title.trim(),
+                            parent_id: parentId,
+                            horizon: state.goalsHorizon,
+                        });
+                        showToast('子任务已添加');
+                        await renderGoalsList();
+                    }
                 }
             });
         });
@@ -499,7 +529,7 @@ async function openGoalDiscussModal(goalId = null) {
         });
     }
 
-    window.ScheduleAppGoals = {
+window.ScheduleAppGoals = {
         renderGoalsViewSkeleton,
         renderGoalsReference,
         renderGoalsList,
@@ -511,8 +541,10 @@ async function openGoalDiscussModal(goalId = null) {
         openGoalDiscussModal,
         openGoalHistoryModal,
         openGoalEditModal,
+        showAddGoalModal,
         createGoal,
         updateGoal,
+        deleteGoal,
     };
 
 })();

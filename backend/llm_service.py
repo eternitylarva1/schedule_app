@@ -117,8 +117,12 @@ class LLMService:
             self.last_error_message = "AI 服务请求失败，请检查网络或 API 配置。"
             return None
     
-    async def process_schedule_command(self, user_text: str) -> Optional[Dict[str, Any]]:
+    async def process_schedule_command(self, user_text: str, existing_events: list = None) -> Optional[Dict[str, Any]]:
         """Process natural language schedule command.
+        
+        Args:
+            user_text: 用户自然语言输入
+            existing_events: 用户当天已有的日程列表，用于避免时间冲突
         
         Returns structured event data or None if failed.
         """
@@ -127,11 +131,27 @@ class LLMService:
         current_date = now.strftime("%Y年%m月%d日")
         current_time = now.strftime("%H:%M")
         
+        # 构建已有事件信息
+        existing_info = ""
+        if existing_events:
+            existing_lines = []
+            for ev in existing_events:
+                ev_start = ev.get("start_time", "")
+                ev_end = ev.get("end_time", "") or ev.get("start_time", "")
+                ev_title = ev.get("title", "未命名")
+                if ev_start and ev_end:
+                    existing_lines.append(f"- {ev_title}：{ev_start} 至 {ev_end}")
+                elif ev_start:
+                    existing_lines.append(f"- {ev_title}：{ev_start}")
+                else:
+                    existing_lines.append(f"- {ev_title}")
+            existing_info = "\n\n## 当天已有日程（不能冲突）\n" + "\n".join(existing_lines) + "\n\n**必须避开上述时间段，为新日程选择空闲时间。**"
+        
         prompt = f"""用户想要创建日程，请解析并返回JSON数组格式。
 
 当前日期：{current_date} {current_time}
 用户输入：{user_text}
-
+{existing_info}
 请先纠正用户输入中的错别字，特别是：
 - "考试"或"考式"或"拷试"→"小时"（表示时间长度）
 - 其他常见输入法错字
