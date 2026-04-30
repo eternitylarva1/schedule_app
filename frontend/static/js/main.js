@@ -5625,6 +5625,7 @@
         return window.ScheduleAppGoals?.createGoal?.(payload);
     };
     window.ScheduleAppCore.bindSwipeItem = bindSwipeItem;
+    window.ScheduleAppCore.loadAiProviders = loadAiProviders;
 
     // Start the app
     if (document.readyState === 'loading') {
