@@ -19,7 +19,8 @@
     async function openSettingsView() {
         const state = getState();
         const elements = getElements();
-        const { fetchSettings } = getUtils();
+        const utils = getUtils();
+        const { fetchSettings } = utils;
 
         state.enableDragResize = localStorage.getItem('enableDragResize') === 'true';
         if (elements.enableDragResize) {
@@ -43,6 +44,11 @@
         }
         if (elements.appVersion) {
             elements.appVersion.textContent = 'v1.0.0';
+        }
+
+        // Load AI providers
+        if (utils.loadAiProviders) {
+            await utils.loadAiProviders();
         }
     }
 
