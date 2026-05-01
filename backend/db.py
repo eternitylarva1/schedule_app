@@ -103,6 +103,20 @@ async def init_db() -> None:
             )
         """)
 
+        # Goal deliverables table for tracking outputs/deliverables
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS goal_deliverables (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                goal_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                completed INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT,
+                FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE
+            )
+        """)
+
         # Link events to goals (optional)
         try:
             await db.execute("ALTER TABLE events ADD COLUMN goal_id INTEGER")
@@ -1226,6 +1240,109 @@ async def delete_goal_conversations(goal_id: int) -> bool:
         await db.execute("DELETE FROM goal_conversations WHERE goal_id = ?", (goal_id,))
         await db.commit()
         return True
+
+
+# ============ Goal Deliverables Functions ============
+
+@dataclass
+class GoalDeliverable:
+    """Model for goal deliverable/output tracking."""
+    id: int | None = None
+    goal_id: int | None = None
+    title: str = ""
+    description: str = ""
+    completed: int = 0
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+async def create_goal_deliverable(deliverable: GoalDeliverable) -> GoalDeliverable:
+    """Create a new deliverable for a goal."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO goal_deliverables (goal_id, title, description, completed, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (deliverable.goal_id, deliverable.title, deliverable.description, deliverable.completed, now, now),
+        )
+        await db.commit()
+        deliverable.id = cursor.lastrowid
+        deliverable.created_at = now
+        deliverable.updated_at = now
+    return deliverable
+
+
+async def get_goal_deliverables(goal_id: int) -> List[GoalDeliverable]:
+    """Get all deliverables for a goal."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """SELECT id, goal_id, title, description, completed, created_at, updated_at 
+               FROM goal_deliverables 
+               WHERE goal_id = ? 
+               ORDER BY created_at ASC""",
+            (goal_id,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            GoalDeliverable(
+                id=row[0],
+                goal_id=row[1],
+                title=row[2],
+                description=row[3],
+                completed=row[4],
+                created_at=row[5],
+                updated_at=row[6],
+            )
+            for row in rows
+        ]
+
+
+async def update_goal_deliverable(deliverable_id: int, updates: dict) -> GoalDeliverable | None:
+    """Update a deliverable."""
+    now = datetime.now().isoformat()
+    fields = []
+    values = []
+    for key in ['title', 'description', 'completed']:
+        if key in updates:
+            fields.append(f"{key} = ?")
+            values.append(updates[key])
+    fields.append("updated_at = ?")
+    values.append(now)
+    values.append(deliverable_id)
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            f"UPDATE goal_deliverables SET {', '.join(fields)} WHERE id = ?",
+            values,
+        )
+        await db.commit()
+        
+        cursor = await db.execute(
+            """SELECT id, goal_id, title, description, completed, created_at, updated_at 
+               FROM goal_deliverables WHERE id = ?""",
+            (deliverable_id,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return GoalDeliverable(
+                id=row[0],
+                goal_id=row[1],
+                title=row[2],
+                description=row[3],
+                completed=row[4],
+                created_at=row[5],
+                updated_at=row[6],
+            )
+    return None
+
+
+async def delete_goal_deliverable(deliverable_id: int) -> bool:
+    """Delete a deliverable."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM goal_deliverables WHERE id = ?", (deliverable_id,))
+        await db.commit()
+        return True
+
 
 # ============ Note Conversations Functions ============
 

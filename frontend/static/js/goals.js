@@ -19,29 +19,170 @@
 
     async function createGoal(goalData) {
         const utils = getUtils();
-        const createGoalFn = (utils || {}).createGoal;
-        if (createGoalFn) {
-            return await createGoalFn(goalData);
+        const apiCallFn = (utils || {}).apiCall;
+        if (apiCallFn) {
+            return await apiCallFn('goals', {
+                method: 'POST',
+                body: JSON.stringify(goalData)
+            });
         }
-        throw new Error('createGoal not available');
+        throw new Error('apiCall not available');
     }
 
     async function updateGoal(goalId, updates) {
         const utils = getUtils();
-        const updateGoalFn = (utils || {}).updateGoal;
-        if (updateGoalFn) {
-            return await updateGoalFn(goalId, updates);
+        const apiCallFn = (utils || {}).apiCall;
+        if (apiCallFn) {
+            return await apiCallFn(`goals/${goalId}`, {
+                method: 'PUT',
+                body: JSON.stringify(updates)
+            });
         }
-        throw new Error('updateGoal not available');
+        throw new Error('apiCall not available');
     }
 
     async function deleteGoal(goalId) {
         const utils = getUtils();
-        const deleteGoalFn = (utils || {}).deleteGoal;
-        if (deleteGoalFn) {
-            return await deleteGoalFn(goalId);
+        const apiCallFn = (utils || {}).apiCall;
+        if (apiCallFn) {
+            return await apiCallFn(`goals/${goalId}`, {
+                method: 'DELETE'
+            });
         }
-        throw new Error('deleteGoal not available');
+        throw new Error('apiCall not available');
+    }
+
+    // ============ Goal Deliverables ============
+
+    async function fetchDeliverables(goalId) {
+        const utils = getUtils();
+        const apiCallFn = (utils || {}).apiCall;
+        if (apiCallFn) {
+            return await apiCallFn(`goals/${goalId}/deliverables`, { method: 'GET' });
+        }
+        return [];
+    }
+
+    async function createDeliverable(goalId, data) {
+        const utils = getUtils();
+        const apiCallFn = (utils || {}).apiCall;
+        if (apiCallFn) {
+            return await apiCallFn(`goals/${goalId}/deliverables`, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+        }
+        throw new Error('apiCall not available');
+    }
+
+    async function updateDeliverable(deliverableId, data) {
+        const utils = getUtils();
+        const apiCallFn = (utils || {}).apiCall;
+        if (apiCallFn) {
+            return await apiCallFn(`goals/deliverables/${deliverableId}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+        }
+        throw new Error('apiCall not available');
+    }
+
+    async function deleteDeliverable(deliverableId) {
+        const utils = getUtils();
+        const apiCallFn = (utils || {}).apiCall;
+        if (apiCallFn) {
+            return await apiCallFn(`goals/deliverables/${deliverableId}`, { method: 'DELETE' });
+        }
+        throw new Error('apiCall not available');
+    }
+
+    async function renderDeliverablesSection(goalId, container) {
+        const utils = getUtils();
+        const { showPrompt } = utils;
+        try {
+            const deliverables = await fetchDeliverables(goalId) || [];
+            const completed = deliverables.filter(d => d.completed).length;
+            const total = deliverables.length;
+            
+            container.innerHTML = `
+                <div class="goal-deliverables-header">
+                    <span class="goal-deliverables-title">📋 交付成果</span>
+                    <span class="goal-deliverables-count">${total > 0 ? `(${completed}/${total})` : ''}</span>
+                    <button class="goal-deliverables-add-btn" data-goal-id="${goalId}">+ 添加</button>
+                </div>
+                ${total > 0 ? `<div class="goal-deliverables-list">${deliverables.map(d => `
+                    <div class="goal-deliverable-item ${d.completed ? 'completed' : ''}" data-deliverable-id="${d.id}">
+                        <input type="checkbox" class="goal-deliverable-checkbox" ${d.completed ? 'checked' : ''} data-deliverable-id="${d.id}">
+                        <span class="goal-deliverable-title">${escapeHtml(d.title)}</span>
+                        <button class="goal-deliverable-delete-btn" data-deliverable-id="${d.id}" title="删除">×</button>
+                    </div>
+                `).join('')}</div>` : ''}
+            `;
+            
+            // Add click handler for add button
+            container.querySelector('.goal-deliverables-add-btn')?.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const title = await showPrompt('输入交付成果名称：', { placeholder: '例如：完成项目报告' });
+                if (title && title.trim()) {
+                    try {
+                        await createDeliverable(goalId, { title: title.trim(), description: '' });
+                        await renderDeliverablesSection(goalId, container);
+                    } catch (err) {
+                        console.error(err);
+                        utils.showToast?.('添加失败');
+                    }
+                }
+            });
+            
+            // Add click handler for checkboxes
+            container.querySelectorAll('.goal-deliverable-checkbox').forEach(cb => {
+                cb.addEventListener('change', async (e) => {
+                    e.stopPropagation();
+                    const deliverableId = parseInt(cb.dataset.deliverableId);
+                    try {
+                        await updateDeliverable(deliverableId, { completed: cb.checked ? 1 : 0 });
+                        await renderDeliverablesSection(goalId, container);
+                        
+                        // Check if all completed - prompt to mark goal done
+                        if (cb.checked && deliverables.length > 0) {
+                            const allDone = deliverables.every(d => d.id === deliverableId || d.completed);
+                            if (allDone) {
+                                const confirmed = await utils.showConfirm('所有交付成果已完成！是否标记目标为已完成？');
+                                if (confirmed) {
+                                    await updateGoal(goalId, { status: 'done' });
+                                    utils.showToast?.('目标已完成 ✓');
+                                    await renderGoalsList();
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        utils.showToast?.('更新失败');
+                    }
+                });
+            });
+            
+            // Add click handler for delete buttons
+            container.querySelectorAll('.goal-deliverable-delete-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const deliverableId = parseInt(btn.dataset.deliverableId);
+                    const confirmed = await utils.showConfirm('确定删除这个交付成果吗？');
+                    if (confirmed) {
+                        try {
+                            await deleteDeliverable(deliverableId);
+                            await renderDeliverablesSection(goalId, container);
+                        } catch (err) {
+                            console.error(err);
+                            utils.showToast?.('删除失败');
+                        }
+                    }
+                });
+            });
+        } catch (err) {
+            console.error('Failed to load deliverables:', err);
+            container.innerHTML = '<div class="goal-deliverables-error">加载失败</div>';
+        }
     }
 
     function formatTime(date) {
@@ -188,7 +329,7 @@
             return count;
         }
         
-        function renderSubtasks(subtasks, depth = 1) {
+        function renderSubtasks(subtasks, depth = 1, parentId = null) {
             if (!subtasks || subtasks.length === 0 || depth > 2) return '';
             return `
                 <div class="goal-subtasks depth-${depth}">
@@ -200,12 +341,13 @@
                                     <div class="goal-meta">${countSubtasks(st) > 0 ? countSubtasks(st) + '项' : ''}</div>
                                 </div>
                                 <div class="goal-actions">
-                                    <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${st.id}" title="细分">📋</button>
+                                    <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${st.id}" title="AI细分">📋</button>
                                     <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="${st.id}" title="完成">✓</button>
                                     <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${st.id}" title="删除">🗑️</button>
                                 </div>
                             </div>
-                            ${renderSubtasks(st.subtasks, depth + 1)}
+                            ${countSubtasks(st) > 0 ? `<div class="goal-children hidden">${renderSubtasks(st.subtasks, depth + 1, st.id)}</div>` : ''}
+                            <button class="goal-add-subtask-btn" data-parent-id="${st.id}" data-depth="${depth}">+ 添加子任务</button>
                         </div>
                     `).join('')}
                 </div>
@@ -232,6 +374,7 @@
                         </div>
                     </div>
                     <div class="goal-children hidden">
+                        <div class="goal-deliverables-section" id="deliverables-${goal.id}"></div>
                         ${renderSubtasks(goal.subtasks)}
                         <button class="goal-add-subtask-btn" data-parent-id="${goal.id}">+ 添加子任务</button>
                     </div>
@@ -251,7 +394,53 @@
                 } else if (action === 'history') {
                     await openGoalHistoryModal(goalId);
                 } else if (action === 'decompose') {
-                    openGoalDiscussModal(goalId);
+                    const goal = state.goals.find(g => g.id === parseInt(goalId));
+                    const parentGoal = goal || (() => {
+                        for (const g of state.goals) {
+                            const found = findGoalInTree(g, parseInt(goalId));
+                            if (found) return found;
+                        }
+                        return null;
+                    })();
+                    
+                    function findGoalInTree(g, id) {
+                        if (g.id === id) return g;
+                        if (g.subtasks) {
+                            for (const st of g.subtasks) {
+                                const found = findGoalInTree(st, id);
+                                if (found) return found;
+                            }
+                        }
+                        return null;
+                    }
+                    
+                    if (parentGoal) {
+                        const title = parentGoal.title;
+                        const { apiCall } = utils;
+                        try {
+                            showToast?.('AI 正在细分任务...');
+                            const result = await apiCall('llm/breakdown', {
+                                method: 'POST',
+                                body: JSON.stringify({ text: title, horizon: state.goalsHorizon || 'short' })
+                            });
+                            if (result && result.subtasks) {
+                                for (const st of result.subtasks) {
+                                    await createGoal({
+                                        title: st.title,
+                                        parent_id: parseInt(goalId),
+                                        horizon: state.goalsHorizon || 'short'
+                                    });
+                                }
+                                showToast?.(`已添加 ${result.subtasks.length} 个子任务`);
+                                await renderGoalsList();
+                            } else {
+                                showToast?.('AI 细分失败');
+                            }
+                        } catch (err) {
+                            console.error('Decompose error:', err);
+                            showToast?.('细分失败');
+                        }
+                    }
                 } else if (action === 'delete') {
                     const confirmed = await showConfirm('确定删除这个目标吗？');
                     if (confirmed) {
@@ -267,7 +456,7 @@
                     btn.textContent = card.classList.contains('expanded') ? '▼' : '▶';
                 } else if (action === 'complete') {
                     await updateGoal(goalId, { status: 'done' });
-                    showToast('已完成 ✓');
+                    showToast?.('已完成 ✓');
                     await renderGoalsList();
                 } else if (action === 'edit') {
                     const goal = state.goals.find(g => g.id === parseInt(goalId));
@@ -282,21 +471,33 @@
             btn.addEventListener('click', async (e) => {
                 if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
                 const parentId = parseInt(btn.dataset.parentId);
+                const utils = getUtils();
+                const { showPrompt } = utils;
                 const title = await showPrompt('输入子任务名称：', { placeholder: '例如：完成第一章复习' });
                 if (title && title.trim()) {
-                    const createGoalFn = (window.ScheduleAppCore || {}).createGoal;
-                    if (createGoalFn) {
-                        await createGoalFn({
+                    try {
+                        await createGoal({
                             title: title.trim(),
                             parent_id: parentId,
                             horizon: state.goalsHorizon,
                         });
-                        showToast('子任务已添加');
+                        showToast?.('子任务已添加');
                         await renderGoalsList();
+                    } catch (err) {
+                        console.error(err);
+                        showToast?.('添加失败');
                     }
                 }
             });
         });
+
+        // Load and render deliverables for each goal
+        for (const goal of goals) {
+            const container = document.getElementById(`deliverables-${goal.id}`);
+            if (container) {
+                await renderDeliverablesSection(goal.id, container);
+            }
+        }
         
         listEl.querySelectorAll('.goal-card[data-goal-id]').forEach((card) => {
             const goalId = card.dataset.goalId;
@@ -459,7 +660,7 @@ async function openGoalDiscussModal(goalId = null) {
     function showAddGoalModal() {
         const utils = getUtils();
         const state = getState();
-        const createGoalFn = utils.createGoal;
+        const { showToast } = utils;
         
         const modalHtml = `
             <div class="modal" id="addGoalModal">
@@ -503,23 +704,21 @@ async function openGoalDiscussModal(goalId = null) {
         confirmBtn.addEventListener('click', async () => {
             const title = titleInput.value.trim();
             if (!title) {
-                showToast('请输入目标内容');
+                showToast?.('请输入目标内容');
                 return;
             }
             
-            if (createGoalFn) {
-                try {
-                    await createGoalFn({
-                        title: title,
-                        horizon: state.goalsHorizon || 'short'
-                    });
-                    closeModal();
-                    await renderGoalsList();
-                    showToast('目标已添加');
-                } catch (error) {
-                    console.error('Create goal error:', error);
-                    showToast('添加失败');
-                }
+            try {
+                await createGoal({
+                    title: title,
+                    horizon: state.goalsHorizon || 'short'
+                });
+                closeModal();
+                await renderGoalsList();
+                showToast?.('目标已添加');
+            } catch (error) {
+                console.error('Create goal error:', error);
+                showToast?.('添加失败');
             }
         });
         

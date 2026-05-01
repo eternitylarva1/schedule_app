@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(curl *)",
+      "Bash(python3 -c \"import sys,json,base64; print\\(base64.b64decode\\(json.load\\(sys.stdin\\)['content']\\).decode\\(\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; [print\\(item['name'], item['type']\\) for item in json.load\\(sys.stdin\\)]\")",
+      "Bash(xargs -I{} curl -sL \"{}\")"
+    ]
+  }
+}

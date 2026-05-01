@@ -810,6 +810,62 @@ async def create_goal_conversation(request: web.Request) -> web.Response:
         return error_response(f"创建对话失败: {str(e)}")
 
 
+# ============ Goal Deliverables ============
+
+async def get_goal_deliverables(request: web.Request) -> web.Response:
+    """GET /api/goals/{id}/deliverables - Get all deliverables for a goal."""
+    try:
+        goal_id = int(request.match_info["id"])
+        deliverables = await db.get_goal_deliverables(goal_id)
+        return json_response([d.__dict__ for d in deliverables])
+    except Exception as e:
+        return error_response(f"获取交付成果失败: {str(e)}")
+
+
+async def create_goal_deliverable(request: web.Request) -> web.Response:
+    """POST /api/goals/{id}/deliverables - Create a deliverable for a goal."""
+    try:
+        goal_id = int(request.match_info["id"])
+        data = await request.json()
+        title = data.get("title", "").strip()
+        if not title:
+            return error_response("交付成果标题不能为空")
+        
+        deliverable = db.GoalDeliverable(
+            goal_id=goal_id,
+            title=title,
+            description=data.get("description", "").strip(),
+            completed=0,
+        )
+        created = await db.create_goal_deliverable(deliverable)
+        return json_response(created.__dict__)
+    except Exception as e:
+        return error_response(f"创建交付成果失败: {str(e)}")
+
+
+async def update_goal_deliverable(request: web.Request) -> web.Response:
+    """PUT /api/goals/deliverables/{id} - Update a deliverable."""
+    try:
+        deliverable_id = int(request.match_info["id"])
+        data = await request.json()
+        updated = await db.update_goal_deliverable(deliverable_id, data)
+        if updated:
+            return json_response(updated.__dict__)
+        return error_response("交付成果不存在")
+    except Exception as e:
+        return error_response(f"更新交付成果失败: {str(e)}")
+
+
+async def delete_goal_deliverable(request: web.Request) -> web.Response:
+    """DELETE /api/goals/deliverables/{id} - Delete a deliverable."""
+    try:
+        deliverable_id = int(request.match_info["id"])
+        await db.delete_goal_deliverable(deliverable_id)
+        return json_response({"success": True})
+    except Exception as e:
+        return error_response(f"删除交付成果失败: {str(e)}")
+
+
 # ============ AI Conversational Breakdown ============
 
 async def ai_discuss_goal(request: web.Request) -> web.Response:
@@ -1925,7 +1981,10 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/api/goals/{id}/subtasks", get_goal_subtasks)
     app.router.add_get("/api/goals/{id}/conversations", get_goal_conversations)
     app.router.add_post("/api/goals/{id}/conversations", create_goal_conversation)
-    # AI conversational breakdown endpoint
+    app.router.add_get("/api/goals/{id}/deliverables", get_goal_deliverables)
+    app.router.add_post("/api/goals/{id}/deliverables", create_goal_deliverable)
+    app.router.add_put("/api/goals/deliverables/{id}", update_goal_deliverable)
+    app.router.add_delete("/api/goals/deliverables/{id}", delete_goal_deliverable)
     app.router.add_post("/api/goals/ai/discuss", ai_discuss_goal)
     app.router.add_post("/api/goals/ai/reschedule", ai_reschedule_goal)
     # Settings endpoints

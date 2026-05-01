@@ -8,6 +8,7 @@
     "build:analyze": "node esbuild.config.js --analyze"
   },
   "devDependencies": {
-    "esbuild": "^0.24.2"
+    "esbuild": "^0.24.2",
+    "playwright": "^1.59.1"
   }
 }
