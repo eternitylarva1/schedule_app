@@ -563,6 +563,13 @@
     }
 
     function renderSelectionBar(type) {
+        // Use shared selection module if available
+        const sel = window.ScheduleAppSelection;
+        if (sel?.renderSelectionBar) {
+            sel.renderSelectionBar(type);
+            return;
+        }
+        
         const state = getState();
         let bar = document.getElementById('selectionBar');
         if (!bar) return;
@@ -592,7 +599,7 @@
                     for (const goalId of state.selectionMode.goalIds) {
                         await updateGoal(parseInt(goalId), { status: 'done' });
                     }
-                    showToast(`已完成 ${count} 项`);
+                    showToast?.(`已完成 ${count} 项`);
                     exitSelectionMode();
                     await renderGoalsList();
                 }
@@ -601,6 +608,12 @@
     }
 
     function enterSelectionMode(type, seedId = null) {
+        const sel = window.ScheduleAppSelection;
+        if (sel?.enterSelectionMode) {
+            sel.enterSelectionMode(type, seedId);
+            return;
+        }
+        
         const state = getState();
         state.selectionMode.active = true;
         state.selectionMode.type = type;
@@ -611,16 +624,13 @@
         renderSelectionBar(type);
     }
 
-    function toggleSelection(type, id) {
-        const state = getState();
-        const set = type === 'goals' ? state.selectionMode.goalIds : state.selectionMode.todoIds;
-        const key = String(id);
-        if (set.has(key)) set.delete(key);
-        else set.add(key);
-        renderSelectionBar(type);
-    }
-
     function exitSelectionMode() {
+        const sel = window.ScheduleAppSelection;
+        if (sel?.exitSelectionMode) {
+            sel.exitSelectionMode();
+            return;
+        }
+        
         const state = getState();
         state.selectionMode.active = false;
         state.selectionMode.type = null;
@@ -628,6 +638,21 @@
         state.selectionMode.goalIds.clear();
         const bar = document.getElementById('selectionBar');
         if (bar) bar.classList.add('hidden');
+    }
+
+    function toggleSelection(type, id) {
+        const sel = window.ScheduleAppSelection;
+        if (sel?.toggleSelection) {
+            sel.toggleSelection(type, id);
+            return;
+        }
+        
+        const state = getState();
+        const set = type === 'goals' ? state.selectionMode.goalIds : state.selectionMode.todoIds;
+        const key = String(id);
+        if (set.has(key)) set.delete(key);
+        else set.add(key);
+        renderSelectionBar(type);
     }
 
 async function openGoalDiscussModal(goalId = null) {
