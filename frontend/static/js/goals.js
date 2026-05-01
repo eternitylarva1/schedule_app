@@ -445,7 +445,7 @@
                     const confirmed = await showConfirm('确定删除这个目标吗？');
                     if (confirmed) {
                         await deleteGoal(goalId);
-                        showToast('已删除');
+                        showToast?.('已删除');
                         await renderGoalsList();
                     }
                 } else if (action === 'toggle') {
