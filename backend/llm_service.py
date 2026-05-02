@@ -842,15 +842,19 @@ class LLMService:
         - event_delete: 删除日程/待办（批量或按标题）
         - event_complete: 完成日程/待办（批量或按标题）
         - event_uncomplete: 撤销完成（批量或按标题）
+        - event_query: 查询日程（按标题或日期范围查询）
         - expense_create: 记一笔账
         - expense_update: 修改账单
         - expense_delete: 删除账单
+        - expense_query: 查询账单（按金额、分类、日期范围查询）
         - note_create: 创建笔记
         - note_update: 修改笔记
         - note_delete: 删除笔记
+        - note_query: 查询笔记（按标题或内容关键词查询）
         - goal_create: 创建目标
         - goal_update: 修改目标状态
         - goal_delete: 删除目标
+        - goal_query: 查询目标（按标题、horizon或状态查询）
 
         返回格式（只返回JSON，不要任何解释文字）：
         {{
@@ -858,7 +862,7 @@ class LLMService:
             {{
               "domain": "event|expense|note|goal",
               "action": "操作类型",
-              "title": "标题（event/note/goal必填）",
+              "title": "标题（query/create/update用）",
               "start_time": "ISO格式如2026-04-25T18:00:00（event用）",
               "duration_minutes": 30,
               "category_id": "work/life/study/health（event用）",
@@ -867,11 +871,13 @@ class LLMService:
               "note_content": "笔记内容（note用）",
               "description": "目标描述（goal用）",
               "horizon": "short/semester/long（goal用）",
-              "goal_status": "active/done/cancelled（goal update用）",
+              "goal_status": "active/done/cancelled（goal query/update用）",
               "scope": "all|title（删除类操作用）",
-              "date": "YYYY-MM-DD（expense按日期删除用）",
-              "target_title": "要删除/完成/撤销的标题关键词",
-              "original_title": "event_update/move时必填"
+              "date": "YYYY-MM-DD（expense按日期查询/删除用）",
+              "date_range": "today/week/month/all（event查询用）",
+              "target_title": "要删除/完成/撤销/查询的标题关键词",
+              "original_title": "event_update/move时必填",
+              "return_fields": "要返回的字段（query用，默认返回所有字段）"
             }}
           ],
           "summary": "一句话总结"
@@ -891,19 +897,23 @@ class LLMService:
            - event_update: original_title必填，可同时修改title/start_time/duration_minutes
            - event_move: original_title + 新日期时间
            - event_delete/complete/uncomplete: target_title或scope=all
+           - event_query: target_title（可选）或date_range（today/week/month/all）
         4) expense操作规则：
            - expense_create: amount（金额）+ expense_category（分类）+ note（备注可选）
            - expense_update: target_title + 要修改的字段
            - expense_delete: target_title或scope=all
+           - expense_query: target_title或expense_category或date（至少提供一个筛选条件）
            - 金额推断："花了50块" → amount=50，"100元" → amount=100
         5) note操作规则：
            - note_create: title + note_content
            - note_update: target_title + 要修改的字段
            - note_delete: target_title
+           - note_query: target_title（搜索标题或内容）
         6) goal操作规则：
            - goal_create: title + description + horizon（short/semester/long）
            - goal_update: target_title + goal_status（active/done/cancelled）
            - goal_delete: target_title
+           - goal_query: target_title或horizon或goal_status
         7) 时间推断规则（event_create）：
            - "8点"、"15:00" → 今天该时间
            - "今晚8点" → 今天20:00
@@ -916,6 +926,12 @@ class LLMService:
            - "创建短期目标：减肥" → domain=goal, action=goal_create, title="减肥", horizon="short"
            - "完成开会" → domain=event, action=event_complete, target_title="开会"
            - "删除买书的账单" → domain=expense, action=expense_delete, target_title="买书"
+           - "查看今天的日程" → domain=event, action=event_query, date_range="today"
+           - "查看所有待办" → domain=event, action=event_query, scope="all"
+           - "搜索记账记录" → domain=expense, action=expense_query, target_title=""
+           - "查看笔记" → domain=note, action=note_query, target_title=""
+           - "查看短期目标" → domain=goal, action=goal_query, horizon="short"
+           - "查看进行中的目标" → domain=goal, action=goal_query, goal_status="active"
         """
 
         response = await self.chat([

@@ -509,6 +509,7 @@ async def llm_command(request: web.Request) -> web.Response:
 
     preview_ops = []
     created_items = []
+    queried_items = []
     stats = {
         "events_created": 0,
         "events_updated": 0,
@@ -516,15 +517,19 @@ async def llm_command(request: web.Request) -> web.Response:
         "events_deleted": 0,
         "events_completed": 0,
         "events_uncompleted": 0,
+        "events_queried": 0,
         "expenses_created": 0,
         "expenses_updated": 0,
         "expenses_deleted": 0,
+        "expenses_queried": 0,
         "notes_created": 0,
         "notes_updated": 0,
         "notes_deleted": 0,
+        "notes_queried": 0,
         "goals_created": 0,
         "goals_updated": 0,
         "goals_deleted": 0,
+        "goals_queried": 0,
     }
 
     for op in operations:
@@ -543,6 +548,8 @@ async def llm_command(request: web.Request) -> web.Response:
                     _update_event_stats(stats, action, result["affected"])
                 if result.get("created"):
                     created_items.append(result["created"])
+                if result.get("data"):
+                    queried_items.append({"domain": domain, "data": result["data"]})
             continue
         
         # Handle expense operations
@@ -554,6 +561,8 @@ async def llm_command(request: web.Request) -> web.Response:
                     _update_expense_stats(stats, action, result["affected"])
                 if result.get("created"):
                     created_items.append(result["created"])
+                if result.get("data"):
+                    queried_items.append({"domain": domain, "data": result["data"]})
             continue
         
         # Handle note operations
@@ -565,6 +574,8 @@ async def llm_command(request: web.Request) -> web.Response:
                     _update_note_stats(stats, action, result["affected"])
                 if result.get("created"):
                     created_items.append(result["created"])
+                if result.get("data"):
+                    queried_items.append({"domain": domain, "data": result["data"]})
             continue
         
         # Handle goal operations
@@ -576,6 +587,8 @@ async def llm_command(request: web.Request) -> web.Response:
                     _update_goal_stats(stats, action, result["affected"])
                 if result.get("created"):
                     created_items.append(result["created"])
+                if result.get("data"):
+                    queried_items.append({"domain": domain, "data": result["data"]})
             continue
 
     return json_response({
@@ -584,6 +597,7 @@ async def llm_command(request: web.Request) -> web.Response:
         "operations": preview_ops,
         "stats": stats,
         "created_items": created_items,
+        "queried_items": queried_items,
     })
 
 
@@ -600,6 +614,8 @@ def _update_event_stats(stats, action, affected):
         stats["events_completed"] += affected
     elif action == "event_uncomplete":
         stats["events_uncompleted"] += affected
+    elif action == "event_query":
+        stats["events_queried"] += affected
 
 
 def _update_expense_stats(stats, action, affected):
@@ -609,6 +625,8 @@ def _update_expense_stats(stats, action, affected):
         stats["expenses_updated"] += affected
     elif action == "expense_delete":
         stats["expenses_deleted"] += affected
+    elif action == "expense_query":
+        stats["expenses_queried"] += affected
 
 
 def _update_note_stats(stats, action, affected):
@@ -618,6 +636,8 @@ def _update_note_stats(stats, action, affected):
         stats["notes_updated"] += affected
     elif action == "note_delete":
         stats["notes_deleted"] += affected
+    elif action == "note_query":
+        stats["notes_queried"] += affected
 
 
 def _update_goal_stats(stats, action, affected):
@@ -627,6 +647,8 @@ def _update_goal_stats(stats, action, affected):
         stats["goals_updated"] += affected
     elif action == "goal_delete":
         stats["goals_deleted"] += affected
+    elif action == "goal_query":
+        stats["goals_queried"] += affected
 
 
 async def _handle_event_operation(op, action, user_text, dry_run):
@@ -750,6 +772,30 @@ async def _handle_event_operation(op, action, user_text, dry_run):
         affected = await db.move_event_by_title(original_title, new_start_time)
         return {"preview": preview, "affected": affected}
     
+    # event_query
+    if action == "event_query":
+        target_title = (op.get("target_title") or "").strip()
+        date_range = str(op.get("date_range") or "all").strip().lower()
+        scope = str(op.get("scope") or date_range or "all").strip().lower()
+        
+        preview = {
+            "domain": "event",
+            "action": "event_query",
+            "target_title": target_title if target_title else None,
+            "date_range": scope,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        # Get events based on filter
+        events = await db.get_events(scope if scope in ("today", "week", "month", "all") else "all")
+        # Filter by title if provided
+        if target_title:
+            events = [e for e in events if target_title in (e.title or "")]
+        
+        return {"preview": preview, "affected": len(events), "data": [e.to_dict() for e in events]}
+    
     # event_delete / event_complete / event_uncomplete
     if action in ("event_delete", "event_complete", "event_uncomplete"):
         target_title = (op.get("target_title") or op.get("title") or "").strip()
@@ -870,6 +916,31 @@ async def _handle_expense_operation(op, action, user_text, dry_run):
         
         return {"preview": preview, "affected": affected}
     
+    # expense_query
+    if action == "expense_query":
+        target_title = (op.get("target_title") or op.get("note") or "").strip()
+        expense_category = str(op.get("expense_category") or "").strip()
+        
+        preview = {
+            "domain": "expense",
+            "action": "expense_query",
+            "target_title": target_title if target_title else None,
+            "expense_category": expense_category if expense_category else None,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        expenses = await db.get_expenses("month")
+        # Filter by note if provided
+        if target_title:
+            expenses = [e for e in expenses if target_title in (e.note or "")]
+        # Filter by category if provided
+        if expense_category:
+            expenses = [e for e in expenses if e.category == expense_category]
+        
+        return {"preview": preview, "affected": len(expenses), "data": [e.to_dict() for e in expenses]}
+    
     # expense_delete
     if action == "expense_delete":
         target_title = (op.get("target_title") or op.get("note") or "").strip()
@@ -951,6 +1022,26 @@ async def _handle_note_operation(op, action, user_text, dry_run):
             affected += 1
         
         return {"preview": preview, "affected": affected}
+    
+    # note_query
+    if action == "note_query":
+        target_title = (op.get("target_title") or "").strip()
+        
+        preview = {
+            "domain": "note",
+            "action": "note_query",
+            "target_title": target_title if target_title else None,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        notes = await db.get_notes()
+        # Filter by title if provided
+        if target_title:
+            notes = [n for n in notes if target_title in (n.title or "") or target_title in (n.content or "")]
+        
+        return {"preview": preview, "affected": len(notes), "data": [n.to_dict() for n in notes]}
     
     # note_delete
     if action == "note_delete":
@@ -1040,6 +1131,33 @@ async def _handle_goal_operation(op, action, user_text, dry_run):
             affected += 1
         
         return {"preview": preview, "affected": affected}
+    
+    # goal_query
+    if action == "goal_query":
+        target_title = (op.get("target_title") or "").strip()
+        horizon = str(op.get("horizon") or "").strip()
+        goal_status = str(op.get("goal_status") or "").strip()
+        
+        preview = {
+            "domain": "goal",
+            "action": "goal_query",
+            "target_title": target_title if target_title else None,
+            "horizon": horizon if horizon else None,
+            "goal_status": goal_status if goal_status else None,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        goals = await db.get_goals(horizon if horizon in ("short", "semester", "long") else None)
+        # Filter by title if provided
+        if target_title:
+            goals = [g for g in goals if target_title in (g.title or "")]
+        # Filter by status if provided
+        if goal_status:
+            goals = [g for g in goals if g.status == goal_status]
+        
+        return {"preview": preview, "affected": len(goals), "data": [g.to_dict() for g in goals]}
     
     # goal_delete
     if action == "goal_delete":
