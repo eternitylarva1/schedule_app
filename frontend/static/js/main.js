@@ -2428,42 +2428,7 @@
                     <span class="switch-slider"></span>
                 </label>
             </div>
-            <div class="detail-history-section" id="detailHistorySection">
-                <div class="detail-row">
-                    <span class="detail-label">历史记录</span>
-                    <button class="btn btn-sm btn-secondary" id="loadHistoryBtn">加载历史</button>
-                </div>
-                <div id="detailHistoryList"></div>
-            </div>
         `;
-
-        // Bind history load button
-        const loadHistoryBtn = document.getElementById('loadHistoryBtn');
-        if (loadHistoryBtn) {
-            loadHistoryBtn.addEventListener('click', async () => {
-                const historyList = document.getElementById('detailHistoryList');
-                if (historyList) {
-                    historyList.innerHTML = '<div class="detail-history-loading">加载中...</div>';
-                    try {
-                        const resp = await fetch(`/api/events/${event.id}/history`);
-                        const data = await resp.json();
-                        if (data.code === 0 && data.data && data.data.length > 0) {
-                            historyList.innerHTML = data.data.map(h => `
-                                <div class="detail-history-item">
-                                    <span class="detail-history-action">${getActionLabel(h.action)}</span>
-                                    <span class="detail-history-time">${formatHistoryTime(h.created_at)}</span>
-                                    ${h.old_value ? `<span class="detail-history-diff">${formatHistoryDiff(h)}</span>` : ''}
-                                </div>
-                            `).join('');
-                        } else {
-                            historyList.innerHTML = '<div class="detail-history-empty">暂无历史记录</div>';
-                        }
-                    } catch (err) {
-                        historyList.innerHTML = '<div class="detail-history-error">加载失败</div>';
-                    }
-                }
-            });
-        }
 
         elements.detailModal.classList.remove('hidden');
     }
@@ -5319,6 +5284,11 @@
             openUserContextModal();
         });
         
+        // Event History in Settings
+        document.getElementById('openEventHistoryBtn')?.addEventListener('click', () => {
+            loadEventHistoryAll();
+        });
+        
         // AI Provider modal events
         elements.addAiProviderBtn?.addEventListener('click', () => openAiProviderModal());
         elements.aiProviderBackdrop?.addEventListener('click', closeAiProviderModal);
@@ -5669,6 +5639,50 @@
         console.log('Schedule App ready!');
     }
 
+    // Global event history loading for Settings
+    async function loadEventHistoryAll() {
+        const list = document.getElementById('eventHistoryList');
+        if (!list) return;
+        list.style.display = 'block';
+        list.innerHTML = '<div class="event-history-loading" style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
+        try {
+            const resp = await fetch('/api/event-history');
+            const json = await resp.json();
+            if (json.code === 0 && json.data && json.data.length > 0) {
+                list.innerHTML = json.data.slice(0, 50).map(h => {
+                    const actionLabels = { created: '创建', updated: '修改', deleted: '删除', completed: '完成', uncompleted: '撤销完成' };
+                    const actionLabel = actionLabels[h.action] || h.action;
+                    const time = h.created_at ? new Date(h.created_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    let diff = '';
+                    try {
+                        if (h.action === 'updated' && h.old_value && h.new_value) {
+                            const oldV = JSON.parse(h.old_value);
+                            const newV = JSON.parse(h.new_value);
+                            for (const k of Object.keys(newV)) {
+                                if (JSON.stringify(oldV[k]) !== JSON.stringify(newV[k])) {
+                                    diff = `${k}: ${oldV[k] || '(空)'} → ${newV[k] || '(空)'}`;
+                                    break;
+                                }
+                            }
+                        }
+                    } catch {}
+                    return `<div class="event-history-item action-${h.action}">
+                        <div class="event-history-header">
+                            <span class="event-history-action">${actionLabel}</span>
+                            <span class="event-history-time">${time}</span>
+                        </div>
+                        <div class="event-history-event-title">事件ID: ${h.event_id}</div>
+                        ${diff ? `<div class="event-history-detail">${diff}</div>` : ''}
+                    </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">暂无历史记录</div>';
+            }
+        } catch {
+            list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--color-danger);font-size:12px;">加载失败</div>';
+        }
+    }
+
     // Apply module overrides - use functions from budget.js
     const {
         bindBudgetEvents,
@@ -5699,6 +5713,7 @@
     };
     window.ScheduleAppCore.bindSwipeItem = bindSwipeItem;
     window.ScheduleAppCore.loadAiProviders = loadAiProviders;
+    window.ScheduleAppCore.loadEventHistoryAll = loadEventHistoryAll;
 
     // Start the app
     if (document.readyState === 'loading') {

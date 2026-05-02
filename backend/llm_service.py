@@ -835,72 +835,87 @@ class LLMService:
         当前日期：{current_date} {current_time}
         用户输入：{user_text}
 
-        你必须在以下 action 中选择：
-        - create: 创建日程/待办
-        - update: 修改日程/待办的标题/时间/时长
-        - move: 移动日程到另一天（只改日期，不改时间点）
-        - delete: 删除日程/待办（批量或按标题）
-        - complete: 完成日程/待办（批量或按标题）
-        - uncomplete: 撤销完成（批量或按标题）
+        你必须在以下 action 中选择，并指定正确的 domain：
+        - event_create: 创建日程/待办
+        - event_update: 修改日程/待办的标题/时间/时长
+        - event_move: 移动日程到另一天（只改日期，不改时间点）
+        - event_delete: 删除日程/待办（批量或按标题）
+        - event_complete: 完成日程/待办（批量或按标题）
+        - event_uncomplete: 撤销完成（批量或按标题）
+        - expense_create: 记一笔账
+        - expense_update: 修改账单
+        - expense_delete: 删除账单
+        - note_create: 创建笔记
+        - note_update: 修改笔记
+        - note_delete: 删除笔记
+        - goal_create: 创建目标
+        - goal_update: 修改目标状态
+        - goal_delete: 删除目标
 
         返回格式（只返回JSON，不要任何解释文字）：
         {{
           "operations": [
             {{
-              "action": "create|update|move|delete|complete|uncomplete",
-              "title": "当action=create/update时必填，否则为null",
-              "start_time": "ISO格式如2026-04-25T18:00:00（create/update使用，create时必填）",
-              "end_time": "ISO格式如2026-04-25T19:00:00（仅当action=create且需要指定结束时间时使用）",
+              "domain": "event|expense|note|goal",
+              "action": "操作类型",
+              "title": "标题（event/note/goal必填）",
+              "start_time": "ISO格式如2026-04-25T18:00:00（event用）",
               "duration_minutes": 30,
-              "category_id": "work/life/study/health（create/update使用）",
-              "scope": "all|title（delete/complete/uncomplete使用，scope=title表示按标题匹配删除）",
-              "date": "YYYY-MM-DD或null（仅scope=date时使用）",
-              "target_title": "当action=delete/complete/uncomplete时必填！填写能从描述中提取的标题关键词，如'洗澡'、'早上8点'等",
-              "original_title": "当action=update/move时必填，填写要修改的原有标题"
+              "category_id": "work/life/study/health（event用）",
+              "amount": 100.0（expense用）",
+              "expense_category": "food/transport/shopping/other（expense用）",
+              "note_content": "笔记内容（note用）",
+              "description": "目标描述（goal用）",
+              "horizon": "short/semester/long（goal用）",
+              "goal_status": "active/done/cancelled（goal update用）",
+              "scope": "all|title（删除类操作用）",
+              "date": "YYYY-MM-DD（expense按日期删除用）",
+              "target_title": "要删除/完成/撤销的标题关键词",
+              "original_title": "event_update/move时必填"
             }}
           ],
           "summary": "一句话总结"
         }}
 
         规则：
-        1) 支持一条输入中的多操作（按输入顺序输出）。
-           - 对于"今天2点X，明天3点Y，后天4点Z"这类跨天多操作，必须输出多个create operation！
-           - 每个operation有独立的title和start_time
-        2) 对"把X改成时间Y"这类修改需求，输出 action=update。
-        3) 对"把X移到明天"这类需求，输出 action=move：
-           - original_title: 要移动的日程标题
-           - start_time: 新的日期时间（日期改变，时间点保持）
-        4) 重要：所有delete/complete/uncomplete操作都必须提供target_title！
-           - "删除洗澡的待办" → action=delete, scope=title, target_title="洗澡"
-           - "完成早上8点的待办" → action=complete, scope=title, target_title="早上8点"
-           - "删除所有代办" → action=delete, scope=all, target_title="代办" 或直接action=delete, scope=all
-        5) scope=title表示按标题关键词匹配，支持部分匹配。
-        6) update时（可以同时修改多个字段）：
-           - original_title: 填写要修改的日程/待办的原标题（用于定位）
-           - title: 修改后的新标题（如果不改标题则省略或同original_title）
-           - start_time: 修改后的新时间（必填）
-           - duration_minutes: 修改后的新时长（可选，如不填则保持原时长）
-        7) move时（只用于移动到另一天，时间点不变）：
-           - original_title: 要移动的日程标题
-           - start_time: 新的日期时间（小时分钟不变，只变日期）
-           - 注意：move只改变日期，不改变具体时间点
-        8) create时：start_time 必须填写，格式为ISO如 "2026-04-25T18:00:00"
-           - 绝对不允许返回 null 作为 start_time
-           - 时间推断规则（按优先级）：
-             1) 用户给出具体时间如"8点"、"15:00" → 直接使用
-             2) "今晚"、"今晚8点"、"今晚6点" → 今天该时间（如20:00、18:00）
-             3) "今天晚上"、"今天下午"、"今天上午" → 今天18:00/14:00/09:00
-             4) "明晚"、"明晚8点" → 明天该时间
-             5) "明天晚上"、"明天下午" → 明天18:00/14:00
-             6) 只有模糊的"晚上"、"下午"、"上午" → 结合上下文推断
-           - 每个任务安排在合适的时段，如吃饭18:00，运动19:00，毕业设计20:00，视频21:00
-           - duration已由用户给出，直接使用（如"半小时"=30分钟）
-        9) 复合句处理示例：
-           - "今天2点做什么，明天3点吃饭，后天4点睡觉"
-             → 3个create operation，title分别为"做什么"、"吃饭"、"睡觉"，start_time分别为今天2点、明天3点、后天4点
-           - "把起床移到明天" → action=move, original_title="起床", start_time=明天原时间
-           - "把会议改成2小时" → action=update, original_title="会议", duration_minutes=120
-           - "把'起床'改成'晨练'" → action=update, original_title="起床", title="晨练"
+        1) domain 和 action 必须匹配：
+           - event_* 系列：domain="event"
+           - expense_* 系列：domain="expense"
+           - note_* 系列：domain="note"
+           - goal_* 系列：domain="goal"
+        2) 支持一条输入中的多操作（按输入顺序输出）。
+           - "今天2点开会，花50块买书" → event_create + expense_create
+           - "今天2点X，明天3点Y" → 2个event_create
+        3) event操作规则：
+           - event_create: start_time必填（ISO格式）
+           - event_update: original_title必填，可同时修改title/start_time/duration_minutes
+           - event_move: original_title + 新日期时间
+           - event_delete/complete/uncomplete: target_title或scope=all
+        4) expense操作规则：
+           - expense_create: amount（金额）+ expense_category（分类）+ note（备注可选）
+           - expense_update: target_title + 要修改的字段
+           - expense_delete: target_title或scope=all
+           - 金额推断："花了50块" → amount=50，"100元" → amount=100
+        5) note操作规则：
+           - note_create: title + note_content
+           - note_update: target_title + 要修改的字段
+           - note_delete: target_title
+        6) goal操作规则：
+           - goal_create: title + description + horizon（short/semester/long）
+           - goal_update: target_title + goal_status（active/done/cancelled）
+           - goal_delete: target_title
+        7) 时间推断规则（event_create）：
+           - "8点"、"15:00" → 今天该时间
+           - "今晚8点" → 今天20:00
+           - "明天下午3点" → 明天15:00
+           - 模糊时间结合上下文推断
+        8) 示例：
+           - "今天2点开会" → domain=event, action=event_create, title="开会", start_time=今天2点
+           - "花50块买书" → domain=expense, action=expense_create, amount=50, expense_category="shopping", note="买书"
+           - "写笔记：明天要做的事" → domain=note, action=note_create, title="明天要做的事"
+           - "创建短期目标：减肥" → domain=goal, action=goal_create, title="减肥", horizon="short"
+           - "完成开会" → domain=event, action=event_complete, target_title="开会"
+           - "删除买书的账单" → domain=expense, action=expense_delete, target_title="买书"
         """
 
         response = await self.chat([

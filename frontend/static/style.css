@@ -2699,6 +2699,66 @@ textarea {
     font-size: var(--font-size-sm);
 }
 
+/* Event History List in Settings */
+.event-history-list {
+    margin-top: var(--space-sm);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.event-history-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-xs);
+    border-left: 3px solid var(--accent-primary);
+}
+
+.event-history-item.action-created { border-left-color: var(--color-success, #34A853); }
+.event-history-item.action-updated { border-left-color: #FBBC04; }
+.event-history-item.action-deleted { border-left-color: var(--color-danger, #EA4335); }
+.event-history-item.action-completed { border-left-color: var(--accent-primary, #4285F4); }
+.event-history-item.action-uncompleted { border-left-color: #9E9E9E; }
+
+.event-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.event-history-action {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.event-history-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.event-history-event-title {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.event-history-detail {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.event-history-empty {
+    padding: var(--space-md);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
 /* User Context Layout (我的现状) */
 .user-context-layout {
     display: flex;
@@ -2815,6 +2875,7 @@ textarea {
    ============================================ */
 .settings-view {
     padding: var(--space-md);
+    padding-bottom: calc(var(--tab-bar-height) + var(--safe-area-bottom) + var(--space-md));
     height: 100%;
     overflow-y: auto;
 }
