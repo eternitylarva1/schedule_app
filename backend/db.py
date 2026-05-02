@@ -78,6 +78,29 @@ async def init_db() -> None:
             )
         """)
         
+        # Event modifications backup table for undo functionality
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS event_modifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                start_time TEXT,
+                end_time TEXT,
+                category_id TEXT,
+                all_day INTEGER DEFAULT 0,
+                recurrence TEXT DEFAULT 'none',
+                status TEXT DEFAULT 'pending',
+                reminder_enabled INTEGER DEFAULT 0,
+                reminder_minutes INTEGER DEFAULT 1,
+                is_test INTEGER DEFAULT 0,
+                goal_id INTEGER,
+                created_at TEXT,
+                updated_at TEXT,
+                action_type TEXT NOT NULL,
+                modified_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         # Create settings table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS settings (
@@ -506,7 +529,10 @@ async def get_event(event_id: int) -> Optional[Event]:
 
 
 async def update_event(event_id: int, event: Event) -> Optional[Event]:
-    """Update an existing event."""
+    """Update an existing event and save modification backup for undo."""
+    existing = await get_event(event_id)
+    if existing:
+        await backup_event_modification(existing, "updated")
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
@@ -645,6 +671,101 @@ async def permanent_delete(deleted_id: int) -> bool:
         cursor = await db.execute("DELETE FROM deleted_events WHERE id = ?", (deleted_id,))
         await db.commit()
         return cursor.rowcount > 0
+
+
+async def backup_event_modification(event: Event, action_type: str = "updated") -> None:
+    """Save event state before modification for potential undo."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """INSERT INTO event_modifications 
+               (event_id, title, start_time, end_time, category_id, all_day, recurrence, status, 
+                reminder_enabled, reminder_minutes, is_test, goal_id, created_at, updated_at, action_type, modified_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event.id,
+                event.title,
+                event.start_time.isoformat() if event.start_time else None,
+                event.end_time.isoformat() if event.end_time else None,
+                event.category_id,
+                1 if event.all_day else 0,
+                event.recurrence,
+                event.status,
+                1 if event.reminder_enabled else 0,
+                event.reminder_minutes,
+                1 if event.is_test else 0,
+                event.goal_id,
+                event.created_at,
+                event.updated_at,
+                action_type,
+                now
+            )
+        )
+        await db.commit()
+
+
+async def get_event_modifications(event_id: int = None, limit: int = 100) -> List[dict]:
+    """Get event modification history for undo."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        if event_id:
+            async with db.execute(
+                "SELECT * FROM event_modifications WHERE event_id = ? ORDER BY modified_at DESC LIMIT ?",
+                (event_id, limit)
+            ) as cursor:
+                rows = await cursor.fetchall()
+        else:
+            async with db.execute(
+                "SELECT * FROM event_modifications ORDER BY modified_at DESC LIMIT ?",
+                (limit,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+async def undo_event_modification(modification_id: int) -> Optional[Event]:
+    """Restore an event to a previous state from modification backup."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM event_modifications WHERE id = ?",
+            (modification_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            
+            row_dict = dict(row)
+            # Restore event to previous state
+            event_id = row_dict['event_id']
+            existing = await get_event(event_id)
+            if not existing:
+                return None
+            
+            restored_event = Event(
+                id=event_id,
+                title=row_dict['title'],
+                start_time=datetime.fromisoformat(row_dict['start_time']) if row_dict['start_time'] else None,
+                end_time=datetime.fromisoformat(row_dict['end_time']) if row_dict['end_time'] else None,
+                category_id=row_dict['category_id'],
+                all_day=bool(row_dict['all_day']),
+                recurrence=row_dict['recurrence'],
+                status=row_dict['status'],
+                reminder_enabled=bool(row_dict['reminder_enabled']),
+                reminder_minutes=row_dict['reminder_minutes'],
+                is_test=bool(row_dict['is_test']),
+                goal_id=row_dict['goal_id'],
+                created_at=datetime.fromisoformat(row_dict['created_at']) if row_dict['created_at'] else existing.created_at,
+                updated_at=datetime.now(),
+            )
+            
+            updated = await update_event(event_id, restored_event)
+            
+            # Remove this modification from history (since we're back to that state)
+            await db.execute("DELETE FROM event_modifications WHERE id = ?", (modification_id,))
+            await db.commit()
+            
+            return updated
 
 
 async def create_event_history(history: EventHistory) -> EventHistory:

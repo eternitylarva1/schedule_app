@@ -337,6 +337,41 @@ async def permanent_delete_event(request: web.Request) -> web.Response:
         return error_response(f"永久删除失败: {str(e)}")
 
 
+async def get_event_modifications(request: web.Request) -> web.Response:
+    """GET /api/event-modifications - get event modification history for undo."""
+    try:
+        event_id = request.query.get("event_id")
+        limit = int(request.query.get("limit", 100))
+        
+        if event_id:
+            modifications = await db.get_event_modifications(int(event_id), limit)
+        else:
+            modifications = await db.get_event_modifications(limit=limit)
+        
+        return json_response(modifications)
+    except Exception as e:
+        return error_response(f"获取修改历史失败: {str(e)}")
+
+
+async def undo_event_modification(request: web.Request) -> web.Response:
+    """POST /api/event-modifications/{id}/undo - restore event to previous state."""
+    try:
+        modification_id = int(request.match_info.get("id", 0))
+        if not modification_id:
+            return error_response("无效的ID")
+        
+        event = await db.undo_event_modification(modification_id)
+        if not event:
+            return error_response("找不到要撤销的修改")
+        
+        return json_response({
+            "restored": event.to_dict(),
+            "message": "已撤销到之前的版本"
+        })
+    except Exception as e:
+        return error_response(f"撤销修改失败: {str(e)}")
+
+
 async def get_stats(request: web.Request) -> web.Response:
     """GET /api/stats?date=today - get statistics."""
     date_filter = request.query.get("date", "today")
@@ -2609,6 +2644,8 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/api/deleted-events", get_deleted_events)
     app.router.add_post("/api/deleted-events/{id}/restore", restore_deleted_event)
     app.router.add_delete("/api/deleted-events/{id}", permanent_delete_event)
+    app.router.add_get("/api/event-modifications", get_event_modifications)
+    app.router.add_post("/api/event-modifications/{id}/undo", undo_event_modification)
     app.router.add_get("/api/stats", get_stats)
     app.router.add_get("/api/categories", get_categories)
     # Goals endpoints
