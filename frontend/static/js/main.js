@@ -2387,7 +2387,7 @@
         }
     }
 
-    function showEventDetail(event) {
+    async function showEventDetail(event) {
         state.selectedEvent = event;
 
         const content = elements.detailContent;
@@ -2428,9 +2428,82 @@
                     <span class="switch-slider"></span>
                 </label>
             </div>
+            <div class="detail-history-section" id="detailHistorySection">
+                <div class="detail-row">
+                    <span class="detail-label">历史记录</span>
+                    <button class="btn btn-sm btn-secondary" id="loadHistoryBtn">加载历史</button>
+                </div>
+                <div id="detailHistoryList"></div>
+            </div>
         `;
 
+        // Bind history load button
+        const loadHistoryBtn = document.getElementById('loadHistoryBtn');
+        if (loadHistoryBtn) {
+            loadHistoryBtn.addEventListener('click', async () => {
+                const historyList = document.getElementById('detailHistoryList');
+                if (historyList) {
+                    historyList.innerHTML = '<div class="detail-history-loading">加载中...</div>';
+                    try {
+                        const resp = await fetch(`/api/events/${event.id}/history`);
+                        const data = await resp.json();
+                        if (data.code === 0 && data.data && data.data.length > 0) {
+                            historyList.innerHTML = data.data.map(h => `
+                                <div class="detail-history-item">
+                                    <span class="detail-history-action">${getActionLabel(h.action)}</span>
+                                    <span class="detail-history-time">${formatHistoryTime(h.created_at)}</span>
+                                    ${h.old_value ? `<span class="detail-history-diff">${formatHistoryDiff(h)}</span>` : ''}
+                                </div>
+                            `).join('');
+                        } else {
+                            historyList.innerHTML = '<div class="detail-history-empty">暂无历史记录</div>';
+                        }
+                    } catch (err) {
+                        historyList.innerHTML = '<div class="detail-history-error">加载失败</div>';
+                    }
+                }
+            });
+        }
+
         elements.detailModal.classList.remove('hidden');
+    }
+    
+    function getActionLabel(action) {
+        const labels = {
+            'created': '创建',
+            'updated': '修改',
+            'deleted': '删除',
+            'completed': '完成',
+            'uncompleted': '撤销完成'
+        };
+        return labels[action] || action;
+    }
+    
+    function formatHistoryTime(timeStr) {
+        if (!timeStr) return '';
+        try {
+            const d = new Date(timeStr);
+            return d.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+        } catch {
+            return timeStr;
+        }
+    }
+    
+    function formatHistoryDiff(history) {
+        try {
+            if (history.action === 'updated' && history.old_value && history.new_value) {
+                const old = JSON.parse(history.old_value);
+                const newVal = JSON.parse(history.new_value);
+                const changes = [];
+                for (const key of Object.keys(newVal)) {
+                    if (JSON.stringify(old[key]) !== JSON.stringify(newVal[key])) {
+                        changes.push(`${key}: ${old[key] || '(空)'} → ${newVal[key] || '(空)'}`);
+                    }
+                }
+                return changes.join(', ');
+            }
+        } catch {}
+        return '';
     }
     
     async function saveDetailChanges() {

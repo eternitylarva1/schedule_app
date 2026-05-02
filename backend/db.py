@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional
 
-from .models import Event, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation, Budget
+from .models import Event, EventHistory, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation, Budget
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
@@ -41,6 +41,20 @@ async def init_db() -> None:
             await db.execute("ALTER TABLE events ADD COLUMN reminder_sent INTEGER DEFAULT 0")
         except Exception:
             pass
+        
+        # Event history table for tracking changes
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS event_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                field_name TEXT DEFAULT '',
+                old_value TEXT DEFAULT '',
+                new_value TEXT DEFAULT '',
+                created_at TEXT,
+                FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+            )
+        """)
         
         # Create settings table
         await db.execute("""
@@ -518,6 +532,85 @@ async def delete_events_by_title(title: str) -> int:
         return cursor.rowcount
 
 
+async def create_event_history(history: EventHistory) -> EventHistory:
+    """Create a new event history entry."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO event_history (event_id, action, field_name, old_value, new_value, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                history.event_id,
+                history.action,
+                history.field_name,
+                history.old_value,
+                history.new_value,
+                now,
+            ),
+        )
+        await db.commit()
+        history.id = cursor.lastrowid
+        history.created_at = datetime.now()
+    return history
+
+
+async def get_event_history(event_id: int) -> List[EventHistory]:
+    """Get all history entries for a specific event."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM event_history WHERE event_id = ? ORDER BY created_at DESC""",
+            (event_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                EventHistory(
+                    id=row["id"],
+                    event_id=row["event_id"],
+                    action=row["action"],
+                    field_name=row["field_name"] or "",
+                    old_value=row["old_value"] or "",
+                    new_value=row["new_value"] or "",
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                )
+                for row in rows
+            ]
+
+
+async def get_all_event_history(limit: int = 100, offset: int = 0) -> List[EventHistory]:
+    """Get all history entries across all events."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM event_history ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+            (limit, offset),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                EventHistory(
+                    id=row["id"],
+                    event_id=row["event_id"],
+                    action=row["action"],
+                    field_name=row["field_name"] or "",
+                    old_value=row["old_value"] or "",
+                    new_value=row["new_value"] or "",
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                )
+                for row in rows
+            ]
+
+
+async def delete_event_history(event_id: int) -> int:
+    """Delete all history for a specific event."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM event_history WHERE event_id = ?",
+            (event_id,),
+        )
+        await db.commit()
+        return cursor.rowcount
+
+
 async def complete_events_by_title(title: str) -> int:
     """Mark all pending events matching title as completed."""
     now = datetime.now().isoformat()
@@ -555,6 +648,138 @@ async def update_event_time_by_title(title: str, new_start_time: datetime) -> in
         )
         await db.commit()
         return cursor.rowcount
+
+
+async def update_event_by_title(title: str, new_title: str = None, new_start_time: datetime = None, duration_minutes: int = None) -> int:
+    """Update event fields (title/time/duration) by title keyword.
+    
+    Args:
+        title: Original title to match (partial match)
+        new_title: New title (if None, keep original)
+        new_start_time: New start time (if None, keep original)
+        duration_minutes: New duration (if None, keep original)
+    
+    Returns:
+        Number of events updated
+    """
+    now = datetime.now().isoformat()
+    
+    # Build dynamic UPDATE query
+    updates = ["updated_at = ?"]
+    params = [now]
+    
+    if new_title and new_title != title:
+        updates.append("title = ?")
+        params.append(new_title)
+    
+    if new_start_time:
+        updates.append("start_time = ?")
+        params.append(new_start_time.isoformat())
+        # Also update end_time if start_time changes
+        if duration_minutes is not None:
+            new_end_time = new_start_time + timedelta(minutes=duration_minutes)
+            updates.append("end_time = ?")
+            params.append(new_end_time.isoformat())
+    
+    # Find and update the first matching pending event
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Build WHERE clause to find the event
+        where_clause = "title LIKE ? AND status = 'pending'"
+        where_params = [f"%{title}%"]
+        
+        query = f"""UPDATE events SET {', '.join(updates)}
+                    WHERE {where_clause} AND id = (
+                        SELECT id FROM events WHERE {where_clause} LIMIT 1
+                    )"""
+        params.extend(where_params)
+        
+        cursor = await db.execute(query, params)
+        await db.commit()
+        return cursor.rowcount
+
+
+async def move_event_by_title(title: str, new_start_time: datetime) -> int:
+    """Move event to a different day while keeping the time.
+    
+    Args:
+        title: Title to match (partial match)
+        new_start_time: New datetime (date changed, time typically preserved)
+    
+    Returns:
+        Number of events updated
+    """
+    now = datetime.now().isoformat()
+    
+    # Get the original event to preserve time
+    events = await get_events_by_title(title)
+    if not events:
+        return 0
+    
+    # Find the first pending event
+    original = None
+    for e in events:
+        if e.status == "pending":
+            original = e
+            break
+    
+    if not original:
+        return 0
+    
+    # Extract hour and minute from original, apply to new date
+    orig_start = original.start_time
+    orig_end = original.end_time
+    
+    # Parse datetime strings to datetime objects if needed
+    if isinstance(orig_start, str):
+        orig_start_dt = datetime.fromisoformat(orig_start)
+    else:
+        orig_start_dt = orig_start
+    
+    if orig_end:
+        if isinstance(orig_end, str):
+            orig_end_dt = datetime.fromisoformat(orig_end)
+        else:
+            orig_end_dt = orig_end
+    else:
+        orig_end_dt = None
+    
+    if orig_start_dt:
+        new_dt = new_start_time.replace(hour=orig_start_dt.hour, minute=orig_start_dt.minute, second=orig_start_dt.second)
+    else:
+        new_dt = new_start_time.replace(hour=9, minute=0, second=0)
+    
+    # Calculate new end_time if original had duration
+    new_end_time = None
+    if orig_start_dt and orig_end_dt:
+        duration = orig_end_dt - orig_start_dt
+        new_end_time = new_dt + duration
+    elif orig_start_dt:
+        # Default 30 min duration
+        new_end_time = new_dt + timedelta(minutes=30)
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """UPDATE events SET start_time = ?, end_time = ?, updated_at = ?
+               WHERE id = ?""",
+            (new_dt.isoformat(), new_end_time.isoformat() if new_end_time else None, now, original.id),
+        )
+        await db.commit()
+        return cursor.rowcount
+
+
+async def get_events_by_title(title: str) -> List["Event"]:
+    """Get all events matching title (partial match)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT id, title, start_time, end_time, category_id, all_day, 
+               recurrence, status, created_at, updated_at, 
+               reminder_enabled, reminder_minutes, reminder_sent, is_test
+               FROM events WHERE title LIKE ? ORDER BY start_time""",
+            (f"%{title}%",),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [Event(**dict(row)) for row in rows]
 
 
 async def complete_event(event_id: int) -> Optional[Event]:

@@ -7,7 +7,7 @@ from aiohttp import web
 from typing import Any
 
 from . import db
-from .models import Event, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES, NoteGroup, Budget
+from .models import Event, EventHistory, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES, NoteGroup, Budget
 
 
 def json_response(data: Any, code: int = 0) -> web.Response:
@@ -112,6 +112,20 @@ async def create_event(request: web.Request) -> web.Response:
                 return error_response(f"时间冲突：与已存在任务“{conflict_label}”重叠", code=409)
 
         event = await db.create_event(event)
+        
+        # Log history for event creation
+        try:
+            history_entry = EventHistory(
+                event_id=event.id,
+                action="created",
+                field_name="",
+                old_value="",
+                new_value=json.dumps(event.to_dict()),
+            )
+            await db.create_event_history(history_entry)
+        except Exception as hist_err:
+            print(f"Failed to log event history: {hist_err}")
+        
         return json_response(event.to_dict())
     except Exception as e:
         return error_response(f"创建事件失败: {str(e)}")
@@ -147,6 +161,20 @@ async def update_event(request: web.Request) -> web.Response:
         updated = await db.update_event(event_id, event)
         if not updated:
             return error_response("事件不存在", code=404)
+        
+        # Log history for event update
+        try:
+            history_entry = EventHistory(
+                event_id=event_id,
+                action="updated",
+                field_name="",
+                old_value=json.dumps(existing.to_dict()),
+                new_value=json.dumps(updated.to_dict()),
+            )
+            await db.create_event_history(history_entry)
+        except Exception as hist_err:
+            print(f"Failed to log event history: {hist_err}")
+        
         return json_response(updated.to_dict())
     except Exception as e:
         return error_response(f"更新事件失败: {str(e)}")
@@ -157,8 +185,26 @@ async def delete_event(request: web.Request) -> web.Response:
     event_id = int(request.match_info["id"])
 
     try:
+        # Fetch event before deleting for history logging
+        existing = await db.get_event(event_id)
+        if not existing:
+            return error_response("事件不存在", code=404)
+        
         success = await db.delete_event(event_id)
         if success:
+            # Log history for event deletion
+            try:
+                history_entry = EventHistory(
+                    event_id=event_id,
+                    action="deleted",
+                    field_name="",
+                    old_value=json.dumps(existing.to_dict()),
+                    new_value="",
+                )
+                await db.create_event_history(history_entry)
+            except Exception as hist_err:
+                print(f"Failed to log event history: {hist_err}")
+            
             return json_response({"deleted": True})
         else:
             return error_response("事件不存在", code=404)
@@ -171,8 +217,23 @@ async def complete_event(request: web.Request) -> web.Response:
     event_id = int(request.match_info["id"])
 
     try:
+        # Get existing event before completing for history
+        existing = await db.get_event(event_id)
         event = await db.complete_event(event_id)
         if event:
+            # Log history for completion
+            try:
+                history_entry = EventHistory(
+                    event_id=event_id,
+                    action="completed",
+                    field_name="status",
+                    old_value=json.dumps({"status": existing.status}) if existing else "{}",
+                    new_value=json.dumps({"status": "done"}),
+                )
+                await db.create_event_history(history_entry)
+            except Exception as hist_err:
+                print(f"Failed to log event history: {hist_err}")
+            
             return json_response(event.to_dict())
         else:
             return error_response("事件不存在", code=404)
@@ -185,13 +246,50 @@ async def uncomplete_event(request: web.Request) -> web.Response:
     event_id = int(request.match_info["id"])
 
     try:
+        # Get existing event before uncompleting for history
+        existing = await db.get_event(event_id)
         event = await db.uncomplete_event(event_id)
         if event:
+            # Log history for uncompletion
+            try:
+                history_entry = EventHistory(
+                    event_id=event_id,
+                    action="uncompleted",
+                    field_name="status",
+                    old_value=json.dumps({"status": existing.status}) if existing else "{}",
+                    new_value=json.dumps({"status": "pending"}),
+                )
+                await db.create_event_history(history_entry)
+            except Exception as hist_err:
+                print(f"Failed to log event history: {hist_err}")
+            
             return json_response(event.to_dict())
         else:
             return error_response("事件不存在", code=404)
     except Exception as e:
         return error_response(f"撤销完成失败: {str(e)}")
+
+
+async def get_event_history(request: web.Request) -> web.Response:
+    """GET /api/events/{id}/history - get history for an event."""
+    event_id = int(request.match_info["id"])
+
+    try:
+        history = await db.get_event_history(event_id)
+        return json_response([h.to_dict() for h in history])
+    except Exception as e:
+        return error_response(f"获取历史记录失败: {str(e)}")
+
+
+async def get_all_event_history(request: web.Request) -> web.Response:
+    """GET /api/event-history - get all event history."""
+    try:
+        limit = int(request.query.get("limit", 100))
+        offset = int(request.query.get("offset", 0))
+        history = await db.get_all_event_history(limit=limit, offset=offset)
+        return json_response([h.to_dict() for h in history])
+    except Exception as e:
+        return error_response(f"获取历史记录失败: {str(e)}")
 
 
 async def get_stats(request: web.Request) -> web.Response:
@@ -411,6 +509,8 @@ async def llm_command(request: web.Request) -> web.Response:
     created_events = []
     stats = {
         "created": 0,
+        "updated": 0,
+        "moved": 0,
         "deleted": 0,
         "completed": 0,
         "uncompleted": 0,
@@ -421,20 +521,27 @@ async def llm_command(request: web.Request) -> web.Response:
             continue
 
         action = str(op.get("action", "")).strip().lower()
-        if action not in {"create", "update", "delete", "complete", "uncomplete"}:
+        if action not in {"create", "update", "move", "delete", "complete", "uncomplete"}:
             continue
 
         if action == "update":
             original_title = (op.get("original_title") or "").strip()
             new_title = (op.get("title") or original_title).strip()
             new_start_time = _parse_datetime(op.get("start_time"))
-            if not new_start_time:
+            duration_minutes = op.get("duration_minutes")
+            if duration_minutes is not None:
+                try:
+                    duration_minutes = int(duration_minutes)
+                except (ValueError, TypeError):
+                    duration_minutes = None
+
+            # Need at least one field to update
+            if not new_start_time and (new_title == original_title or not new_title) and duration_minutes is None:
                 preview_ops.append({
                     "action": "update",
                     "title": new_title,
                     "original_title": original_title,
-                    "start_time": None,
-                    "error": "缺少有效的时间",
+                    "error": "缺少要修改的内容（标题、时间或时长）",
                 })
                 continue
 
@@ -442,13 +549,39 @@ async def llm_command(request: web.Request) -> web.Response:
                 "action": "update",
                 "title": new_title,
                 "original_title": original_title,
+                "start_time": new_start_time.isoformat() if new_start_time else None,
+                "duration_minutes": duration_minutes,
+            }
+
+            if not dry_run:
+                affected = await db.update_event_by_title(original_title, new_title, new_start_time, duration_minutes)
+                preview_item["affected"] = affected
+                stats["updated"] = stats.get("updated", 0) + affected
+
+            preview_ops.append(preview_item)
+            continue
+
+        if action == "move":
+            original_title = (op.get("original_title") or "").strip()
+            new_start_time = _parse_datetime(op.get("start_time"))
+            if not new_start_time:
+                preview_ops.append({
+                    "action": "move",
+                    "original_title": original_title,
+                    "error": "缺少目标时间",
+                })
+                continue
+
+            preview_item = {
+                "action": "move",
+                "original_title": original_title,
                 "start_time": new_start_time.isoformat(),
             }
 
             if not dry_run:
-                affected = await db.update_event_time_by_title(original_title, new_start_time)
+                affected = await db.move_event_by_title(original_title, new_start_time)
                 preview_item["affected"] = affected
-                stats["updated"] = stats.get("updated", 0) + affected
+                stats["moved"] = stats.get("moved", 0) + affected
 
             preview_ops.append(preview_item)
             continue
@@ -1970,6 +2103,8 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_delete("/api/events/{id}", delete_event)
     app.router.add_put("/api/events/{id}/complete", complete_event)
     app.router.add_put("/api/events/{id}/uncomplete", uncomplete_event)
+    app.router.add_get("/api/events/{id}/history", get_event_history)
+    app.router.add_get("/api/event-history", get_all_event_history)
     app.router.add_get("/api/stats", get_stats)
     app.router.add_get("/api/categories", get_categories)
     # Goals endpoints

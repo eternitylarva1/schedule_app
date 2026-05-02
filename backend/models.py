@@ -21,6 +21,7 @@ class Event:
     reminder_minutes: int = 1
     reminder_sent: bool = False
     is_test: bool = False
+    goal_id: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -47,7 +48,36 @@ class Event:
             d['reminder_minutes'] = int(d['reminder_minutes'])
         if 'is_test' in d:
             d['is_test'] = bool(d['is_test'])
+        if 'goal_id' in d and d['goal_id'] is not None:
+            d['goal_id'] = int(d['goal_id'])
         # Remove None values for optional fields
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)
+
+
+@dataclass
+class EventHistory:
+    """Event history model for tracking changes to events."""
+    id: int | None = None
+    event_id: int = 0
+    action: str = ""  # created/updated/deleted
+    field_name: str = ""  # which field changed (empty for whole event)
+    old_value: str = ""  # JSON stringified old value
+    new_value: str = ""  # JSON stringified new value
+    created_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        if d.get('created_at') and isinstance(d['created_at'], datetime):
+            d['created_at'] = d['created_at'].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "EventHistory":
+        """Create EventHistory from dictionary."""
+        if d.get('created_at') and isinstance(d['created_at'], str):
+            d['created_at'] = datetime.fromisoformat(d['created_at'])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
 
