@@ -4736,7 +4736,7 @@
         const text = request.text;
         state.llmAbortController = new AbortController();
 
-        // Unified path: supports create/delete/complete/uncomplete and multi-ops.
+        // Dry run preview first
         const preview = await executeUnifiedLlmCommand(text, true, state.llmAbortController.signal);
         if (state.llmCancelRequested) {
             return false;
@@ -4750,7 +4750,7 @@
             throw new Error('未解析到可执行操作');
         }
 
-        // Direct execution for all operations (no confirmation needed)
+        // Only proceed to execution if we have operations
         const result = await executeUnifiedLlmCommand(text, false, state.llmAbortController.signal);
         if (state.llmCancelRequested) {
             return false;
