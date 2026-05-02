@@ -292,6 +292,51 @@ async def get_all_event_history(request: web.Request) -> web.Response:
         return error_response(f"获取历史记录失败: {str(e)}")
 
 
+async def get_deleted_events(request: web.Request) -> web.Response:
+    """GET /api/deleted-events - get list of deleted events that can be restored."""
+    try:
+        limit = int(request.query.get("limit", 100))
+        deleted = await db.get_deleted_events(limit=limit)
+        return json_response(deleted)
+    except Exception as e:
+        return error_response(f"获取已删除事件失败: {str(e)}")
+
+
+async def restore_deleted_event(request: web.Request) -> web.Response:
+    """POST /api/deleted-events/{id}/restore - restore a deleted event."""
+    try:
+        deleted_id = int(request.match_info.get("id", 0))
+        if not deleted_id:
+            return error_response("无效的ID")
+        
+        event = await db.restore_deleted_event(deleted_id)
+        if not event:
+            return error_response("找不到要恢复的事件")
+        
+        return json_response({
+            "restored": event.to_dict(),
+            "message": "事件已恢复"
+        })
+    except Exception as e:
+        return error_response(f"恢复事件失败: {str(e)}")
+
+
+async def permanent_delete_event(request: web.Request) -> web.Response:
+    """DELETE /api/deleted-events/{id} - permanently delete from backup (cannot restore)."""
+    try:
+        deleted_id = int(request.match_info.get("id", 0))
+        if not deleted_id:
+            return error_response("无效的ID")
+        
+        success = await db.permanent_delete(deleted_id)
+        if not success:
+            return error_response("找不到要永久删除的事件")
+        
+        return json_response({"message": "已永久删除"})
+    except Exception as e:
+        return error_response(f"永久删除失败: {str(e)}")
+
+
 async def get_stats(request: web.Request) -> web.Response:
     """GET /api/stats?date=today - get statistics."""
     date_filter = request.query.get("date", "today")
@@ -2561,6 +2606,9 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_put("/api/events/{id}/uncomplete", uncomplete_event)
     app.router.add_get("/api/events/{id}/history", get_event_history)
     app.router.add_get("/api/event-history", get_all_event_history)
+    app.router.add_get("/api/deleted-events", get_deleted_events)
+    app.router.add_post("/api/deleted-events/{id}/restore", restore_deleted_event)
+    app.router.add_delete("/api/deleted-events/{id}", permanent_delete_event)
     app.router.add_get("/api/stats", get_stats)
     app.router.add_get("/api/categories", get_categories)
     # Goals endpoints

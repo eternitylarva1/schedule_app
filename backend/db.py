@@ -56,6 +56,28 @@ async def init_db() -> None:
             )
         """)
         
+        # Deleted events backup table for restore functionality
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS deleted_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                original_id INTEGER,
+                title TEXT NOT NULL,
+                start_time TEXT,
+                end_time TEXT,
+                category_id TEXT,
+                all_day INTEGER DEFAULT 0,
+                recurrence TEXT DEFAULT 'none',
+                status TEXT DEFAULT 'pending',
+                reminder_enabled INTEGER DEFAULT 0,
+                reminder_minutes INTEGER DEFAULT 1,
+                is_test INTEGER DEFAULT 0,
+                goal_id INTEGER,
+                created_at TEXT,
+                updated_at TEXT,
+                deleted_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         # Create settings table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS settings (
@@ -514,7 +536,10 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
 
 
 async def delete_event(event_id: int) -> bool:
-    """Delete an event."""
+    """Delete an event and save backup to deleted_events table."""
+    event = await get_event(event_id)
+    if event:
+        await backup_deleted_event(event)
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("DELETE FROM events WHERE id = ?", (event_id,))
         await db.commit()
@@ -522,7 +547,10 @@ async def delete_event(event_id: int) -> bool:
 
 
 async def delete_events_by_title(title: str) -> int:
-    """Delete all events matching title (supports partial match)."""
+    """Delete all events matching title (supports partial match) and save backups."""
+    events = await get_events_by_title(title)
+    for event in events:
+        await backup_deleted_event(event)
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             "DELETE FROM events WHERE title LIKE ?",
@@ -530,6 +558,93 @@ async def delete_events_by_title(title: str) -> int:
         )
         await db.commit()
         return cursor.rowcount
+
+
+async def backup_deleted_event(event: Event) -> None:
+    """Save a deleted event to the backup table for potential restore."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """INSERT INTO deleted_events 
+               (original_id, title, start_time, end_time, category_id, all_day, recurrence, status, 
+                reminder_enabled, reminder_minutes, is_test, goal_id, created_at, updated_at, deleted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                event.id,
+                event.title,
+                event.start_time.isoformat() if event.start_time else None,
+                event.end_time.isoformat() if event.end_time else None,
+                event.category_id,
+                1 if event.all_day else 0,
+                event.recurrence,
+                event.status,
+                1 if event.reminder_enabled else 0,
+                event.reminder_minutes,
+                1 if event.is_test else 0,
+                event.goal_id,
+                event.created_at,
+                event.updated_at,
+                now
+            )
+        )
+        await db.commit()
+
+
+async def get_deleted_events(limit: int = 100) -> List[dict]:
+    """Get list of deleted events that can be restored."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM deleted_events ORDER BY deleted_at DESC LIMIT ?",
+            (limit,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def restore_deleted_event(deleted_id: int) -> Optional[Event]:
+    """Restore an event from the deleted_events backup table."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM deleted_events WHERE id = ?",
+            (deleted_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            
+            row_dict = dict(row)
+            # Create new event with original data
+            event = Event(
+                title=row_dict['title'],
+                start_time=datetime.fromisoformat(row_dict['start_time']) if row_dict['start_time'] else None,
+                end_time=datetime.fromisoformat(row_dict['end_time']) if row_dict['end_time'] else None,
+                category_id=row_dict['category_id'],
+                all_day=bool(row_dict['all_day']),
+                recurrence=row_dict['recurrence'],
+                status=row_dict['status'],
+                reminder_enabled=bool(row_dict['reminder_enabled']),
+                reminder_minutes=row_dict['reminder_minutes'],
+                is_test=bool(row_dict['is_test']),
+                goal_id=row_dict['goal_id'],
+            )
+            
+            created = await create_event(event)
+            
+            # Remove from deleted_events backup
+            await db.execute("DELETE FROM deleted_events WHERE id = ?", (deleted_id,))
+            await db.commit()
+            
+            return created
+
+
+async def permanent_delete(deleted_id: int) -> bool:
+    """Permanently delete an event from backup table (cannot restore)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM deleted_events WHERE id = ?", (deleted_id,))
+        await db.commit()
+        return cursor.rowcount > 0
 
 
 async def create_event_history(history: EventHistory) -> EventHistory:
