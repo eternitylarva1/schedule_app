@@ -1415,6 +1415,18 @@ async def delete_goal(goal_id: int) -> bool:
         return True
 
 
+async def get_goals_by_title(keyword: str) -> List[Goal]:
+    """Get all goals matching title keyword (partial match)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM goals WHERE title LIKE ? ORDER BY created_at DESC",
+            (f"%{keyword}%",),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [Goal(**dict(row)) for row in rows]
+
+
 # ============ Goal Conversation Functions ============
 
 async def create_goal_conversation(conversation: GoalConversation) -> GoalConversation:
@@ -1736,6 +1748,18 @@ async def delete_expense(expense_id: int) -> bool:
         return cursor.rowcount > 0
 
 
+async def get_expenses_by_note(keyword: str) -> List[Expense]:
+    """Get all expenses matching note keyword (partial match)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM expenses WHERE note LIKE ? ORDER BY created_at DESC",
+            (f"%{keyword}%",),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [Expense(**dict(row)) for row in rows]
+
+
 async def get_expense_stats(date_filter: str = "month") -> dict[str, Any]:
     """Get expense statistics by category."""
     from datetime import timedelta
@@ -1891,6 +1915,18 @@ async def delete_note(note_id: int) -> bool:
         cursor = await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
         await db.commit()
         return cursor.rowcount > 0
+
+
+async def get_notes_by_title(keyword: str) -> List[Note]:
+    """Get all notes matching title keyword (partial match)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM notes WHERE title LIKE ? OR content LIKE ? ORDER BY updated_at DESC",
+            (f"%{keyword}%", f"%{keyword}%"),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [Note(**dict(row)) for row in rows]
 
 
 # ============================================

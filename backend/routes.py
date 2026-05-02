@@ -475,7 +475,9 @@ async def llm_create(request: web.Request) -> web.Response:
 async def llm_command(request: web.Request) -> web.Response:
     """POST /api/llm/command - unified natural language command executor.
 
-    Body: {"text": "删除所有4月5号的代办", "dry_run": true|false}
+    Body: {"text": "今天2点开会，花50块买书", "dry_run": true|false}
+    
+    Supports multi-domain operations: events, expenses, notes, goals.
     """
     try:
         body_bytes = await request.read()
@@ -506,227 +508,563 @@ async def llm_command(request: web.Request) -> web.Response:
         return error_response("未解析到可执行操作")
 
     preview_ops = []
-    created_events = []
+    created_items = []
     stats = {
-        "created": 0,
-        "updated": 0,
-        "moved": 0,
-        "deleted": 0,
-        "completed": 0,
-        "uncompleted": 0,
-}
+        "events_created": 0,
+        "events_updated": 0,
+        "events_moved": 0,
+        "events_deleted": 0,
+        "events_completed": 0,
+        "events_uncompleted": 0,
+        "expenses_created": 0,
+        "expenses_updated": 0,
+        "expenses_deleted": 0,
+        "notes_created": 0,
+        "notes_updated": 0,
+        "notes_deleted": 0,
+        "goals_created": 0,
+        "goals_updated": 0,
+        "goals_deleted": 0,
+    }
 
     for op in operations:
         if not isinstance(op, dict):
             continue
 
         action = str(op.get("action", "")).strip().lower()
-        if action not in {"create", "update", "move", "delete", "complete", "uncomplete"}:
-            continue
-
-        if action == "update":
-            original_title = (op.get("original_title") or "").strip()
-            new_title = (op.get("title") or original_title).strip()
-            new_start_time = _parse_datetime(op.get("start_time"))
-            duration_minutes = op.get("duration_minutes")
-            if duration_minutes is not None:
-                try:
-                    duration_minutes = int(duration_minutes)
-                except (ValueError, TypeError):
-                    duration_minutes = None
-
-            # Need at least one field to update
-            if not new_start_time and (new_title == original_title or not new_title) and duration_minutes is None:
-                preview_ops.append({
-                    "action": "update",
-                    "title": new_title,
-                    "original_title": original_title,
-                    "error": "缺少要修改的内容（标题、时间或时长）",
-                })
-                continue
-
-            preview_item = {
-                "action": "update",
-                "title": new_title,
-                "original_title": original_title,
-                "start_time": new_start_time.isoformat() if new_start_time else None,
-                "duration_minutes": duration_minutes,
-            }
-
-            if not dry_run:
-                affected = await db.update_event_by_title(original_title, new_title, new_start_time, duration_minutes)
-                preview_item["affected"] = affected
-                stats["updated"] = stats.get("updated", 0) + affected
-
-            preview_ops.append(preview_item)
-            continue
-
-        if action == "move":
-            original_title = (op.get("original_title") or "").strip()
-            new_start_time = _parse_datetime(op.get("start_time"))
-            if not new_start_time:
-                preview_ops.append({
-                    "action": "move",
-                    "original_title": original_title,
-                    "error": "缺少目标时间",
-                })
-                continue
-
-            preview_item = {
-                "action": "move",
-                "original_title": original_title,
-                "start_time": new_start_time.isoformat(),
-            }
-
-            if not dry_run:
-                affected = await db.move_event_by_title(original_title, new_start_time)
-                preview_item["affected"] = affected
-                stats["moved"] = stats.get("moved", 0) + affected
-
-            preview_ops.append(preview_item)
-            continue
-
-        if action == "create":
-            title = (op.get("title") or user_text).strip()
-            category_id = str(op.get("category_id") or "work")
-            if category_id not in {"work", "life", "study", "health"}:
-                category_id = "work"
-
-            start_time = _parse_datetime(op.get("start_time"))
-            if not start_time:
-                deadline_dt = _extract_deadline_from_text(user_text)
-                if deadline_dt and not _has_explicit_clock_time_in_text(user_text):
-                    start_time = None
-            
-            # Fallback: try to infer time from user text if start_time is still None
-            if not start_time:
-                now = datetime.now()
-                import re
-                user_text_lower = user_text.lower()
-                # Parse "今晚", "今晚8点", "今天晚上", "今晚6点", "今天晚上" etc.
-                if '今晚' in user_text or '今晚' in user_text_lower:
-                    hour = 20
-                    hour_match = re.search(r'(\d{1,2})\s*点', user_text)
-                    if hour_match:
-                        hour = int(hour_match.group(1))
-                    is_today = '今' in user_text[:3] or '今天' in user_text
-                    start_time = now.replace(hour=hour, minute=0, second=0, microsecond=0) if is_today else now.replace(hour=hour, minute=0, second=0, microsecond=0) + timedelta(days=1 if now.hour > hour else 0)
-                elif '明晚' in user_text or '明晚' in user_text_lower:
-                    start_time = now.replace(hour=20, minute=0, second=0, microsecond=0) + timedelta(days=1)
-                elif '晚上' in user_text or '晚上' in user_text_lower:
-                    hour_match = re.search(r'(\d{1,2})\s*点', user_text)
-                    hour = int(hour_match.group(1)) if hour_match else 18
-                    start_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-
-            if not start_time:
-                deadline_label = _extract_deadline_label_from_text(user_text)
-                if deadline_label and not _has_explicit_clock_time_in_text(user_text):
-                    title = _append_deadline_label(title, deadline_label)
-
-            try:
-                duration_minutes = int(op.get("duration_minutes", 30))
-            except Exception:
-                duration_minutes = 30
-            duration_minutes = max(5, min(24 * 60, duration_minutes))
-
-            end_time = start_time + timedelta(minutes=duration_minutes) if start_time else None
-
-            preview_item = {
-                "action": "create",
-                "title": title,
-                "start_time": start_time.isoformat() if start_time else None,
-                "duration_minutes": duration_minutes,
-                "category_id": category_id,
-            }
-
-            if not dry_run:
-                event = Event(
-                    title=title,
-                    start_time=start_time,
-                    end_time=end_time,
-                    category_id=category_id,
-                    all_day=False,
-                    recurrence="none",
-                    status="pending",
-                )
-                created = await db.create_event(event)
-                created_events.append(created.to_dict())
-                stats["created"] += 1
-                preview_item["id"] = created.id
-
-            preview_ops.append(preview_item)
-            continue
-
-        scope = str(op.get("scope") or "all").strip().lower()
-        date_str = (op.get("date") or "").strip() if scope == "date" else ""
-        # Extract target_title from any available field for delete/complete/uncomplete actions
-        target_title = (op.get("target_title") or op.get("title") or "").strip()
+        domain = str(op.get("domain", "")).strip().lower()
         
-        # For delete/complete/uncomplete, try to extract title from user text if not provided
-        if action in ("delete", "complete", "uncomplete") and not target_title:
-            import re
-            # Try to extract patterns like "删除X的待办", "完成X的待办"
-            match = re.search(r'[删完]除.*?的[待办事]', user_text)
-            if match:
-                matched = match.group()
-                # Extract the part between "删除" and "的待办"
-                title_match = re.search(r'[删完]除(.+?)的', matched)
-                if title_match:
-                    target_title = title_match.group(1).strip()
-
-        start = None
-        end = None
-        if scope == "date":
-            start, end = _parse_date_range(date_str)
-            if not start or not end:
-                preview_ops.append({
-                    "action": action,
-                    "scope": "date",
-                    "date": date_str,
-                    "error": "日期格式无效，应为YYYY-MM-DD",
-                })
-                continue
-
-        preview_item = {
-            "action": action,
-            "scope": scope,
-            "date": date_str if scope == "date" else None,
-            "target_title": target_title if target_title else None,
-        }
-
-        if not dry_run:
-            # If target_title is provided, use title-based filtering regardless of scope
-            use_title_filter = bool(target_title)
-            
-            if action == "delete":
-                if use_title_filter:
-                    affected = await db.delete_events_by_title(target_title)
-                else:
-                    affected = await db.batch_delete_events(start, end)
-                stats["deleted"] += affected
-            elif action == "complete":
-                if use_title_filter:
-                    affected = await db.complete_events_by_title(target_title)
-                else:
-                    affected = await db.batch_complete_events(start, end)
-                stats["completed"] += affected
-            else:  # uncomplete
-                if use_title_filter:
-                    affected = await db.uncomplete_events_by_title(target_title)
-                else:
-                    affected = await db.batch_uncomplete_events(start, end)
-                stats["uncompleted"] += affected
-            preview_item["affected"] = affected
-
-        preview_ops.append(preview_item)
+        # Handle event operations
+        if domain == "event":
+            result = await _handle_event_operation(op, action, user_text, dry_run)
+            if result:
+                preview_ops.append(result["preview"])
+                if not dry_run and result.get("affected"):
+                    _update_event_stats(stats, action, result["affected"])
+                if result.get("created"):
+                    created_items.append(result["created"])
+            continue
+        
+        # Handle expense operations
+        if domain == "expense":
+            result = await _handle_expense_operation(op, action, user_text, dry_run)
+            if result:
+                preview_ops.append(result["preview"])
+                if not dry_run and result.get("affected"):
+                    _update_expense_stats(stats, action, result["affected"])
+                if result.get("created"):
+                    created_items.append(result["created"])
+            continue
+        
+        # Handle note operations
+        if domain == "note":
+            result = await _handle_note_operation(op, action, user_text, dry_run)
+            if result:
+                preview_ops.append(result["preview"])
+                if not dry_run and result.get("affected"):
+                    _update_note_stats(stats, action, result["affected"])
+                if result.get("created"):
+                    created_items.append(result["created"])
+            continue
+        
+        # Handle goal operations
+        if domain == "goal":
+            result = await _handle_goal_operation(op, action, user_text, dry_run)
+            if result:
+                preview_ops.append(result["preview"])
+                if not dry_run and result.get("affected"):
+                    _update_goal_stats(stats, action, result["affected"])
+                if result.get("created"):
+                    created_items.append(result["created"])
+            continue
 
     return json_response({
         "dry_run": dry_run,
         "summary": plan.get("summary", ""),
         "operations": preview_ops,
         "stats": stats,
-        "created_events": created_events,
+        "created_items": created_items,
     })
+
+
+def _update_event_stats(stats, action, affected):
+    if action == "event_create":
+        stats["events_created"] += affected
+    elif action == "event_update":
+        stats["events_updated"] += affected
+    elif action == "event_move":
+        stats["events_moved"] += affected
+    elif action == "event_delete":
+        stats["events_deleted"] += affected
+    elif action == "event_complete":
+        stats["events_completed"] += affected
+    elif action == "event_uncomplete":
+        stats["events_uncompleted"] += affected
+
+
+def _update_expense_stats(stats, action, affected):
+    if action == "expense_create":
+        stats["expenses_created"] += affected
+    elif action == "expense_update":
+        stats["expenses_updated"] += affected
+    elif action == "expense_delete":
+        stats["expenses_deleted"] += affected
+
+
+def _update_note_stats(stats, action, affected):
+    if action == "note_create":
+        stats["notes_created"] += affected
+    elif action == "note_update":
+        stats["notes_updated"] += affected
+    elif action == "note_delete":
+        stats["notes_deleted"] += affected
+
+
+def _update_goal_stats(stats, action, affected):
+    if action == "goal_create":
+        stats["goals_created"] += affected
+    elif action == "goal_update":
+        stats["goals_updated"] += affected
+    elif action == "goal_delete":
+        stats["goals_deleted"] += affected
+
+
+async def _handle_event_operation(op, action, user_text, dry_run):
+    """Handle event domain operations."""
+    # event_create
+    if action == "event_create":
+        title = (op.get("title") or user_text).strip()
+        category_id = str(op.get("category_id") or "work")
+        if category_id not in {"work", "life", "study", "health"}:
+            category_id = "work"
+
+        start_time = _parse_datetime(op.get("start_time"))
+        if not start_time:
+            deadline_dt = _extract_deadline_from_text(user_text)
+            if deadline_dt and not _has_explicit_clock_time_in_text(user_text):
+                start_time = None
+        
+        if not start_time:
+            now = datetime.now()
+            import re
+            user_text_lower = user_text.lower()
+            if '今晚' in user_text or '今晚' in user_text_lower:
+                hour = 20
+                hour_match = re.search(r'(\d{1,2})\s*点', user_text)
+                if hour_match:
+                    hour = int(hour_match.group(1))
+                is_today = '今' in user_text[:3] or '今天' in user_text
+                start_time = now.replace(hour=hour, minute=0, second=0, microsecond=0) if is_today else now.replace(hour=hour, minute=0, second=0, microsecond=0) + timedelta(days=1 if now.hour > hour else 0)
+            elif '明晚' in user_text or '明晚' in user_text_lower:
+                start_time = now.replace(hour=20, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            elif '晚上' in user_text or '晚上' in user_text_lower:
+                hour_match = re.search(r'(\d{1,2})\s*点', user_text)
+                hour = int(hour_match.group(1)) if hour_match else 18
+                start_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+
+        if not start_time:
+            deadline_label = _extract_deadline_label_from_text(user_text)
+            if deadline_label and not _has_explicit_clock_time_in_text(user_text):
+                title = _append_deadline_label(title, deadline_label)
+
+        try:
+            duration_minutes = int(op.get("duration_minutes", 30))
+        except Exception:
+            duration_minutes = 30
+        duration_minutes = max(5, min(24 * 60, duration_minutes))
+
+        end_time = start_time + timedelta(minutes=duration_minutes) if start_time else None
+
+        preview = {
+            "domain": "event",
+            "action": "event_create",
+            "title": title,
+            "start_time": start_time.isoformat() if start_time else None,
+            "duration_minutes": duration_minutes,
+            "category_id": category_id,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        event = Event(
+            title=title,
+            start_time=start_time,
+            end_time=end_time,
+            category_id=category_id,
+            all_day=False,
+            recurrence="none",
+            status="pending",
+        )
+        created = await db.create_event(event)
+        preview["id"] = created.id
+        return {"preview": preview, "created": created.to_dict(), "affected": 1}
+    
+    # event_update
+    if action == "event_update":
+        original_title = (op.get("original_title") or "").strip()
+        new_title = (op.get("title") or original_title).strip()
+        new_start_time = _parse_datetime(op.get("start_time"))
+        duration_minutes = op.get("duration_minutes")
+        if duration_minutes is not None:
+            try:
+                duration_minutes = int(duration_minutes)
+            except (ValueError, TypeError):
+                duration_minutes = None
+
+        if not new_start_time and (new_title == original_title or not new_title) and duration_minutes is None:
+            return {"preview": {"domain": "event", "action": "event_update", "error": "缺少要修改的内容"}}
+
+        preview = {
+            "domain": "event",
+            "action": "event_update",
+            "title": new_title,
+            "original_title": original_title,
+            "start_time": new_start_time.isoformat() if new_start_time else None,
+            "duration_minutes": duration_minutes,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        affected = await db.update_event_by_title(original_title, new_title, new_start_time, duration_minutes)
+        return {"preview": preview, "affected": affected}
+    
+    # event_move
+    if action == "event_move":
+        original_title = (op.get("original_title") or "").strip()
+        new_start_time = _parse_datetime(op.get("start_time"))
+        if not new_start_time:
+            return {"preview": {"domain": "event", "action": "event_move", "error": "缺少目标时间"}}
+
+        preview = {
+            "domain": "event",
+            "action": "event_move",
+            "original_title": original_title,
+            "start_time": new_start_time.isoformat(),
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        affected = await db.move_event_by_title(original_title, new_start_time)
+        return {"preview": preview, "affected": affected}
+    
+    # event_delete / event_complete / event_uncomplete
+    if action in ("event_delete", "event_complete", "event_uncomplete"):
+        target_title = (op.get("target_title") or op.get("title") or "").strip()
+        scope = str(op.get("scope") or "title").strip().lower()
+        
+        if not target_title and scope == "title":
+            import re
+            match = re.search(r'[删完]除.*?的[待办事]', user_text)
+            if match:
+                title_match = re.search(r'[删完]除(.+?)的', match.group())
+                if title_match:
+                    target_title = title_match.group(1).strip()
+
+        preview = {
+            "domain": "event",
+            "action": action,
+            "target_title": target_title if target_title else None,
+            "scope": scope,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        if target_title:
+            if action == "event_delete":
+                affected = await db.delete_events_by_title(target_title)
+            elif action == "event_complete":
+                affected = await db.complete_events_by_title(target_title)
+            else:
+                affected = await db.uncomplete_events_by_title(target_title)
+        else:
+            if action == "event_delete":
+                affected = await db.batch_delete_events(None, None)
+            elif action == "event_complete":
+                affected = await db.batch_complete_events(None, None)
+            else:
+                affected = await db.batch_uncomplete_events(None, None)
+        
+        return {"preview": preview, "affected": affected}
+    
+    return None
+
+
+async def _handle_expense_operation(op, action, user_text, dry_run):
+    """Handle expense domain operations."""
+    from .models import Expense
+    
+    # expense_create
+    if action == "expense_create":
+        amount = op.get("amount")
+        if amount is not None:
+            try:
+                amount = float(amount)
+            except (ValueError, TypeError):
+                amount = 0.0
+        
+        expense_category = str(op.get("expense_category") or "other")
+        if expense_category not in {"food", "transport", "shopping", "other"}:
+            expense_category = "other"
+        
+        note = op.get("note") or op.get("title") or ""
+        
+        preview = {
+            "domain": "expense",
+            "action": "expense_create",
+            "amount": amount,
+            "expense_category": expense_category,
+            "note": note,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        expense = Expense(
+            amount=amount,
+            category=expense_category,
+            note=note,
+        )
+        created = await db.create_expense(expense)
+        preview["id"] = created.id
+        return {"preview": preview, "created": created.to_dict(), "affected": 1}
+    
+    # expense_update
+    if action == "expense_update":
+        target_title = (op.get("target_title") or op.get("note") or "").strip()
+        if not target_title:
+            target_title = op.get("title") or ""
+        
+        updates = {}
+        if op.get("amount") is not None:
+            try:
+                updates["amount"] = float(op["amount"])
+            except (ValueError, TypeError):
+                pass
+        if op.get("expense_category"):
+            updates["category"] = op["expense_category"]
+        if op.get("note"):
+            updates["note"] = op["note"]
+        
+        preview = {
+            "domain": "expense",
+            "action": "expense_update",
+            "target_title": target_title,
+            "updates": updates,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        # Find and update expense by note content
+        expenses = await db.get_expenses_by_note(target_title)
+        affected = 0
+        for exp in expenses:
+            for key, value in updates.items():
+                setattr(exp, key, value)
+            await db.update_expense(exp.id, exp)
+            affected += 1
+        
+        return {"preview": preview, "affected": affected}
+    
+    # expense_delete
+    if action == "expense_delete":
+        target_title = (op.get("target_title") or op.get("note") or "").strip()
+        if not target_title:
+            target_title = op.get("title") or ""
+        
+        preview = {
+            "domain": "expense",
+            "action": "expense_delete",
+            "target_title": target_title,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        expenses = await db.get_expenses_by_note(target_title)
+        affected = 0
+        for exp in expenses:
+            await db.delete_expense(exp.id)
+            affected += 1
+        
+        return {"preview": preview, "affected": affected}
+    
+    return None
+
+
+async def _handle_note_operation(op, action, user_text, dry_run):
+    """Handle note domain operations."""
+    from .models import Note
+    
+    # note_create
+    if action == "note_create":
+        title = op.get("title") or user_text
+        content = op.get("note_content") or op.get("content") or ""
+        
+        preview = {
+            "domain": "note",
+            "action": "note_create",
+            "title": title,
+            "note_content": content,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        note = Note(title=title, content=content)
+        created = await db.create_note(note)
+        preview["id"] = created.id
+        return {"preview": preview, "created": created.to_dict(), "affected": 1}
+    
+    # note_update
+    if action == "note_update":
+        target_title = (op.get("target_title") or "").strip()
+        if not target_title:
+            target_title = op.get("title") or ""
+        
+        updates = {}
+        if op.get("title"):
+            updates["title"] = op["title"]
+        if op.get("note_content") or op.get("content"):
+            updates["content"] = op.get("note_content") or op.get("content")
+        
+        preview = {
+            "domain": "note",
+            "action": "note_update",
+            "target_title": target_title,
+            "updates": updates,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        notes = await db.get_notes_by_title(target_title)
+        affected = 0
+        for n in notes:
+            for key, value in updates.items():
+                setattr(n, key, value)
+            await db.update_note(n.id, n)
+            affected += 1
+        
+        return {"preview": preview, "affected": affected}
+    
+    # note_delete
+    if action == "note_delete":
+        target_title = (op.get("target_title") or "").strip()
+        if not target_title:
+            target_title = op.get("title") or ""
+        
+        preview = {
+            "domain": "note",
+            "action": "note_delete",
+            "target_title": target_title,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        notes = await db.get_notes_by_title(target_title)
+        affected = 0
+        for n in notes:
+            await db.delete_note(n.id)
+            affected += 1
+        
+        return {"preview": preview, "affected": affected}
+    
+    return None
+
+
+async def _handle_goal_operation(op, action, user_text, dry_run):
+    """Handle goal domain operations."""
+    from .models import Goal
+    
+    # goal_create
+    if action == "goal_create":
+        title = op.get("title") or user_text
+        description = op.get("description") or ""
+        horizon = op.get("horizon") or "short"
+        if horizon not in {"short", "semester", "long"}:
+            horizon = "short"
+        
+        preview = {
+            "domain": "goal",
+            "action": "goal_create",
+            "title": title,
+            "description": description,
+            "horizon": horizon,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        goal = Goal(
+            title=title,
+            description=description,
+            horizon=horizon,
+            status="active",
+        )
+        created = await db.create_goal(goal)
+        preview["id"] = created.id
+        return {"preview": preview, "created": created.to_dict(), "affected": 1}
+    
+    # goal_update
+    if action == "goal_update":
+        target_title = (op.get("target_title") or "").strip()
+        if not target_title:
+            target_title = op.get("title") or ""
+        
+        goal_status = op.get("goal_status")
+        if goal_status and goal_status not in {"active", "done", "cancelled"}:
+            goal_status = "active"
+        
+        preview = {
+            "domain": "goal",
+            "action": "goal_update",
+            "target_title": target_title,
+            "goal_status": goal_status,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        goals = await db.get_goals_by_title(target_title)
+        affected = 0
+        for g in goals:
+            if goal_status:
+                g.status = goal_status
+            await db.update_goal(g.id, g)
+            affected += 1
+        
+        return {"preview": preview, "affected": affected}
+    
+    # goal_delete
+    if action == "goal_delete":
+        target_title = (op.get("target_title") or "").strip()
+        if not target_title:
+            target_title = op.get("title") or ""
+        
+        preview = {
+            "domain": "goal",
+            "action": "goal_delete",
+            "target_title": target_title,
+        }
+        
+        if dry_run:
+            return {"preview": preview}
+        
+        goals = await db.get_goals_by_title(target_title)
+        affected = 0
+        for g in goals:
+            await db.delete_goal(g.id)
+            affected += 1
+        
+        return {"preview": preview, "affected": affected}
+    
+    return None
 
 
 async def llm_breakdown(request: web.Request) -> web.Response:
