@@ -4750,21 +4750,7 @@
             throw new Error('未解析到可执行操作');
         }
 
-        // For destructive or bulk updates, require confirmation after preview.
-        const hasMutatingBatch = operations.some((op) => op.action !== 'create');
-        if (hasMutatingBatch) {
-            const summary = preview.summary || operations.map((op) => {
-                if (op.action === 'create') return `创建 ${op.title || '日程'}`;
-                if (op.scope === 'date') return `${op.action} ${op.date || ''}`;
-                return `${op.action} 全部`;
-            }).join('；');
-            const confirmed = await showConfirm(`将执行以下操作：\n${summary}\n\n确认执行吗？`);
-            if (!confirmed) {
-                showToast('已取消该条AI操作');
-                return false;
-            }
-        }
-
+        // Direct execution for all operations (no confirmation needed)
         const result = await executeUnifiedLlmCommand(text, false, state.llmAbortController.signal);
         if (state.llmCancelRequested) {
             return false;
