@@ -4760,10 +4760,12 @@
         }
 
         const stats = result.stats || {};
-        const created = Number(stats.created || 0);
-        const deleted = Number(stats.deleted || 0);
-        const completed = Number(stats.completed || 0);
-        const uncompleted = Number(stats.uncompleted || 0);
+        const created = Number(stats.events_created || 0);
+        const updated = Number(stats.events_updated || 0);
+        const moved = Number(stats.events_moved || 0);
+        const deleted = Number(stats.events_deleted || 0);
+        const completed = Number(stats.events_completed || 0);
+        const uncompleted = Number(stats.events_uncompleted || 0);
 
         if (deleted > 0 || completed > 0 || uncompleted > 0) {
             const parts = [];
