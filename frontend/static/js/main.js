@@ -5277,6 +5277,16 @@
             loadEventHistoryAll();
         });
         
+        // Deleted Events in Settings
+        document.getElementById('openDeletedEventsBtn')?.addEventListener('click', () => {
+            loadDeletedEvents();
+        });
+        
+        // Event Modifications in Settings
+        document.getElementById('openModificationsBtn')?.addEventListener('click', () => {
+            loadEventModifications();
+        });
+        
         // AI Provider modal events
         elements.addAiProviderBtn?.addEventListener('click', () => openAiProviderModal());
         elements.aiProviderBackdrop?.addEventListener('click', closeAiProviderModal);
@@ -5670,6 +5680,127 @@
             list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--color-danger);font-size:12px;">加载失败</div>';
         }
     }
+    
+    // Load deleted events for Settings
+    async function loadDeletedEvents() {
+        const list = document.getElementById('deletedEventsList');
+        if (!list) return;
+        list.style.display = 'block';
+        list.innerHTML = '<div class="event-history-loading" style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
+        try {
+            const resp = await fetch('/api/deleted-events');
+            const json = await resp.json();
+            if (json.code === 0 && json.data && json.data.length > 0) {
+                list.innerHTML = json.data.slice(0, 50).map(e => {
+                    const time = e.start_time ? new Date(e.start_time).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    const deletedAt = e.deleted_at ? new Date(e.deleted_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    return `<div class="deleted-event-item">
+                        <div class="deleted-event-header">
+                            <span class="deleted-event-title">${e.title || '(无标题)'}</span>
+                            <span class="deleted-event-time">${time}</span>
+                        </div>
+                        <div class="deleted-event-detail" style="font-size:11px;color:var(--text-secondary);">删除于: ${deletedAt}</div>
+                        <div class="deleted-event-actions">
+                            <button class="btn btn-primary" onclick="restoreDeletedEvent(${e.id})">恢复</button>
+                            <button class="btn btn-secondary" onclick="permanentDeleteEvent(${e.id})">永久删除</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<div class="deleted-events-empty">暂无已删除的日程</div>';
+            }
+        } catch {
+            list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--color-danger);font-size:12px;">加载失败</div>';
+        }
+    }
+    
+    // Restore a deleted event
+    async function restoreDeletedEvent(deletedId) {
+        try {
+            const resp = await fetch('/api/deleted-events/' + deletedId + '/restore', { method: 'POST' });
+            const json = await resp.json();
+            if (json.code === 0) {
+                showToast('✅ 已恢复日程');
+                loadDeletedEvents();
+                loadData();
+            } else {
+                showToast('❌ ' + (json.message || '恢复失败'));
+            }
+        } catch {
+            showToast('❌ 恢复失败');
+        }
+    }
+    
+    // Permanently delete a deleted event
+    async function permanentDeleteEvent(deletedId) {
+        if (!confirm('确定要永久删除吗？此操作不可恢复。')) return;
+        try {
+            const resp = await fetch('/api/deleted-events/' + deletedId, { method: 'DELETE' });
+            const json = await resp.json();
+            if (json.code === 0) {
+                showToast('已永久删除');
+                loadDeletedEvents();
+            } else {
+                showToast('❌ ' + (json.message || '删除失败'));
+            }
+        } catch {
+            showToast('❌ 删除失败');
+        }
+    }
+    
+    // Load event modifications for Settings
+    async function loadEventModifications() {
+        const list = document.getElementById('eventModificationsList');
+        if (!list) return;
+        list.style.display = 'block';
+        list.innerHTML = '<div class="event-history-loading" style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
+        try {
+            const resp = await fetch('/api/event-modifications');
+            const json = await resp.json();
+            if (json.code === 0 && json.data && json.data.length > 0) {
+                list.innerHTML = json.data.slice(0, 50).map(m => {
+                    const time = m.modified_at ? new Date(m.modified_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    const startTime = m.start_time ? new Date(m.start_time).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    return `<div class="event-modification-item">
+                        <div class="event-modification-header">
+                            <span class="event-modification-title">${m.title || '(无标题)'}</span>
+                            <span class="event-modification-time">${time}</span>
+                        </div>
+                        <div class="event-modification-detail" style="font-size:11px;color:var(--text-secondary);">时间: ${startTime} | 操作: ${m.action_type}</div>
+                        <div class="event-modification-actions">
+                            <button class="btn btn-primary" onclick="undoEventModification(${m.id})">撤销此修改</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<div class="event-modifications-empty">暂无修改历史</div>';
+            }
+        } catch {
+            list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--color-danger);font-size:12px;">加载失败</div>';
+        }
+    }
+    
+    // Undo an event modification
+    async function undoEventModification(modificationId) {
+        try {
+            const resp = await fetch('/api/event-modifications/' + modificationId + '/undo', { method: 'POST' });
+            const json = await resp.json();
+            if (json.code === 0) {
+                showToast('✅ 已撤销修改');
+                loadEventModifications();
+                loadData();
+            } else {
+                showToast('❌ ' + (json.message || '撤销失败'));
+            }
+        } catch {
+            showToast('❌ 撤销失败');
+        }
+    }
+    
+    // Expose functions to global scope for onclick handlers
+    window.restoreDeletedEvent = restoreDeletedEvent;
+    window.permanentDeleteEvent = permanentDeleteEvent;
+    window.undoEventModification = undoEventModification;
 
     // Apply module overrides - use functions from budget.js
     const {

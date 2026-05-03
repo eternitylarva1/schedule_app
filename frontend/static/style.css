@@ -2759,6 +2759,112 @@ textarea {
     font-size: var(--font-size-sm);
 }
 
+/* Deleted Events List in Settings */
+.deleted-events-list {
+    margin-top: var(--space-sm);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.deleted-event-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-xs);
+    border-left: 3px solid var(--color-danger, #EA4335);
+}
+
+.deleted-event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.deleted-event-title {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.deleted-event-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.deleted-event-actions {
+    display: flex;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+}
+
+.deleted-event-actions .btn {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: var(--font-size-xs);
+}
+
+.deleted-events-empty {
+    padding: var(--space-md);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+/* Event Modifications List in Settings */
+.event-modifications-list {
+    margin-top: var(--space-sm);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.event-modification-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-xs);
+    border-left: 3px solid #FBBC04;
+}
+
+.event-modification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.event-modification-title {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.event-modification-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.event-modification-actions {
+    display: flex;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+}
+
+.event-modification-actions .btn {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: var(--font-size-xs);
+}
+
+.event-modifications-empty {
+    padding: var(--space-md);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
 /* User Context Layout (我的现状) */
 .user-context-layout {
     display: flex;
