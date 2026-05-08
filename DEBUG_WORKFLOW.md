@@ -343,12 +343,28 @@ curl -s http://localhost:8080/api/events?date=today
 
 6. **发送更新通知（QQ）**
 
-使用 NapCat API 发送私聊消息：
+使用 `qq-notify` skill 发送私聊消息：
 
-```bash
-curl -s -X POST "http://127.0.0.1:3000/send_private_msg" \
-  -H "Content-Type: application/json" \
-  -d "{\"user_id\":2674610176,\"message\":[{\"type\":\"text\",\"data\":{\"text\":\"[计划助手更新通知]\n- 修复点1\n- 修复点2\n- 验证结果\n\n仓库: https://github.com/eternitylarva1/schedule_app\"}}]}"
+```python
+import sys
+sys.path.insert(0, '~/.opencode/skills/qq-notify')
+from send_message import send_private_message
+
+result = send_private_message(
+    user_id=2674610176,
+    message='[计划助手更新通知]\n- 修复点1\n- 修复点2\n- 验证结果\n\n仓库: https://github.com/eternitylarva1/schedule_app'
+)
+```
+
+通知模板：
+
+```
+[计划助手更新通知]
+- 修复点1
+- 修复点2
+- 验证结果
+
+仓库: https://github.com/eternitylarva1/schedule_app
 ```
 
 或使用项目上级目录的 `send_message.py`：
@@ -411,6 +427,7 @@ curl -s -X POST http://localhost:8080/api/settings/cleanup_test_entries \
 | Notes | ✅ 标题或内容含上述关键词 | - |
 | Expenses | ✅ 备注含上述关键词 | ✅ |
 | Budgets | - | ✅ |
+| Goals | ✅ 标题含上述关键词 | ✅ |
 
 ### 8.4 创建测试数据时标记
 

@@ -4098,6 +4098,13 @@ textarea {
     opacity: 0.3;
 }
 
+/* Group Selected for Drop (click to select during drag) */
+.note-group.selected-group .note-group-header {
+    background: var(--accent-primary);
+    opacity: 0.5;
+    border: 2px solid var(--accent-primary);
+}
+
 .note-detail-title {
     font-size: var(--font-size-lg);
     font-weight: 700;

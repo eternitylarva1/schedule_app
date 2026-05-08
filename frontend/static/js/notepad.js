@@ -74,6 +74,7 @@
         sourceGroupId: null,
         dragOverGroupId: null,
         dragOverNoteId: null,
+        selectedGroupId: null,  // 点击分组头部时临时选择的目标
     };
 
     async function renderNotepadView() {
@@ -391,6 +392,27 @@
             });
         });
         
+        container.querySelectorAll('.note-group-header').forEach(header => {
+            header.addEventListener('click', (e) => {
+                // 如果正在拖拽笔记，允许点击分组头来选择目标分组
+                if (noteDragState.draggedNoteId && !e.target.closest('.note-group-delete')) {
+                    e.preventDefault();
+                    const groupIdStr = header.dataset.groupId;
+                    // 清除之前的选中状态
+                    document.querySelectorAll('.note-group.selected-group').forEach(el => {
+                        el.classList.remove('selected-group');
+                    });
+                    // 设置新的选中状态
+                    const groupEl = header.closest('.note-group');
+                    if (groupEl) {
+                        groupEl.classList.add('selected-group');
+                        // -1 表示"未分组"
+                        noteDragState.selectedGroupId = groupIdStr === 'ungrouped' ? -1 : parseInt(groupIdStr);
+                    }
+                }
+            });
+        });
+        
         initNoteDragDrop();
     }
 
@@ -456,11 +478,55 @@
         if (swipeItem.closest('.note-group')) {
             noteDragState.sourceGroupId = parseInt(swipeItem.closest('.note-group').dataset.groupId);
         }
+        
+        // 启动边缘滚动检测
+        startAutoScroll();
     }
-
+    
+    // 边缘滚动配置
+    const EDGE_THRESHOLD = 80;  // 距离边缘多少px开始滚动
+    const SCROLL_SPEED = 15;    // 每帧滚动px
+    let autoScrollInterval = null;
+    
+    function startAutoScroll() {
+        if (autoScrollInterval) return;
+        autoScrollInterval = setInterval(() => {
+            if (!noteDragState.draggedNoteId) {
+                stopAutoScroll();
+                return;
+            }
+            const container = getElements().notepadContainer;
+            if (!container) return;
+            
+            const rect = container.getBoundingClientRect();
+            const pointerY = lastDragY || (rect.top + rect.height / 2);
+            const relY = pointerY - rect.top;
+            
+            if (relY < EDGE_THRESHOLD) {
+                // 靠近顶部，向上滚动
+                container.scrollTop -= SCROLL_SPEED;
+            } else if (relY > rect.height - EDGE_THRESHOLD) {
+                // 靠近底部，向下滚动
+                container.scrollTop += SCROLL_SPEED;
+            }
+        }, 16);
+    }
+    
+    function stopAutoScroll() {
+        if (autoScrollInterval) {
+            clearInterval(autoScrollInterval);
+            autoScrollInterval = null;
+        }
+    }
+    
+    let lastDragY = null;
+    
     function handleNoteDragOver(e) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
+        
+        // 更新最后拖拽位置用于边缘滚动
+        lastDragY = e.clientY || e.touches?.[0]?.clientY;
         
         const swipeItem = e.target.closest('.note-swipe');
         const groupHeader = e.target.closest('.note-group-header');
@@ -538,14 +604,20 @@
         const noteId = noteDragState.draggedNoteId;
         let targetGroupId = null;
         
+        // 优先使用拖拽时悬停的分组，否则用点击选择的分组
         if (noteDragState.dragOverGroupId) {
             targetGroupId = noteDragState.dragOverGroupId === 'ungrouped' ? null : parseInt(noteDragState.dragOverGroupId);
+        } else if (noteDragState.selectedGroupId) {
+            targetGroupId = noteDragState.selectedGroupId === -1 ? null : noteDragState.selectedGroupId;
         } else if (noteDragState.dragOverNoteId) {
             const overSwipe = document.querySelector(`.note-swipe[data-note-id="${noteDragState.dragOverNoteId}"]`);
             if (overSwipe && overSwipe.closest('.note-group')) {
                 targetGroupId = parseInt(overSwipe.closest('.note-group').dataset.groupId);
             }
         }
+        
+        // 清除选择的分组
+        noteDragState.selectedGroupId = null;
         
         if (noteId && targetGroupId !== noteDragState.sourceGroupId) {
             const { updateNote, showToast } = getUtils();
@@ -554,22 +626,28 @@
             await renderNotesList();
         }
         
-        noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null };
+        noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null, selectedGroupId: null };
     }
 
     function handleNoteDragEnd(e) {
+        stopAutoScroll();
+        lastDragY = null;
+        
         document.querySelectorAll('.note-swipe.drag-over').forEach(el => {
             el.classList.remove('drag-over');
         });
         document.querySelectorAll('.note-group.drag-over').forEach(el => {
             el.classList.remove('drag-over');
         });
+        document.querySelectorAll('.note-group.selected-group').forEach(el => {
+            el.classList.remove('selected-group');
+        });
         
         if (noteDragState.draggedElement) {
             noteDragState.draggedElement.classList.remove('dragging');
         }
         
-        noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null };
+        noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null, selectedGroupId: null };
     }
 
     function initAIChatPanel() {
