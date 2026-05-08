@@ -81,83 +81,62 @@ curl -s http://localhost:8080/api/events?date=today
 
 > 若缺任一函数，优先修复结构完整性，再继续功能调试。
 
-### 2.4 浏览器自动化健康检查（agent-browser）
+### 2.4 浏览器自动化健康检查（browser-harness skill）
 
-使用 `agent-browser` CLI 进行前端调试。安装方式：
+使用 `browser-harness` skill 进行前端调试。
 
-```bash
-npm i -g agent-browser
-agent-browser install  # 首次安装需要
+**Setup（每次使用前）：**
+```powershell
+$env:BU_CDP_URL = "http://127.0.0.1:9222"
+$env:PATH = "C:\Users\gaoming\AppData\Roaming\Python\Python314\Scripts;" + $env:PATH
+```
+
+Chrome 需开启远程调试：
+```powershell
+Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList "--remote-debugging-port=9222","--user-data-dir=C:\Users\gaoming\AppData\Local\Temp\chrome-debug"
 ```
 
 **常用命令：**
 
 | 命令 | 作用 |
 |------|------|
-| `agent-browser open <url>` | 打开 URL |
-| `agent-browser snapshot` | 获取无障碍树快照（含 @eN 元素引用）|
-| `agent-browser click <sel>` | 点击元素（支持 CSS selector 或 @ref）|
-| `agent-browser get text <sel>` | 获取元素文本 |
-| `agent-browser errors` | 查看页面 JS 错误 |
-| `agent-browser console` | 查看控制台日志 |
-| `agent-browser screenshot` | 截图 |
+| `new_tab(url)` | 打开新标签页 |
+| `wait_for_load()` | 等待页面加载 |
+| `js('...')` | 执行 JavaScript，获取页面数据 |
+| `click_at_xy(x, y)` | 按坐标点击 |
+| `fill('selector', 'text')` | 填写输入框 |
 
 **调试流程：**
 
 1. **打开页面**
    ```bash
-   agent-browser open http://localhost:8080
+   browser-harness -c "new_tab('http://localhost:8080'); wait_for_load(); print(page_info())"
    ```
 
-2. **获取快照确认元素**
+2. **提取页面内容**
    ```bash
-   agent-browser snapshot
-   ```
-   找到要操作的元素引用（如 `@e8` 表示"待办"按钮）
-
-3. **执行操作**
-   ```bash
-   agent-browser click @e8  # 点击待办tab
-   agent-browser snapshot    # 确认切换结果
+   browser-harness -c "new_tab('http://localhost:8080'); wait_for_load(); print(js('document.body.innerText')[:500])"
    ```
 
-4. **检查错误**
+3. **点击元素**
    ```bash
-   agent-browser errors      # 查看 JS 错误
-   agent-browser console     # 查看 console 日志
+   browser-harness -c "new_tab('http://localhost:8080'); wait_for_load(); click_at_xy(100, 200)"
+   ```
+
+4. **检查页面数据**
+   ```bash
+   browser-harness -c "new_tab('http://localhost:8080'); wait_for_load(); items = js('JSON.stringify([...document.querySelectorAll(\"a\")].map(a => ({text: a.innerText, href: a.href})))'); print(items)"
    ```
 
 **注意：**
-- agent-browser 使用独立 Chrome 进程，不依赖浏览器扩展
-- 若需重置状态：`agent-browser close --all` 后重新 `open`
-- 查看所有命令：`agent-browser --help`
-
-**Windows Git Bash / WSL 环境注意事项：**
-
-直接执行 `agent-browser open <url>` 会阻塞终端。必须使用 `start /b` 后台启动：
-
-```bash
-# 1. 后台启动浏览器（关键！）
-start /b agent-browser open http://localhost:8080
-
-# 2. 后续命令独立执行
-start /b agent-browser snapshot
-start /b agent-browser click "#selector"
-start /b agent-browser screenshot
-
-# 3. 结束调试时关闭会话
-agent-browser close --all
-```
+- 不要用 `capture_screenshot()` - 当前模型无法看到图片
+- 不要用 `goto_url()` - 会覆盖用户当前标签页
+- 静态页面用 `http_get(url)` 更快
 
 | 问题现象 | 原因 | 解决方案 |
-|---------|------|---------|
-| 命令执行后卡住不返回 | agent-browser 默认保持会话，阻塞终端 | 使用 `start /b agent-browser <command>` |
-| 每次命令都需要重新 open | 未理解会话保持机制 | 后台启动后持续交互，最后 close |
-
-**为什么需要 start /b：**
-- agent-browser 设计为持续会话模式，打开后等待后续命令
-- 在 Windows bash 环境中，不使用 `start /b` 会导致进程占用终端无法释放
-- `start /b` 将命令转为后台执行，允许终端继续接受新命令
+|---------|------|----------|
+| 命令执行后卡住 | CDP 未连接 | 确认 Chrome 远程调试已启动 |
+| 页面无法加载 | 端口被占用 | 检查 9222 端口是否被占用 |
 
 ---
 
