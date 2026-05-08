@@ -76,8 +76,8 @@
 1. 后端验活：`/api/events?date=today`
 2. API 数据校验：today/week/month
 3. 前端状态校验：currentView/calendarSubview/currentDate/currentMonth
-4. 浏览器交互验证（OpenCode Browser）
-5. 回归矩阵（DEBUG_WORKFLOW 第 6 节）
+4. 浏览器交互验证（browser-harness skill）
+5. 详细调试流程见 DEBUG_WORKFLOW.md
 
 ---
 

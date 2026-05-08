@@ -105,8 +105,8 @@ window.ScheduleAppGoals = { renderGoalsView, ... };
 
 ## Development Guidelines
 
-1. **调试流程**：必须遵循 `DEBUG_WORKFLOW.md`，禁止跳过"复现 → 分层定位 → API校验 → 状态校验 → 回归"
+1. **调试流程**：必须遵循 `DEBUG_WORKFLOW.md`
 2. **提交规范**：每次完成后 `git add . && git commit -m "描述" && git push origin main`
-3. **浏览器调试**：使用 `agent-browser`，Windows 环境必须用 `start /b agent-browser <command>`
-4. **回归测试**：每次修复后必须跑回归矩阵（见 DEBUG_WORKFLOW.md 第 6 节）
-5. **不要暴露 API Key**：AI key 优先从环境变量读取
+3. **浏览器调试**：使用 `browser-harness` skill，设置 `BU_CDP_URL` 环境变量
+4. **不要暴露 API Key**：AI key 优先从环境变量读取
+5. **QQ 提醒**：每次 commit 并 push 后必须用 qq-notify skill 发送 QQ 通知
