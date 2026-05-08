@@ -145,6 +145,19 @@
                     hideAIFloatingWindow();
                 }
             }
+
+            // Show/hide expense month selector
+            if (elements.expenseMonthSelector) {
+                if (state.notepadSubview === 'expense') {
+                    elements.expenseMonthSelector.classList.remove('hidden');
+                    if (!state.expenseMonthSelectorInitialized) {
+                        initExpenseMonthSelector();
+                        state.expenseMonthSelectorInitialized = true;
+                    }
+                } else {
+                    elements.expenseMonthSelector.classList.add('hidden');
+                }
+            }
         } catch (err) {
             console.error('renderNotepadView error:', err);
             if (elements.notepadContainer) {
@@ -888,8 +901,8 @@
         const { fetchExpenses, fetchExpenseStats, fetchBudgets, showToast, deleteExpense, openExpenseModal } = getUtils();
 
         const container = elements.notepadContainer;
-        const expenses = await fetchExpenses();
-        const stats = await fetchExpenseStats() || { total: 0, by_category: {} };
+        const expenses = await fetchExpenses(state.expenseDateFilter || 'month');
+        const stats = await fetchExpenseStats(state.expenseDateFilter || 'month') || { total: 0, by_category: {} };
         const budgets = await fetchBudgets() || [];
         
         const textColor = (color) => getTextColorForBackground(color);
@@ -1071,6 +1084,66 @@
                 content.style.transform = '';
             }
         });
+    }
+
+    function initExpenseMonthSelector() {
+        const elements = getElements();
+        const state = getState();
+
+        // Initialize to current month if not set
+        if (!state.expenseDateFilter || state.expenseDateFilter === 'month') {
+            const now = new Date();
+            state.expenseDateFilter = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        // Set input value
+        if (elements.expenseMonthInput) {
+            elements.expenseMonthInput.value = state.expenseDateFilter;
+        }
+
+        // Prev button - go to previous month
+        if (elements.expenseMonthPrev) {
+            elements.expenseMonthPrev.onclick = () => {
+                const [year, month] = state.expenseDateFilter.split('-').map(Number);
+                let newMonth = month - 1;
+                let newYear = year;
+                if (newMonth < 1) {
+                    newMonth = 12;
+                    newYear -= 1;
+                }
+                state.expenseDateFilter = `${newYear}-${String(newMonth).padStart(2, '0')}`;
+                if (elements.expenseMonthInput) {
+                    elements.expenseMonthInput.value = state.expenseDateFilter;
+                }
+                renderExpenseList();
+            };
+        }
+
+        // Next button - go to next month
+        if (elements.expenseMonthNext) {
+            elements.expenseMonthNext.onclick = () => {
+                const [year, month] = state.expenseDateFilter.split('-').map(Number);
+                let newMonth = month + 1;
+                let newYear = year;
+                if (newMonth > 12) {
+                    newMonth = 1;
+                    newYear += 1;
+                }
+                state.expenseDateFilter = `${newYear}-${String(newMonth).padStart(2, '0')}`;
+                if (elements.expenseMonthInput) {
+                    elements.expenseMonthInput.value = state.expenseDateFilter;
+                }
+                renderExpenseList();
+            };
+        }
+
+        // Direct month input change
+        if (elements.expenseMonthInput) {
+            elements.expenseMonthInput.onchange = () => {
+                state.expenseDateFilter = elements.expenseMonthInput.value;
+                renderExpenseList();
+            };
+        }
     }
 
     window.ScheduleAppNotepad = {

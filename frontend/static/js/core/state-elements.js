@@ -63,6 +63,8 @@
     noteGroups: [],
     expandedGroups: new Set(),
     expenses: [],
+    expenseDateFilter: 'month',  // 'month', 'YYYY-MM' format
+    expenseMonthSelectorInitialized: false,
     selectionMode: {
       active: false,
       type: null,
@@ -120,6 +122,10 @@
     notepadContainer: document.getElementById('notepadContainer'),
     notepadInput: document.getElementById('notepadInput'),
     notepadAddBtn: document.getElementById('notepadAddBtn'),
+    expenseMonthSelector: document.getElementById('expenseMonthSelector'),
+    expenseMonthInput: document.getElementById('expenseMonthInput'),
+    expenseMonthPrev: document.getElementById('expenseMonthPrev'),
+    expenseMonthNext: document.getElementById('expenseMonthNext'),
     timeline: document.getElementById('timeline'),
     daySlider: document.getElementById('daySlider'),
     weekTimeAxis: document.getElementById('weekTimeAxis'),
