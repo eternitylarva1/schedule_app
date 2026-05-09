@@ -79,62 +79,242 @@ curl -s http://localhost:8080/api/events?date=today
 
 > 若缺任一函数，优先修复结构完整性，再继续功能调试。
 
-### 2.4 浏览器自动化健康检查（browser-harness skill）
+### 2.4 浏览器自动化操作（browser-harness skill）
 
-使用 `browser-harness` skill 进行前端调试。
+使用 `browser-harness` skill 进行前端自动化操作。
 
-**Setup（每次使用前）：**
-```powershell
-$env:BU_CDP_URL = "http://127.0.0.1:9222"
-$env:PATH = "C:\Users\gaoming\AppData\Roaming\Python\Python314\Scripts;" + $env:PATH
+**第一步：优先连接已有 Chrome**
+```bash
+export BU_CDP_URL="http://localhost:9222"  # 或 9228
+browser-harness -c 'print(page_info())'
+```
+如果返回页面信息，说明已有 Chrome 可用。
+
+**第二步：无可用 Chrome 时启动新的**
+
+用 `run_background_process` 启动 Chrome（后台运行，不是前台 `&`）：
+```bash
+run_background_process(
+    command="chromium --remote-debugging-port=9227 --user-data-dir=/tmp/chrome-test",
+    title="Chrome Debug"
+)
+# 或指定端口
+run_background_process(
+    command="chromium --remote-debugging-port=9228 --user-data-dir=/tmp/chrome-test",
+    title="Chrome Debug"
+)
 ```
 
-Chrome 需开启远程调试：
-```powershell
-Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList "--remote-debugging-port=9222","--user-data-dir=C:\Users\gaoming\AppData\Local\Temp\chrome-debug"
+**验证 Chrome 存活：**
+```bash
+lsof -i:9227  # 检查端口是否在监听
+browser-harness -c 'print(page_info())'
+# 正常返回: {'url': '...', 'title': '...', 'w': xxx, 'h': xxx}
 ```
 
-**常用命令：**
+**Setup（连接 Chrome）：**
+```bash
+export BU_CDP_URL="http://localhost:9227"  # Linux/Mac
+# Windows: $env:BU_CDP_URL = "http://127.0.0.1:9227"
+```
 
-| 命令 | 作用 |
+---
+
+## 核心工作流程（循环）
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 探索页面 → 获取页面文本/元素列表                         │
+│    ↓                                                    │
+│ 根据信息决定操作                                         │
+│    ↓                                                    │
+│ 执行操作（js() click / value / ...）                    │
+│    ↓                                                    │
+│ 验证结果（js()查询状态 / 截图读取 / API验证）            │
+│    ↓                                                    │
+│ 结果符合预期? ──否──→ 重新探索页面 → 继续操作            │
+│    │                                                  │
+│   是                                                   │
+│    ↓                                                    │
+│ 任务完成? ──否──→ 继续探索 → 操作 → 验证（循环）       │
+│    │                                                  │
+│   是                                                   │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 1. 探索页面（第一步必做）
+
+**目的**：了解页面当前有什么元素
+
+```bash
+# 方法A: 获取页面所有文本（初步了解）
+page_text = js('document.body.innerText')
+
+# 方法B: 获取元素列表（精确找到目标）
+elements = js('''
+(function() {
+  const result = [];
+  document.querySelectorAll("button, a, div, span, input").forEach(function(el) {
+    const text = el.textContent.trim().replace(/\\s+/g, " ");
+    if (text && text.length > 0) {
+      result.push({tag: el.tagName, text: text.substring(0, 50), class: el.className});
+    }
+  });
+  return result;
+})()
+''')
+print(elements)
+```
+
+---
+
+## 2. 执行操作（第二步）
+
+### 常用操作代码
+
+| 操作 | 代码 |
 |------|------|
-| `new_tab(url)` | 打开新标签页 |
-| `wait_for_load()` | 等待页面加载 |
-| `js('...')` | 执行 JavaScript，获取页面数据 |
-| `click_at_xy(x, y)` | 按坐标点击 |
-| `fill('selector', 'text')` | 填写输入框 |
+| 点击元素 | `js('element.click()')` |
+| 获取输入值 | `js('document.getElementById("id").value')` |
+| 设置输入值 | `js('document.getElementById("id").value = "text"')` |
+| 勾选checkbox | `js('document.getElementById("id").click()')` |
+| 检查是否选中 | `js('document.getElementById("id").checked')` |
+| 检查是否禁用 | `js('document.getElementById("id").disabled')` |
+| 检查display | `js('window.getComputedStyle(element).display')` |
+| 滚动区域 | `js('document.querySelector(".modal-body").scrollTop = 400')` |
+| 按ESC关闭弹窗 | `press_key("Escape")` |
 
-**调试流程：**
+### 代码示例
 
-1. **打开页面**
-   ```bash
-   browser-harness -c "new_tab('http://localhost:8080'); wait_for_load(); print(page_info())"
-   ```
+```bash
+# 已知元素时直接操作
+js('document.querySelector(".btn-save").click()')
 
-2. **提取页面内容**
-   ```bash
-   browser-harness -c "new_tab('http://localhost:8080'); wait_for_load(); print(js('document.body.innerText')[:500])"
-   ```
+# 未知元素时先找到再操作
+js('''
+(function() {
+  const items = document.querySelectorAll(".expense-item");
+  for (let item of items) {
+    if (item.textContent.includes("目标文本")) {
+      item.click();
+      break;
+    }
+  }
+})()
+''')
 
-3. **点击元素**
-   ```bash
-   browser-harness -c "new_tab('http://localhost:8080'); wait_for_load(); click_at_xy(100, 200)"
-   ```
+# 找第N个匹配的（索引从0开始）
+js('''
+(function() {
+  const items = document.querySelectorAll(".item");
+  let count = 0;
+  for (let item of items) {
+    if (item.textContent.includes("目标")) {
+      if (count === 1) {  // 第2个
+        item.click();
+        break;
+      }
+      count++;
+    }
+  }
+})()
+''')
+```
 
-4. **检查页面数据**
-   ```bash
-   browser-harness -c "new_tab('http://localhost:8080'); wait_for_load(); items = js('JSON.stringify([...document.querySelectorAll(\"a\")].map(a => ({text: a.innerText, href: a.href})))'); print(items)"
-   ```
+---
 
-**注意：**
-- 不要用 `capture_screenshot()` - 当前模型无法看到图片
-- 不要用 `goto_url()` - 会覆盖用户当前标签页
-- 静态页面用 `http_get(url)` 更快
+## 3. 验证结果（第三步）
+
+```bash
+# 方法A: js()查询状态
+result = js('document.getElementById("result").value')
+if result != 'expected':
+    # 验证失败，重新探索
+    page_text = js('document.body.innerText')
+
+# 方法B: 截图读取（找不到元素时用）
+capture_screenshot()
+read /tmp/shot.png  # AI自行读取判断
+
+# 方法C: API验证后端
+curl -s http://localhost:8080/api/endpoint
+```
+
+---
+
+## 4. 标准等待
+
+```bash
+import time; time.sleep(0.3)  # 简单操作后
+import time; time.sleep(0.5)  # 涉及页面跳转后
+```
+
+---
+
+## 5. 完整执行模板
+
+```bash
+browser-harness -c "
+print('=== 任务开始 ===')
+
+# ===== 步骤1: 探索页面 =====
+page_text = js('document.body.innerText')
+print('页面内容预览:', page_text[:300])
+
+# ===== 步骤2: 找到并操作目标 =====
+# 点击目标元素
+js('''
+(function() {
+  const items = document.querySelectorAll(\".target\");
+  for (let item of items) {
+    if (item.textContent.includes(\"目标\")) {
+      item.click();
+      break;
+    }
+  }
+})()
+''')
+import time; time.sleep(0.5)
+
+# ===== 步骤3: 验证结果 =====
+# 验证操作是否成功
+modal_display = js('window.getComputedStyle(document.getElementById(\"modal\")).display')
+print('Modal状态:', modal_display)
+
+# ===== 步骤4: 截图读取（备用） =====
+capture_screenshot()
+# read /tmp/shot.png
+
+# ===== 步骤5: API验证（最终确认） =====
+# curl -s http://localhost:8080/api/endpoint
+
+print('=== 任务完成 ===')
+"
+```
+
+---
+
+## 6. 注意事项
+
+| 注意事项 | 说明 |
+|---------|------|
+| **第一步必做** | 先探索页面，再决定操作 |
+| **验证是核心** | 每步操作后都要验证，不验证不知道成功没 |
+| **验证失败要重试** | 操作没生效时，重新探索页面判断状态 |
+| **截图是验证手段之一** | 不是必须，只有js()不行时才用 |
+| **用js()内直接.click()** | 不用 click_at_xy() 坐标点击 |
+| **IIFE写法** | 避免变量名冲突：`(function() { ... })()` |
+| **用 goto_url()** | 在自动化测试标签页中导航，不会覆盖用户标签 |
 
 | 问题现象 | 原因 | 解决方案 |
 |---------|------|----------|
 | 命令执行后卡住 | CDP 未连接 | 确认 Chrome 远程调试已启动 |
-| 页面无法加载 | 端口被占用 | 检查 9222 端口是否被占用 |
+| 页面无法加载 | 端口被占用 | 检查端口是否被占用 |
+| js()找不到元素 | 元素还没渲染 | 加 wait_for_load() 等待 |
+| 操作没生效 | 元素状态不对 | 重新探索页面判断 |
+| js()返回空 | 输出被截断 | 用 && echo "done" 确认执行成功 |
 
 ---
 
@@ -303,39 +483,34 @@ curl -s http://localhost:8080/api/events?date=today
 
 6. **发送更新通知（QQ）**
 
-使用 `qq-notify` skill 发送私聊消息：
+使用项目目录的 `send_message.py` 发送私聊消息：
 
 ```python
 import sys
-sys.path.insert(0, '~/.opencode/skills/qq-notify')
+sys.path.insert(0, '/home/gaoming/AI_Planner')
 from send_message import send_private_message
 
 result = send_private_message(
     user_id=2674610176,
-    message='[计划助手更新通知]\n- 修复点1\n- 修复点2\n- 验证结果\n\n仓库: https://github.com/eternitylarva1/schedule_app'
-)
-```
-
-通知模板：
-
-```
-[计划助手更新通知]
+    message='''[计划助手更新通知]
 - 修复点1
 - 修复点2
 - 验证结果
 
-仓库: https://github.com/eternitylarva1/schedule_app
+仓库: https://github.com/eternitylarva1/schedule_app'''
+)
+print(result)
 ```
 
-或使用项目上级目录的 `send_message.py`：
+或直接运行脚本（发送默认测试消息）：
 
 ```bash
-python ../send_message.py
+python3 /home/gaoming/AI_Planner/send_message.py
 ```
 
 通知模板：
 
-```text
+```
 [计划助手更新通知]
 - 修复点1
 - 修复点2

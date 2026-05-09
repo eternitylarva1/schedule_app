@@ -110,3 +110,66 @@ window.ScheduleAppGoals = { renderGoalsView, ... };
 3. **浏览器调试**：使用 `browser-harness` skill，设置 `BU_CDP_URL` 环境变量
 4. **不要暴露 API Key**：AI key 优先从环境变量读取
 5. **QQ 提醒**：每次 commit 并 push 后必须用 qq-notify skill 发送 QQ 通知
+
+## Browser-Harness 使用流程
+
+### 1. 连接已有 Chrome（优先）
+
+用户已打开的 Chrome 可以直接连接，无需启动新窗口：
+
+```bash
+export BU_CDP_URL="http://localhost:9222"
+# 或用户自定义端口
+export BU_CDP_URL="http://localhost:9228"
+```
+
+验证存活：`browser-harness -c 'print(page_info())'`
+
+### 2. 启动新 Chrome（无可用 Chrome 时）
+
+```bash
+# 用 run_background_process 启动（非前台 &）
+run_background_process(
+    command="chromium --remote-debugging-port=9227 --user-data-dir=/tmp/chrome-test",
+    title="Chrome Debug"
+)
+
+# 验证端口监听
+lsof -i:9227
+
+# 连接
+export BU_CDP_URL="http://localhost:9227"
+```
+
+### 3. 验证 Chrome 存活
+
+```bash
+browser-harness -c 'print(page_info())'
+# 正常返回: {'url': '...', 'title': '...', 'w': xxx, 'h': xxx}
+# 如果卡住或超时，说明 Chrome 未正常运行
+```
+
+### 4. 常用命令
+
+```bash
+# 导航 + 等待
+goto_url("http://localhost:8080")
+wait_for_load()
+
+# JS 操作（click / value / querySelector）
+js('document.querySelector("#tabNotepad").click()')
+js('return document.querySelector(".item").textContent')
+
+# 截图（仅必要时）
+capture_screenshot()
+
+# 页面信息
+print(page_info())
+```
+
+### 5. 注意事项
+
+- 用 `run_background_process` 启动 Chrome，不要用前台 `&`
+- js() 返回值为空是正常的（不代表失败），用 `&& echo "done"` 确认执行
+- 先用 `print(page_info())` 验证页面加载，再进行下一步操作
+- 不要每步都截图，只在需要验证时才截
