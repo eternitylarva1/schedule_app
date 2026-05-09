@@ -78,6 +78,7 @@
     };
 
     async function renderNotepadView() {
+        console.log('renderNotepadView: START');
         const state = getState();
         const elements = getElements();
         const utils = getUtils();
@@ -92,6 +93,21 @@
                 { id: 'other', name: '其他', color: '#6B7280' },
             ];
         }
+
+        // Sync notepadSubview from URL hash if present (e.g., #notepad/expense)
+        const hash = window.location.hash;
+        console.log('renderNotepadView: hash=' + hash);
+        if (hash.includes('/expense')) {
+            state.notepadSubview = 'expense';
+            console.log('renderNotepadView: set subview to expense');
+        } else if (hash.includes('/notes')) {
+            state.notepadSubview = 'notes';
+            console.log('renderNotepadView: set subview to notes');
+        } else {
+            console.log('renderNotepadView: no matching hash, keeping default');
+        }
+        
+        console.log('renderNotepadView: after hash sync, subview=' + state.notepadSubview);
 
         // Fetch custom categories from API
         fetchExpenseCategories().catch(err => console.error('Failed to fetch expense categories:', err));
@@ -112,6 +128,8 @@
                 tab.addEventListener('click', async () => {
                     const subtype = tab.dataset.subtype;
                     state.notepadSubview = subtype;
+                    // Sync URL hash
+                    window.location.hash = 'notepad/' + subtype;
                     tabs.forEach((t) => {
                         t.classList.remove('active');
                     });
@@ -188,60 +206,100 @@
         } else {
             await renderExpenseList();
         }
+
+        // Show/hide expense month selector based on subview
+        if (elements.expenseMonthSelector) {
+            if (subtype === 'expense') {
+                elements.expenseMonthSelector.classList.remove('hidden');
+                if (!state.expenseMonthSelectorInitialized) {
+                    initExpenseMonthSelector();
+                    state.expenseMonthSelectorInitialized = true;
+                }
+            } else {
+                elements.expenseMonthSelector.classList.add('hidden');
+            }
+        }
     }
 
-    async function handleNotepadAdd() {
-        const state = getState();
-        const elements = getElements();
-        const { createNote, parseExpenseWithLLM, createExpense, showToast } = getUtils();
+    // Guard flag at module scope to prevent re-entrancy
+    let _isProcessingAdd = false;
+    let _addCallCount = 0;
 
-        const input = elements.notepadInput;
-        if (!input || !input.value.trim()) return;
+    async function handleNotepadAdd() {
+        _addCallCount++;
+        const callId = 'add_' + _addCallCount;
         
-        const text = input.value.trim();
-        input.value = '';
+        if (_isProcessingAdd) {
+            console.log('[' + callId + '] handleNotepadAdd: already processing, skipping');
+            return;
+        }
+        _isProcessingAdd = true;
         
-        if (state.notepadSubview === 'notes') {
-            const result = await createNote(text);
-            if (result) {
-                showToast('笔记已保存');
-                await renderNotesList();
-            }
-        } else {
-            state.isLlmProcessing = true;
-            showToast('AI解析中...');
+        try {
+            const state = getState();
+            const elements = getElements();
+            const { createNote, parseExpenseWithLLM, createExpense, showToast } = getUtils();
+
+            const input = elements.notepadInput;
+            if (!input || !input.value.trim()) return;
             
-            const parsed = await parseExpenseWithLLM(text);
-            if (parsed) {
-                let expenses = [];
-                if (parsed.expenses && Array.isArray(parsed.expenses)) {
-                    expenses = parsed.expenses;
-                } else if (parsed.amount !== undefined) {
-                    expenses = [parsed];
+            const text = input.value.trim();
+            input.value = '';
+            
+            console.log('[' + callId + '] handleNotepadAdd: text=' + text + ', subview=' + state.notepadSubview);
+            
+            if (state.notepadSubview === 'notes') {
+                console.log('[' + callId + '] notes branch');
+                const result = await createNote(text);
+                if (result) {
+                    showToast('笔记已保存');
+                    await renderNotesList();
                 }
+            } else {
+                console.log('[' + callId + '] expense branch, calling parseExpenseWithLLM');
+                state.isLlmProcessing = true;
+                showToast('AI解析中...');
                 
-                if (expenses.length > 0) {
-                    for (const exp of expenses) {
-                        await createExpense({
-                            amount: exp.amount,
-                            category: exp.category,
-                            note: exp.note || text
-                        });
+                const parsed = await parseExpenseWithLLM(text);
+                console.log('[' + callId + '] parseExpenseWithLLM returned:', JSON.stringify(parsed));
+                
+                if (parsed) {
+                    let expenses = [];
+                    if (parsed.expenses && Array.isArray(parsed.expenses)) {
+                        expenses = parsed.expenses;
+                    } else if (parsed.amount !== undefined) {
+                        expenses = [parsed];
                     }
-                    if (expenses.length === 1) {
-                        showToast(`已记录：${expenses[0].amount}元`);
+                    console.log('[' + callId + '] expenses count:', expenses.length);
+                    
+                    if (expenses.length > 0) {
+                        for (const exp of expenses) {
+                            console.log('[' + callId + '] calling createExpense for:', JSON.stringify(exp));
+                            await createExpense({
+                                amount: exp.amount,
+                                category: exp.category,
+                                note: exp.note || text,
+                                expense_date: exp.expense_date || null
+                            });
+                        }
+                        if (expenses.length === 1) {
+                            showToast(`已记录：${expenses[0].amount}元`);
+                        } else {
+                            showToast(`已记录${expenses.length}笔支出`);
+                        }
+                        await renderExpenseList();
                     } else {
-                        showToast(`已记录${expenses.length}笔支出`);
+                        showToast('AI解析失败，请重试');
                     }
-                    await renderExpenseList();
                 } else {
                     showToast('AI解析失败，请重试');
                 }
-            } else {
-                showToast('AI解析失败，请重试');
+                
+                state.isLlmProcessing = false;
             }
-            
-            state.isLlmProcessing = false;
+        } finally {
+            _isProcessingAdd = false;
+            console.log('[' + callId + '] handleNotepadAdd done');
         }
     }
 

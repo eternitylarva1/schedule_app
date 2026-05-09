@@ -346,11 +346,40 @@
         return [];
     }
 
+    // Module-level guard to prevent duplicate calls
+    let _expenseCallCount = 0;
+    let _lastExpenseKey = null;
+    let _lastExpenseTime = 0;
+
     async function createExpense(expenseData) {
-        return await apiCall('expenses', {
+        _expenseCallCount++;
+        const countId = 'call_' + _expenseCallCount;
+        const now = Date.now();
+        const key = JSON.stringify(expenseData);
+        
+        console.log('[' + countId + '] createExpense called, total calls:', _expenseCallCount, 'data:', key);
+        
+        // Debounce: if same data called within 2 seconds, skip
+        if (_lastExpenseKey === key && now - _lastExpenseTime < 2000) {
+            console.log('[' + countId + '] createExpense: DUPLICATE DETECTED, skipping');
+            return null;
+        }
+        _lastExpenseKey = key;
+        _lastExpenseTime = now;
+        
+        const response = await apiCall('expenses', {
             method: 'POST',
             body: JSON.stringify(expenseData)
         });
+        
+        // If API succeeded, reset the debounce timer to allow next call
+        if (response && response.code === 0) {
+            console.log('[' + countId + '] createExpense: success, resetting debounce');
+            _lastExpenseKey = null;
+            _lastExpenseTime = 0;
+        }
+        
+        return response;
     }
 
     async function updateExpense(expenseId, expenseData) {
@@ -376,10 +405,13 @@
     }
 
     async function parseExpenseWithLLM(text) {
-        return await apiCall('llm/parse_expense', {
+        console.log('parseExpenseWithLLM called with:', text);
+        const result = await apiCall('llm/parse_expense', {
             method: 'POST',
             body: JSON.stringify({ text: text })
         });
+        console.log('parseExpenseWithLLM returned:', JSON.stringify(result));
+        return result;
     }
 
     // ============================================

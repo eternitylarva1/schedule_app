@@ -2002,6 +2002,7 @@ async def create_expense(request: web.Request) -> web.Response:
             note=data.get("note", "").strip(),
             budget_id=data.get("budget_id"),
             is_test=bool(data.get("is_test", False)),
+            expense_date=data.get("expense_date"),
         )
         if expense.amount <= 0:
             return error_response("金额必须大于0")
@@ -2513,6 +2514,7 @@ async def llm_parse_expense(request: web.Request) -> web.Response:
                 note=exp_data.get("note", "").strip() or "记账",
                 budget_id=exp_data.get("budget_id"),
                 is_test=bool(exp_data.get("is_test", False)),
+                expense_date=exp_data.get("expense_date"),
             )
             if expense.amount > 0:
                 created = await db.create_expense(expense)

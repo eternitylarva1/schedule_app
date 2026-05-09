@@ -253,9 +253,16 @@ async def init_db() -> None:
                 amount REAL NOT NULL DEFAULT 0,
                 category TEXT DEFAULT 'other',
                 note TEXT DEFAULT '',
+                expense_date TEXT DEFAULT '',
                 created_at TEXT
             )
         """)
+
+        # Migration: add expense_date column if not exists (for existing databases)
+        try:
+            await db.execute("ALTER TABLE expenses ADD COLUMN expense_date TEXT DEFAULT ''")
+        except Exception:
+            pass
 
         # Budgets table for expense budgeting
         await db.execute("""
@@ -1870,17 +1877,37 @@ async def delete_note_conversations(note_id: int) -> bool:
 
 async def create_expense(expense: Expense) -> Expense:
     """Create a new expense."""
-    now = datetime.now().isoformat()
+    now = datetime.now()
+    now_iso = now.isoformat()
+    
+    # Use expense_date if provided, otherwise default to today
+    expense_date = expense.expense_date if expense.expense_date else now.strftime("%Y-%m-%d")
+    
     async with aiosqlite.connect(DB_PATH) as db:
+        # Check for duplicate: same amount, category, note, expense_date within last 10 seconds
+        ten_secs_ago = (now - timedelta(seconds=10)).isoformat()
+        existing = await db.execute(
+            """SELECT id FROM expenses 
+               WHERE amount = ? AND category = ? AND note = ? AND expense_date = ? 
+               AND created_at > ? LIMIT 1""",
+            (expense.amount, expense.category, expense.note, expense_date, ten_secs_ago)
+        )
+        existing_row = await existing.fetchone()
+        if existing_row:
+            # Duplicate found, return existing without creating new
+            expense.id = existing_row[0]
+            expense.created_at = now
+            return expense
+        
         cursor = await db.execute(
-            """INSERT INTO expenses (amount, category, note, budget_id, is_test, created_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO expenses (amount, category, note, budget_id, is_test, expense_date, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (expense.amount, expense.category, expense.note, expense.budget_id, 
-             1 if expense.is_test else 0, now),
+             1 if expense.is_test else 0, expense_date, now_iso),
         )
         await db.commit()
         expense.id = cursor.lastrowid
-        expense.created_at = datetime.now()
+        expense.created_at = now
     return expense
 
 

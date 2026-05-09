@@ -225,6 +225,7 @@ class Expense:
     note: str = ""
     budget_id: int | None = None
     is_test: bool = False
+    expense_date: str | None = None  # YYYY-MM-DD format, defaults to today
     created_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
