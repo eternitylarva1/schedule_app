@@ -315,3 +315,33 @@ class Budget:
             d["rollover_amount"] = float(d["rollover_amount"])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
+
+
+@dataclass
+class OperationLog:
+    """Operation log for tracking entity changes (expenses, goals, notes, etc.)."""
+    id: int | None = None
+    entity_type: str = ""           # 'expense', 'goal', 'note', etc.
+    entity_id: int | None = None   # ID of the affected entity
+    operation: str = ""             # 'create', 'update', 'delete', 'restore'
+    old_data: str = ""              # JSON string of previous state
+    new_data: str = ""              # JSON string of new state
+    field_changes: str = ""         # JSON array of field changes
+    expense_date: str | None = None # YYYY-MM-DD, for date range queries
+    created_at: datetime | None = None
+    operator: str = "user"          # Future: multi-user support
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        d = asdict(self)
+        if d.get("created_at") and isinstance(d["created_at"], datetime):
+            d["created_at"] = d["created_at"].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "OperationLog":
+        """Create OperationLog from dictionary."""
+        if d.get("created_at") and isinstance(d.get("created_at"), str):
+            d["created_at"] = datetime.fromisoformat(d["created_at"])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)

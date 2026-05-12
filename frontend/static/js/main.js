@@ -5287,6 +5287,16 @@
             loadEventModifications();
         });
         
+        // Expense Operation Logs in Settings
+        document.getElementById('openExpenseHistoryBtn')?.addEventListener('click', () => {
+            loadExpenseOperationLogs();
+        });
+        
+        // Deleted Expenses in Settings
+        document.getElementById('openDeletedExpensesBtn')?.addEventListener('click', () => {
+            loadDeletedExpenses();
+        });
+        
         // AI Provider modal events
         elements.addAiProviderBtn?.addEventListener('click', () => openAiProviderModal());
         elements.aiProviderBackdrop?.addEventListener('click', closeAiProviderModal);
@@ -5797,10 +5807,116 @@
         }
     }
     
+    // Load expense operation logs for Settings
+    async function loadExpenseOperationLogs() {
+        const list = document.getElementById('expenseHistoryList');
+        if (!list) return;
+        list.style.display = 'block';
+        list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
+        try {
+            const resp = await fetch('/api/expense-operation-logs?limit=100');
+            const json = await resp.json();
+            if (json.code === 0 && json.data && json.data.length > 0) {
+                list.innerHTML = json.data.slice(0, 50).map(log => {
+                    const time = log.created_at ? new Date(log.created_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    const expDate = log.expense_date || '';
+                    const opIcon = log.operation === 'create' ? '✨' : log.operation === 'update' ? '📝' : log.operation === 'delete' ? '🗑️' : log.operation === 'restore' ? '♻️' : '📋';
+                    const opText = log.operation === 'create' ? '创建' : log.operation === 'update' ? '修改' : log.operation === 'delete' ? '删除' : log.operation === 'restore' ? '恢复' : log.operation;
+                    
+                    let detail = '';
+                    try {
+                        const newData = log.new_data ? JSON.parse(log.new_data) : null;
+                        if (newData) {
+                            detail = `¥${newData.amount || 0} · ${newData.category || ''} · ${newData.note || '(无备注)'}`;
+                        }
+                    } catch {}
+                    
+                    return `<div class="expense-history-item" style="padding:8px;border-bottom:1px solid var(--border-color);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:14px;">${opIcon} ${opText}</span>
+                            <span style="font-size:11px;color:var(--text-secondary);">${time}</span>
+                        </div>
+                        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${detail}</div>
+                        ${log.operation === 'update' ? `<button class="btn btn-secondary" style="margin-top:4px;font-size:11px;padding:2px 8px;" onclick="undoExpenseOperation(${log.id})">撤销此修改</button>` : ''}
+                    </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">暂无支出操作记录</div>';
+            }
+        } catch {
+            list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--color-danger);font-size:12px;">加载失败</div>';
+        }
+    }
+    
+    // Undo an expense operation
+    async function undoExpenseOperation(logId) {
+        try {
+            const resp = await fetch('/api/expense-operation-logs/' + logId + '/undo', { method: 'POST' });
+            const json = await resp.json();
+            if (json.code === 0) {
+                showToast('✅ 已撤销修改');
+                loadExpenseOperationLogs();
+                loadData();
+            } else {
+                showToast('❌ ' + (json.message || '撤销失败'));
+            }
+        } catch {
+            showToast('❌ 撤销失败');
+        }
+    }
+    
+    // Load deleted expenses for Settings
+    async function loadDeletedExpenses() {
+        const list = document.getElementById('deletedExpensesList');
+        if (!list) return;
+        list.style.display = 'block';
+        list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
+        try {
+            const resp = await fetch('/api/deleted-expenses');
+            const json = await resp.json();
+            if (json.code === 0 && json.data && json.data.length > 0) {
+                list.innerHTML = json.data.slice(0, 50).map(e => {
+                    const deletedAt = e.deleted_at ? new Date(e.deleted_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    return `<div class="deleted-expense-item" style="padding:8px;border-bottom:1px solid var(--border-color);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:14px;">¥${e.amount || 0}</span>
+                            <span style="font-size:11px;color:var(--text-secondary);">删除于 ${deletedAt}</span>
+                        </div>
+                        <div style="font-size:12px;color:var(--text-muted);">${e.category || ''} · ${e.note || '(无备注)'}</div>
+                        <button class="btn btn-primary" style="margin-top:4px;font-size:11px;padding:2px 8px;" onclick="restoreDeletedExpense(${e.id})">恢复</button>
+                    </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">暂无已删除的支出</div>';
+            }
+        } catch {
+            list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--color-danger);font-size:12px;">加载失败</div>';
+        }
+    }
+    
+    // Restore a deleted expense
+    async function restoreDeletedExpense(deletedId) {
+        try {
+            const resp = await fetch('/api/deleted-expenses/' + deletedId + '/restore', { method: 'POST' });
+            const json = await resp.json();
+            if (json.code === 0) {
+                showToast('✅ 已恢复支出');
+                loadDeletedExpenses();
+                loadData();
+            } else {
+                showToast('❌ ' + (json.message || '恢复失败'));
+            }
+        } catch {
+            showToast('❌ 恢复失败');
+        }
+    }
+    
     // Expose functions to global scope for onclick handlers
     window.restoreDeletedEvent = restoreDeletedEvent;
     window.permanentDeleteEvent = permanentDeleteEvent;
     window.undoEventModification = undoEventModification;
+    window.undoExpenseOperation = undoExpenseOperation;
+    window.restoreDeletedExpense = restoreDeletedExpense;
 
     // Apply module overrides - use functions from budget.js
     const {

@@ -369,6 +369,38 @@ async def init_db() -> None:
             )
         """)
         
+        # Operation logs table (extensible: expenses, goals, notes, etc.)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS operation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL DEFAULT '',
+                entity_id INTEGER,
+                operation TEXT NOT NULL DEFAULT '',
+                old_data TEXT DEFAULT '',
+                new_data TEXT DEFAULT '',
+                field_changes TEXT DEFAULT '',
+                expense_date TEXT DEFAULT '',
+                created_at TEXT,
+                operator TEXT DEFAULT 'user'
+            )
+        """)
+        
+        # Deleted expenses table (soft delete for recovery)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS deleted_expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                original_id INTEGER,
+                amount REAL NOT NULL DEFAULT 0,
+                category TEXT DEFAULT 'other',
+                note TEXT DEFAULT '',
+                expense_date TEXT DEFAULT '',
+                budget_id INTEGER,
+                is_test INTEGER DEFAULT 0,
+                created_at TEXT,
+                deleted_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         await db.commit()
 
 
@@ -2004,11 +2036,184 @@ async def update_expense(expense_id: int, expense: Expense) -> Optional[Expense]
 
 
 async def delete_expense(expense_id: int) -> bool:
-    """Delete an expense."""
+    """Delete an expense (hard delete)."""
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
         await db.commit()
         return cursor.rowcount > 0
+
+
+async def soft_delete_expense(expense_id: int) -> bool:
+    """Soft delete an expense by moving to deleted_expenses table."""
+    expense = await get_expense(expense_id)
+    if not expense:
+        return False
+    
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """INSERT INTO deleted_expenses 
+               (original_id, amount, category, note, expense_date, budget_id, is_test, created_at, deleted_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (expense.id, expense.amount, expense.category, expense.note, 
+             expense.expense_date or '', expense.budget_id, 1 if expense.is_test else 0,
+             expense.created_at.isoformat() if expense.created_at else now, now),
+        )
+        await db.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))
+        await db.commit()
+    return True
+
+
+async def restore_expense(deleted_expense_id: int) -> Optional[Expense]:
+    """Restore a soft-deleted expense."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM deleted_expenses WHERE id = ?", (deleted_expense_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+        
+        # Restore to expenses table with same original_id if possible
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            """INSERT INTO expenses (id, amount, category, note, expense_date, budget_id, is_test, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (row["original_id"], row["amount"], row["category"], row["note"],
+             row["expense_date"], row["budget_id"], row["is_test"], row["created_at"]),
+        )
+        await db.commit()
+        new_id = cursor.lastrowid
+        
+        # Remove from deleted_expenses
+        await db.execute("DELETE FROM deleted_expenses WHERE id = ?", (deleted_expense_id,))
+        await db.commit()
+        
+        return await get_expense(int(new_id))
+
+
+async def get_deleted_expenses() -> List[dict]:
+    """Get all soft-deleted expenses."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM deleted_expenses ORDER BY deleted_at DESC") as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def log_operation(
+    entity_type: str,
+    entity_id: int,
+    operation: str,
+    old_data: dict | None,
+    new_data: dict | None,
+    field_changes: list[dict] | None = None,
+    expense_date: str | None = None,
+    operator: str = "user"
+) -> int:
+    """Create an operation log entry."""
+    import json
+    now = datetime.now()
+    now_iso = now.isoformat()
+    
+    old_json = json.dumps(old_data) if old_data else ''
+    new_json = json.dumps(new_data) if new_data else ''
+    changes_json = json.dumps(field_changes) if field_changes else ''
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO operation_logs 
+               (entity_type, entity_id, operation, old_data, new_data, field_changes, expense_date, created_at, operator)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (entity_type, entity_id, operation, old_json, new_json, changes_json, 
+             expense_date or '', now_iso, operator),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+async def get_operation_logs(
+    entity_type: str = "expense",
+    operation: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0
+) -> List[dict]:
+    """Get operation logs with filters."""
+    import json
+    
+    conditions = ["entity_type = ?"]
+    params = [entity_type]
+    
+    if operation:
+        conditions.append("operation = ?")
+        params.append(operation)
+    
+    if start_date:
+        conditions.append("expense_date >= ?")
+        params.append(start_date)
+    
+    if end_date:
+        conditions.append("expense_date <= ?")
+        params.append(end_date)
+    
+    if search:
+        conditions.append("(old_data LIKE ? OR new_data LIKE ?)")
+        params.append(f"%{search}%")
+        params.append(f"%{search}%")
+    
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            f"""SELECT * FROM operation_logs 
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?""",
+            params + [limit, offset],
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+
+async def get_operation_log(log_id: int) -> Optional[dict]:
+    """Get a single operation log by ID."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM operation_logs WHERE id = ?", (log_id,)) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def get_expense_operation_logs(expense_id: int) -> List[dict]:
+    """Get all operation logs for a specific expense."""
+    return await get_operation_logs(entity_type="expense", search=None, limit=100)
+
+
+async def undo_expense_operation(log_id: int) -> Optional[Expense]:
+    """Undo an expense operation by restoring to old_data state."""
+    import json
+    
+    log = await get_operation_log(log_id)
+    if not log or log["entity_type"] != "expense":
+        return None
+    
+    if log["operation"] == "update" and log["old_data"]:
+        old_data = json.loads(log["old_data"])
+        expense = Expense(
+            id=log["entity_id"],
+            amount=old_data.get("amount", 0),
+            category=old_data.get("category", "other"),
+            note=old_data.get("note", ""),
+            budget_id=old_data.get("budget_id"),
+            is_test=old_data.get("is_test", False),
+            expense_date=old_data.get("expense_date"),
+        )
+        return await update_expense(log["entity_id"], expense)
+    
+    return None
 
 
 async def get_expenses_by_note(keyword: str) -> List[Expense]:
