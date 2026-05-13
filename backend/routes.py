@@ -2860,6 +2860,13 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_delete("/api/ai-providers/{id}", delete_ai_provider)
     app.router.add_put("/api/ai-providers/{id}/activate", activate_ai_provider)
     
+    # LLM endpoints
+    app.router.add_post("/api/llm/chat", llm_chat)
+    app.router.add_post("/api/llm/create", llm_create)
+    app.router.add_post("/api/llm/command", llm_command)
+    app.router.add_post("/api/llm/breakdown", llm_breakdown)
+    app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
+    
     # User Contexts (我的现状)
     app.router.add_get("/api/user-contexts", get_user_contexts)
     app.router.add_post("/api/user-contexts", create_user_context)
