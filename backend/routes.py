@@ -2621,6 +2621,26 @@ async def cleanup_test_entries(request: web.Request) -> web.Response:
         return error_response(f"清理测试条目失败: {str(e)}")
 
 
+async def test_qq_channel(request: web.Request) -> web.Response:
+    """POST /api/test-qq-channel - send test message to QQ to verify channel."""
+    try:
+        import sys
+        sys.path.insert(0, '/home/gaoming/AI_Planner')
+        from send_message import send_private_message
+        
+        result = send_private_message(
+            user_id=2674610176,
+            message='[计划助手] 这是一条测试消息，验证 QQ 信道是否通畅。'
+        )
+        
+        if result and result.get('status') == 'ok':
+            return json_response({"code": 0, "message": "测试消息已发送"})
+        else:
+            return json_response({"code": -1, "message": result.get('message', '发送失败')})
+    except Exception as e:
+        return json_response({"code": -1, "message": str(e)})
+
+
 async def llm_parse_expense(request: web.Request) -> web.Response:
     """POST /api/llm/parse_expense - parse natural language expense into structured data.
     
@@ -2831,44 +2851,8 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/api/settings", get_settings)
     app.router.add_put("/api/settings/{key}", update_setting)
     app.router.add_post("/api/settings/cleanup_test_entries", cleanup_test_entries)
-    # LLM endpoints
-    app.router.add_post("/api/llm/chat", llm_chat)
-    app.router.add_post("/api/llm/create", llm_create)
-    app.router.add_post("/api/llm/command", llm_command)
-    app.router.add_post("/api/llm/breakdown", llm_breakdown)
-    app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
-    # Notes endpoints
-    app.router.add_get("/api/notes", get_notes)
-    app.router.add_post("/api/notes", create_note)
-    app.router.add_put("/api/notes/{id}", update_note)
-    app.router.add_delete("/api/notes/{id}", delete_note)
-    # Note groups endpoints
-    app.router.add_get("/api/note-groups", get_note_groups)
-    app.router.add_post("/api/note-groups", create_note_group)
-    app.router.add_put("/api/note-groups/{id}", update_note_group)
-    app.router.add_delete("/api/note-groups/{id}", delete_note_group)
-    # Note conversations (AI chat) endpoints
-    app.router.add_get("/api/notes/{note_id}/conversations", get_note_conversations)
-    app.router.add_post("/api/notes/{note_id}/chat", chat_note)
-    app.router.add_delete("/api/notes/{note_id}/conversations", delete_note_conversations)
-    # Expenses endpoints
-    app.router.add_get("/api/expenses", get_expenses)
-    app.router.add_post("/api/expenses", create_expense)
-    app.router.add_put("/api/expenses/{id}", update_expense)
-    app.router.add_delete("/api/expenses/{id}", delete_expense)
-    app.router.add_get("/api/expenses/stats", get_expense_stats)
-    app.router.add_get("/api/expenses/categories", get_expense_categories)
-    app.router.add_post("/api/expenses/categories", create_expense_category)
-    app.router.add_put("/api/expenses/categories/{id}", update_expense_category)
-    app.router.add_delete("/api/expenses/categories/{id}", delete_expense_category)
-
-    # Operation logs (expense history)
-    app.router.add_get("/api/expense-operation-logs", get_expense_operation_logs)
-    app.router.add_get("/api/expense-operation-logs/{id}", get_expense_operation_log_detail)
-    app.router.add_post("/api/expense-operation-logs/{id}/undo", undo_expense_operation_log)
-    app.router.add_get("/api/deleted-expenses", get_deleted_expenses_list)
-    app.router.add_post("/api/deleted-expenses/{id}/restore", restore_deleted_expense)
-
+    app.router.add_post("/api/test-qq-channel", test_qq_channel)
+    
     # AI Providers
     app.router.add_get("/api/ai-providers", get_ai_providers)
     app.router.add_post("/api/ai-providers", create_ai_provider)

@@ -4267,6 +4267,21 @@
         }
     }
 
+    async function handleTestQQChannel() {
+        showToast('正在发送测试消息...');
+        try {
+            const response = await fetch('/api/test-qq-channel', { method: 'POST' });
+            const json = await response.json();
+            if (json.code === 0) {
+                showToast('✅ QQ 信道测试成功');
+            } else {
+                showToast('❌ ' + (json.message || '发送失败'));
+            }
+        } catch {
+            showToast('❌ QQ 信道测试失败');
+        }
+    }
+
     async function handleCleanupTestEntries() {
         const confirmed = await showConfirm('确定一键清理测试条目吗？\n将删除包含“测试/test/demo/debug/样例/示例/tmp/临时”等关键词的日程、笔记和记账条目。');
         if (!confirmed) return;
@@ -5267,6 +5282,7 @@
         elements.defaultTaskReminderEnabled.addEventListener('change', handleDefaultTaskReminderToggle);
         elements.autoAssignBudgetFromLlm.addEventListener('change', handleAutoAssignBudgetToggle);
         document.getElementById('cleanupTestEntriesBtn')?.addEventListener('click', handleCleanupTestEntries);
+        document.getElementById('testQQChannelBtn')?.addEventListener('click', handleTestQQChannel);
         document.getElementById('semanticHelpBtn')?.addEventListener('click', showSemanticHelpModal);
         elements.openUserContextBtn?.addEventListener('click', () => {
             openUserContextModal();
