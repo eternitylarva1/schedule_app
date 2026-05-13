@@ -4795,6 +4795,11 @@
             else showToast('✅ 已执行');
         }
 
+        // 成功后清空输入框
+        if (elements.llmInput) {
+            elements.llmInput.value = '';
+        }
+
         await loadData();
         return true;
     }
@@ -4832,6 +4837,10 @@
                 console.error('LLM Error:', error);
                 showToast(`❌ 执行失败: ${error.message || '未知错误'}`);
                 state.llmCycleFailed += 1;
+                // 失败时把文本还原到输入框，方便用户修改重试
+                if (request && request.text && elements.llmInput) {
+                    elements.llmInput.value = request.text;
+                }
                 }
             } finally {
                 state.llmCycleDone += 1;
@@ -4866,9 +4875,9 @@
         state.llmLastSubmittedText = text;
         
         enqueueLlmRequest(text);
-        // 清空输入框
-        elements.llmInput.value = '';
-        elements.llmInput.focus();
+        // 清空输入框（等成功后再清，避免失败后内容丢失）
+        // elements.llmInput.value = '';
+        // elements.llmInput.focus();
     }
 
     // ============================================
