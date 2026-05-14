@@ -2867,6 +2867,19 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/llm/breakdown", llm_breakdown)
     app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
     
+    # Notes endpoints
+    app.router.add_get("/api/notes", get_notes)
+    app.router.add_post("/api/notes", create_note)
+    app.router.add_put("/api/notes/{id}", update_note)
+    app.router.add_delete("/api/notes/{id}", delete_note)
+    app.router.add_get("/api/notes/{note_id}/conversations", get_note_conversations)
+    app.router.add_post("/api/notes/{note_id}/chat", chat_note)
+    app.router.add_delete("/api/notes/{note_id}/conversations", delete_note_conversations)
+    app.router.add_get("/api/note-groups", get_note_groups)
+    app.router.add_post("/api/note-groups", create_note_group)
+    app.router.add_put("/api/note-groups/{id}", update_note_group)
+    app.router.add_delete("/api/note-groups/{id}", delete_note_group)
+    
     # User Contexts (我的现状)
     app.router.add_get("/api/user-contexts", get_user_contexts)
     app.router.add_post("/api/user-contexts", create_user_context)
