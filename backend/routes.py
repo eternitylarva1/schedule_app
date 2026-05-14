@@ -2867,6 +2867,12 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/llm/breakdown", llm_breakdown)
     app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
     
+    # Expense CRUD endpoints
+    app.router.add_get("/api/expenses", get_expenses)
+    app.router.add_post("/api/expenses", create_expense)
+    app.router.add_put("/api/expenses/{id}", update_expense)
+    app.router.add_delete("/api/expenses/{id}", delete_expense)
+    
     # Notes endpoints
     app.router.add_get("/api/notes", get_notes)
     app.router.add_post("/api/notes", create_note)
