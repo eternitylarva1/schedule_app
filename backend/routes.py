@@ -2886,6 +2886,19 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_put("/api/user-contexts/{id}", update_user_context)
     app.router.add_delete("/api/user-contexts/{id}", delete_user_context)
     app.router.add_put("/api/user-contexts/reorder", reorder_user_contexts)
+    
+    # Expense operation logs endpoints
+    app.router.add_get("/api/expense-operation-logs", get_expense_operation_logs)
+    app.router.add_get("/api/expense-operation-logs/{id}", get_expense_operation_log_detail)
+    app.router.add_post("/api/expense-operation-logs/{id}/undo", undo_expense_operation_log)
+    app.router.add_get("/api/deleted-expenses", get_deleted_expenses_list)
+    app.router.add_post("/api/deleted-expenses/{id}/restore", restore_deleted_expense)
+    app.router.add_get("/api/expenses/stats", get_expense_stats)
+    app.router.add_get("/api/expenses/categories", get_expense_categories)
+    app.router.add_post("/api/expenses/categories", create_expense_category)
+    app.router.add_put("/api/expenses/categories/{id}", update_expense_category)
+    app.router.add_delete("/api/expenses/categories/{id}", delete_expense_category)
+    
     # Budgets endpoints
     app.router.add_get("/api/budgets", get_budgets)
     app.router.add_post("/api/budgets", create_budget)
