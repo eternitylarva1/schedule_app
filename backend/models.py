@@ -28,7 +28,7 @@ class Event:
         """Convert to dictionary."""
         d = asdict(self)
         # Convert datetime to ISO string
-        for key in ['start_time', 'end_time', 'created_at', 'updated_at']:
+        for key in ['start_time', 'end_time', 'created_at', 'updated_at', 'completed_at']:
             if d.get(key) and isinstance(d[key], datetime):
                 d[key] = d[key].isoformat()
         return d
@@ -37,7 +37,7 @@ class Event:
     def from_dict(cls, d: dict[str, Any]) -> "Event":
         """Create Event from dictionary."""
         # Parse datetime fields
-        for key in ['start_time', 'end_time', 'created_at', 'updated_at']:
+        for key in ['start_time', 'end_time', 'created_at', 'updated_at', 'completed_at']:
             if d.get(key) and isinstance(d[key], str):
                 d[key] = datetime.fromisoformat(d[key])
         # Parse boolean fields

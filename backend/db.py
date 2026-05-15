@@ -593,8 +593,9 @@ async def get_event(event_id: int) -> Optional[Event]:
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                 reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row_keys and row["reminder_enabled"] is not None else False,
                 reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row_keys and row["reminder_minutes"] is not None else 1,
-                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row_keys and row["reminder_sent"] is not None else False,
+reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row_keys and row["reminder_sent"] is not None else False,
                 is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
+                completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
             )
 
 
@@ -609,7 +610,8 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
             """UPDATE events SET 
                title = ?, start_time = ?, end_time = ?, category_id = ?, 
                all_day = ?, recurrence = ?, status = ?, updated_at = ?,
-               reminder_enabled = ?, reminder_minutes = ?, reminder_sent = ?, is_test = ?
+               reminder_enabled = ?, reminder_minutes = ?, reminder_sent = ?, is_test = ?,
+               completed_at = ?
                WHERE id = ?""",
             (
                 event.title,
@@ -624,6 +626,7 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
                 event.reminder_minutes,
                 1 if event.reminder_sent else 0,
                 1 if event.is_test else 0,
+                event.completed_at.isoformat() if event.completed_at else None,
                 event_id,
             ),
         )
@@ -1200,9 +1203,12 @@ async def delete_learning_pattern(pattern_id: int) -> bool:
 async def get_learning_stats() -> dict:
     """Get learning system statistics."""
     async with aiosqlite.connect(DB_PATH) as db:
-        duration_count = (await db.execute("SELECT COUNT(*) FROM task_durations")).fetchone()[0]
-        pattern_count = (await db.execute("SELECT COUNT(*) FROM learning_patterns")).fetchone()[0]
-        avg_actual = (await db.execute("SELECT AVG(actual_minutes) FROM task_durations WHERE actual_minutes IS NOT NULL")).fetchone()[0]
+        cur1 = await db.execute("SELECT COUNT(*) FROM task_durations")
+        duration_count = (await cur1.fetchone())[0]
+        cur2 = await db.execute("SELECT COUNT(*) FROM learning_patterns")
+        pattern_count = (await cur2.fetchone())[0]
+        cur3 = await db.execute("SELECT AVG(actual_minutes) FROM task_durations WHERE actual_minutes IS NOT NULL")
+        avg_actual = (await cur3.fetchone())[0]
         return {
             "total_records": duration_count,
             "total_patterns": pattern_count,
@@ -1212,20 +1218,56 @@ async def get_learning_stats() -> dict:
 
 async def batch_complete_events(start: datetime | None = None, end: datetime | None = None) -> int:
     """Batch mark events as done. Returns affected row count."""
+    now = datetime.now()
     async with aiosqlite.connect(DB_PATH) as db:
+        if start and end:
+            # Get matching events first for duration recording
+            rows = await db.execute(
+                "SELECT * FROM events WHERE start_time >= ? AND start_time < ? AND status != 'done'",
+                (start.isoformat(), end.isoformat())
+            )
+        else:
+            rows = await db.execute(
+                "SELECT * FROM events WHERE status != 'done'"
+            )
+        events = await rows.fetchall()
+        
+        if not events:
+            return 0
+        
+        # Record durations for all events being completed
+        for event_row in events:
+            event_start = datetime.fromisoformat(event_row['start_time']) if event_row['start_time'] else None
+            estimated = None
+            if event_start and event_row['end_time']:
+                event_end = datetime.fromisoformat(event_row['end_time'])
+                estimated = int((event_end - event_start).total_seconds() / 60)
+            
+            actual = int((now - event_start).total_seconds() / 60) if event_start else None
+            
+            # Record duration if we have a start_time
+            if event_start:
+                await db.execute(
+                    """INSERT INTO task_durations (title, category_id, estimated_minutes, actual_minutes, start_time, completed_at, created_at, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (event_row['title'].lower().strip(), event_row['category_id'] or 'work', estimated,
+                     actual if actual is not None and actual >= 0 else None, event_start.isoformat(), now.isoformat(), now.isoformat(), 'done')
+                )
+        
+        # Now batch update
         if start and end:
             cursor = await db.execute(
                 """UPDATE events
-                   SET status = 'done', updated_at = ?
+                   SET status = 'done', updated_at = ?, completed_at = ?
                    WHERE start_time >= ? AND start_time < ? AND status != 'done'""",
-                (datetime.now().isoformat(), start.isoformat(), end.isoformat()),
+                (now.isoformat(), now.isoformat(), start.isoformat(), end.isoformat())
             )
         else:
             cursor = await db.execute(
                 """UPDATE events
-                   SET status = 'done', updated_at = ?
+                   SET status = 'done', updated_at = ?, completed_at = ?
                    WHERE status != 'done'""",
-                (datetime.now().isoformat(),),
+                (now.isoformat(), now.isoformat())
             )
         await db.commit()
         return cursor.rowcount or 0
