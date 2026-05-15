@@ -333,7 +333,27 @@
             if (b === DONE_KEY) return -1;
             if (a === NO_TIME_KEY) return -1;
             if (b === NO_TIME_KEY) return 1;
-            return a.localeCompare(b);
+            // Put past dates (before today) after today, but before future dates
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const parseDateKey = (key) => {
+                const [y, m, d] = key.split('-').map(Number);
+                return new Date(y, m - 1, d);
+            };
+            const dateA = parseDateKey(a);
+            const dateB = parseDateKey(b);
+            const isPastA = dateA < today;
+            const isPastB = dateB < today;
+            const isTodayA = isSameDay(dateA, today);
+            const isTodayB = isSameDay(dateB, today);
+            // Today always first among non-NO_TIME groups
+            if (isTodayA && !isTodayB) return -1;
+            if (isTodayB && !isTodayA) return 1;
+            // Past goes after today (but before future)
+            if (isPastA && !isPastB) return 1;
+            if (isPastB && !isPastA) return -1;
+            // Both past or both future - sort by date
+            return dateA - dateB;
         });
         
         let doneCount = 0;
@@ -376,7 +396,10 @@
             
             const groupEl = document.createElement('div');
             groupEl.className = 'todo-date-group' + (isDoneGroup ? ' todo-date-group-done' : '');
-            groupEl.innerHTML = `<div class="todo-date-header">${dateLabel}</div>`;
+            groupEl.dataset.dateKey = dateKey;
+            const selectAllBtn = !isNoTimeGroup && !isDoneGroup ?
+                `<button class="todo-select-all-btn" data-date-key="${dateKey}">全选</button>` : '';
+            groupEl.innerHTML = `<div class="todo-date-header"><span class="todo-date-label">${dateLabel}</span>${selectAllBtn}</div>`;
             
             events.forEach(event => {
                 const isSelected = state.selectionMode.todoIds.has(String(event.id));
@@ -734,6 +757,42 @@
             });
             
             container.appendChild(groupEl);
+        });
+        
+        // Bind select-all buttons
+        container.querySelectorAll('.todo-select-all-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const dateKey = btn.dataset.dateKey;
+                const group = container.querySelector(`.todo-date-group[data-date-key="${dateKey}"]`);
+                if (!group) return;
+                const eventIds = Array.from(group.querySelectorAll('.todo-item'))
+                    .map(el => el.dataset.eventId)
+                    .filter(id => {
+                        const e = allEvents.find(ev => String(ev.id) === String(id));
+                        return e && e.status !== 'done';
+                    });
+                if (eventIds.length === 0) {
+                    showToast('该日期没有待完成项');
+                    return;
+                }
+                eventIds.forEach(id => {
+                    if (!state.selectionMode.todoIds.has(String(id))) {
+                        toggleSelection('todo', id);
+                    }
+                });
+                // Apply visual to all items in this group
+                group.querySelectorAll('.todo-item').forEach(el => {
+                    el.classList.add('selection-mode');
+                    const cb = el.querySelector('.todo-checkbox');
+                    if (cb) {
+                        const isSelected = state.selectionMode.todoIds.has(el.dataset.eventId);
+                        cb.classList.toggle('selected', isSelected);
+                        el.classList.toggle('selected', isSelected);
+                    }
+                });
+                renderSelectionBar('todo');
+            });
         });
         
         // 恢复滚动位置
