@@ -81,41 +81,26 @@ curl -s http://localhost:8080/api/events?date=today
 
 ### 2.4 浏览器自动化操作（browser-harness skill）
 
-使用 `browser-harness` skill 进行前端自动化操作。
+> 通用操作规范见 `browser-harness` skill。以下为本项目特定配置。
 
-**第一步：优先连接已有 Chrome**
+**连接已有 Chrome（优先）：**
 ```bash
 export BU_CDP_URL="http://localhost:9222"  # 或 9228
 browser-harness -c 'print(page_info())'
 ```
-如果返回页面信息，说明已有 Chrome 可用。
 
-**第二步：无可用 Chrome 时启动新的**
-
-用 `run_background_process` 启动 Chrome（后台运行，不是前台 `&`）：
+**启动新 Chrome（无可用时）：**
 ```bash
 run_background_process(
     command="chromium --remote-debugging-port=9227 --user-data-dir=/tmp/chrome-test",
     title="Chrome Debug"
 )
-# 或指定端口
-run_background_process(
-    command="chromium --remote-debugging-port=9228 --user-data-dir=/tmp/chrome-test",
-    title="Chrome Debug"
-)
 ```
 
-**验证 Chrome 存活：**
+**验证存活：**
 ```bash
-lsof -i:9227  # 检查端口是否在监听
+lsof -i:9227
 browser-harness -c 'print(page_info())'
-# 正常返回: {'url': '...', 'title': '...', 'w': xxx, 'h': xxx}
-```
-
-**Setup（连接 Chrome）：**
-```bash
-export BU_CDP_URL="http://localhost:9227"  # Linux/Mac
-# Windows: $env:BU_CDP_URL = "http://127.0.0.1:9227"
 ```
 
 ---
@@ -130,7 +115,7 @@ export BU_CDP_URL="http://localhost:9227"  # Linux/Mac
 │    ↓                                                    │
 │ 执行操作（js() click / value / ...）                    │
 │    ↓                                                    │
-│ 验证结果（js()查询状态 / 截图读取 / API验证）            │
+│ 验证结果（js()查询状态 / API验证 / 截图读取）            │
 │    ↓                                                    │
 │ 结果符合预期? ──否──→ 重新探索页面 → 继续操作            │
 │    │                                                  │
@@ -234,11 +219,11 @@ if result != 'expected':
     # 验证失败，重新探索
     page_text = js('document.body.innerText')
 
-# 方法B: 截图读取（找不到元素时用）
+# 方法B: 截图读取（js()完全无法工作时的最后手段）
 capture_screenshot()
 read /tmp/shot.png  # AI自行读取判断
 
-# 方法C: API验证后端
+# 方法C: API验证后端（最可靠）
 curl -s http://localhost:8080/api/endpoint
 ```
 
@@ -280,15 +265,15 @@ import time; time.sleep(0.5)
 
 # ===== 步骤3: 验证结果 =====
 # 验证操作是否成功
-modal_display = js('window.getComputedStyle(document.getElementById(\"modal\")).display')
+modal_display = js('window.getComputedStyle(document.getElementById("modal")).display')
 print('Modal状态:', modal_display)
 
-# ===== 步骤4: 截图读取（备用） =====
-capture_screenshot()
-# read /tmp/shot.png
-
-# ===== 步骤5: API验证（最终确认） =====
+# ===== 步骤4: API验证（最终确认，推荐） =====
 # curl -s http://localhost:8080/api/endpoint
+
+# ===== 步骤5: 截图备用（仅当js()无法定位元素时） =====
+# capture_screenshot()
+# read /tmp/shot.png
 
 print('=== 任务完成 ===')
 "
@@ -302,8 +287,8 @@ print('=== 任务完成 ===')
 |---------|------|
 | **第一步必做** | 先探索页面，再决定操作 |
 | **验证是核心** | 每步操作后都要验证，不验证不知道成功没 |
-| **验证失败要重试** | 操作没生效时，重新探索页面判断状态 |
-| **截图是验证手段之一** | 不是必须，只有js()不行时才用 |
+| **验证失败要重试** | 操作没生效时，重新探索页面判断状态，再决定是重试操作还是换一种定位方式 |
+| **验证优先级** | js()查询 > API验证 > 截图读取，截图仅在 js() 完全无法定位元素时使用 |
 | **用js()内直接.click()** | 不用 click_at_xy() 坐标点击 |
 | **IIFE写法** | 避免变量名冲突：`(function() { ... })()` |
 | **用 goto_url()** | 在自动化测试标签页中导航，不会覆盖用户标签 |

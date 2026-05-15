@@ -246,6 +246,32 @@
                             <button class="btn btn-secondary" id="addAiProviderBtn" style="margin-top: var(--space-sm);">+ 添加 AI</button>
                         </div>
 
+                        <!-- AI 学习 -->
+                        <div class="settings-section">
+                            <div class="settings-section-title">🧠 AI 学习</div>
+                            <div class="learning-stats">
+                                <div class="learning-stat-item">
+                                    <span class="learning-stat-label">任务记录</span>
+                                    <span class="learning-stat-value" id="learningTaskCount">-</span>
+                                </div>
+                                <div class="learning-stat-item">
+                                    <span class="learning-stat-label">学到的规律</span>
+                                    <span class="learning-stat-value" id="learningPatternCount">-</span>
+                                </div>
+                                <div class="learning-stat-item">
+                                    <span class="learning-stat-label">平均耗时</span>
+                                    <span class="learning-stat-value" id="learningAvgDuration">-</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" id="startLearningBtn" style="width: 100%; margin-bottom: var(--space-md);">
+                                🔍 分析任务规律
+                            </button>
+                            <div id="learningStatus" class="learning-status" style="display: none; margin-bottom: var(--space-md);"></div>
+                            <div id="learningPatterns" class="learning-patterns-list">
+                                <!-- Patterns will be loaded here -->
+                            </div>
+                        </div>
+
                         <!-- 其他 -->
                         <div class="settings-section">
                             <div class="settings-section-title">⚙️ 其他</div>

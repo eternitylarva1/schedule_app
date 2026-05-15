@@ -22,6 +22,7 @@ class Event:
     reminder_sent: bool = False
     is_test: bool = False
     goal_id: int | None = None
+    completed_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -343,5 +344,62 @@ class OperationLog:
         """Create OperationLog from dictionary."""
         if d.get("created_at") and isinstance(d.get("created_at"), str):
             d["created_at"] = datetime.fromisoformat(d["created_at"])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)
+
+
+@dataclass
+class TaskDuration:
+    """Record of how long a task actually took."""
+    id: int | None = None
+    title: str = ""  # normalized task title (lowercased, trimmed)
+    category_id: str = "work"
+    estimated_minutes: int | None = None  # planned duration
+    actual_minutes: int | None = None  # actual duration (end_time - completed_at)
+    status: str = "pending"
+    start_time: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime | None = None
+    
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        for key in ['start_time', 'completed_at', 'created_at']:
+            if d.get(key) and isinstance(d[key], datetime):
+                d[key] = d[key].isoformat()
+        return d
+    
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "TaskDuration":
+        for key in ['start_time', 'completed_at', 'created_at']:
+            if d.get(key) and isinstance(d[key], str):
+                d[key] = datetime.fromisoformat(d[key])
+        if d.get('estimated_minutes') is not None:
+            d['estimated_minutes'] = int(d['estimated_minutes'])
+        if d.get('actual_minutes') is not None:
+            d['actual_minutes'] = int(d['actual_minutes'])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)
+
+
+@dataclass
+class LearningPattern:
+    """AI-generated learning pattern from historical task data."""
+    id: int | None = None
+    pattern_type: str = ""  # "duration_estimate" / "category_pattern" / "time_pattern"
+    pattern_text: str = ""  # e.g., "Coding tasks usually take 20% longer than estimated"
+    confidence: float = 0.0  # 0.0-1.0
+    sample_count: int = 0  # how many tasks were analyzed
+    created_at: datetime | None = None
+    
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        if d.get('created_at') and isinstance(d['created_at'], datetime):
+            d['created_at'] = d['created_at'].isoformat()
+        return d
+    
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "LearningPattern":
+        if d.get('created_at') and isinstance(d['created_at'], str):
+            d['created_at'] = datetime.fromisoformat(d['created_at'])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)

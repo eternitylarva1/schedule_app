@@ -666,6 +666,45 @@ class LLMService:
             "subtasks": current_subtasks
         }
 
+    async def learn_from_task_history(task_durations: list[dict], existing_patterns: list[dict]) -> dict:
+        """Analyze task history to generate learning patterns.
+        
+        Args:
+            task_durations: List of {"title": str, "category_id": str, "estimated_minutes": int|None, "actual_minutes": int|None}
+            existing_patterns: List of existing LearningPattern dicts
+        
+        Returns:
+            {"patterns": [{"type": str, "text": str, "confidence": float, "sample_count": int}]}
+        """
+        prompt = f"""你是一个个人时间管理分析师。基于用户的历史任务数据，分析其时间估算和完成任务模式的规律。
+
+## 现有规律（供参考，避免重复）:
+{chr(10).join([f"- [{p['pattern_type']}] {p['pattern_text']} (置信度: {p['confidence']:.1%})" for p in existing_patterns]) or "无"}
+
+## 历史任务数据（最近200条）:
+{chr(10).join([f"{i+1}. [{d.get('category_id', '?')}] {d.get('title', '?')} | 预估:{d.get('estimated_minutes', '?')}分钟 | 实际:{d.get('actual_minutes', '?')}分钟" for i, d in enumerate(task_durations) if d.get('actual_minutes') is not None])}
+
+请分析以上数据，找出 3-6 条有意义的规律。注意：
+1. 只输出你有把握的规律（置信度 >= 60%）
+2. 规律要有实际参考价值（如：某类任务总是低估/高估时间）
+3. 按置信度从高到低排序
+4. 如果数据不足以得出可靠规律，明确说明
+
+输出格式（严格JSON，不需要任何其他文字）：
+{{"patterns": [
+  {{"type": "duration_estimate", "text": "编程任务实际耗时通常是预估的1.3倍", "confidence": 0.75, "sample_count": 15}},
+  {{"type": "category_pattern", "text": "work类任务周五下午经常超时", "confidence": 0.65, "sample_count": 8}}
+]}}
+"""
+        messages = [{"role": "user", "content": prompt}]
+        response = await self.chat(messages)
+        
+        try:
+            result = json.loads(response)
+            return result
+        except Exception:
+            return {"patterns": []}
+
     async def parse_expense(self, user_text: str, budgets: Optional[List[Dict[str, Any]]] = None, 
                             auto_assign_budget: bool = False) -> Optional[List[Dict[str, Any]]]:
         """Parse natural language expense(s) into structured data.
@@ -684,10 +723,12 @@ class LLMService:
         If user mentions multiple expenses (e.g., "买书50，吃饭20")，
         returns multiple items in the list.
         """
-        from datetime import datetime
+        from datetime import datetime, timedelta
         now = datetime.now()
         current_date = now.strftime("%Y年%m月%d日")
         current_time = now.strftime("%H:%M")
+        current_date_iso = now.strftime("%Y-%m-%d")
+        yesterday_date = (now - timedelta(days=1)).strftime("%Y-%m-%d")
         
         budgets_context = ""
         if budgets:
@@ -712,7 +753,7 @@ class LLMService:
 {budgets_context}
 
 请从用户输入中提取所有支出：
-- 每笔支出包含：金额（数字，单位元）、消费分类（food餐饮/transport交通/shopping购物/other其他）、备注说明
+- 每笔支出包含：金额（数字，单位元）、消费分类（food餐饮/transport交通/shopping购物/other其他）、备注说明、日期（YYYY-MM-DD格式）
 - 如果用户一次说了多笔支出（如"买书50，吃饭20，喝奶茶15"），返回多笔
 - 如果只有一笔支出，也返回单元素列表
 
@@ -723,6 +764,7 @@ class LLMService:
             "amount": 金额数字，如15.5,
             "category": "food/transport/shopping/other之一",
             "note": "简短备注，如'吃面'、'打车'",
+            "expense_date": "YYYY-MM-DD格式的日期，如2026-05-08",
             "budget_id": 预算ID数字或null
         }},
         ... 更多支出
@@ -730,6 +772,14 @@ class LLMService:
 }}
 
 规则：
+- 日期推断规则：
+  - "今天" → {current_date_iso}（今天）
+  - "昨天" → {yesterday_date}
+  - "前天" → 前天日期（昨天再往前一天）
+  - "明天" → 明天日期
+  - "大前天" / "大后天" → 以此类推
+  - "上上周一" / "下下周" → 按周计算偏移
+  - 如果没明确日期，默认今天
 - 金额必须提取或根据描述合理推断（如"吃了碗面"可以推断10-30元）
 - 分类推断：吃饭→food，打车/公交/地铁→transport，买东西/网购→shopping，其他→other
 - 备注只保留核心内容，去掉金额

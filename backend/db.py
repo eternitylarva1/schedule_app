@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional
 
-from .models import Event, EventHistory, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation, Budget
+from .models import Event, EventHistory, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation, Budget, TaskDuration, LearningPattern
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
@@ -41,6 +41,10 @@ async def init_db() -> None:
             await db.execute("ALTER TABLE events ADD COLUMN reminder_sent INTEGER DEFAULT 0")
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE events ADD COLUMN completed_at TEXT")
+        except Exception:
+            pass  # Column already exists
         
         # Event history table for tracking changes
         await db.execute("""
@@ -398,6 +402,33 @@ async def init_db() -> None:
                 is_test INTEGER DEFAULT 0,
                 created_at TEXT,
                 deleted_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Task duration tracking for AI learning
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS task_durations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                category_id TEXT DEFAULT 'work',
+                estimated_minutes INTEGER,
+                actual_minutes INTEGER,
+                status TEXT DEFAULT 'pending',
+                start_time TEXT,
+                completed_at TEXT,
+                created_at TEXT
+            )
+        """)
+
+        # AI-generated learning patterns
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS learning_patterns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pattern_type TEXT NOT NULL,
+                pattern_text TEXT NOT NULL,
+                confidence REAL DEFAULT 0.0,
+                sample_count INTEGER DEFAULT 0,
+                created_at TEXT
             )
         """)
         
@@ -1058,12 +1089,32 @@ async def get_events_by_title(title: str) -> List["Event"]:
 
 
 async def complete_event(event_id: int) -> Optional[Event]:
-    """Mark an event as completed."""
+    """Mark an event as completed and record duration for learning."""
     event = await get_event(event_id)
     if not event:
         return None
     event.status = "done"
-    return await update_event(event_id, event)
+    event.completed_at = datetime.now()
+    updated = await update_event(event_id, event)
+    
+    # Record duration for learning (only if event had a start_time)
+    if event.start_time:
+        estimated = None
+        if event.end_time and event.start_time:
+            estimated = int((event.end_time - event.start_time).total_seconds() / 60)
+        actual = int((event.completed_at - event.start_time).total_seconds() / 60) if event.completed_at else None
+        
+        await record_task_duration(
+            title=event.title,
+            category_id=event.category_id or "work",
+            estimated_minutes=estimated,
+            actual_minutes=actual if actual is not None and actual >= 0 else None,
+            start_time=event.start_time,
+            completed_at=event.completed_at,
+            status="done"
+        )
+    
+    return updated
 
 
 async def uncomplete_event(event_id: int) -> Optional[Event]:
@@ -1072,7 +1123,91 @@ async def uncomplete_event(event_id: int) -> Optional[Event]:
     if not event:
         return None
     event.status = "pending"
+    event.completed_at = None
     return await update_event(event_id, event)
+
+
+async def get_task_durations(category: str | None = None, limit: int = 200) -> list:
+    """Get task duration records for learning."""
+    from .models import TaskDuration
+    async with aiosqlite.connect(DB_PATH) as db:
+        if category:
+            cursor = await db.execute(
+                "SELECT * FROM task_durations WHERE category_id = ? ORDER BY created_at DESC LIMIT ?",
+                (category, limit)
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT * FROM task_durations ORDER BY created_at DESC LIMIT ?",
+                (limit,)
+            )
+        rows = await cursor.fetchall()
+        return [TaskDuration(**dict(zip([col[0] for col in cursor.description], row))) for row in rows]
+
+
+async def record_task_duration(title: str, category_id: str, estimated_minutes: int | None, 
+                                actual_minutes: int | None, start_time: datetime, 
+                                completed_at: datetime, status: str) -> TaskDuration:
+    """Record a completed task's duration for future learning."""
+    from .models import TaskDuration
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            """INSERT INTO task_durations (title, category_id, estimated_minutes, actual_minutes, start_time, completed_at, created_at, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (title.lower().strip(), category_id, estimated_minutes, actual_minutes, 
+             start_time.isoformat() if start_time else None, completed_at.isoformat() if completed_at else None, now, status)
+        )
+        await db.commit()
+        row_id = cursor.lastrowid
+        return TaskDuration(id=row_id, title=title.lower().strip(), category_id=category_id,
+                           estimated_minutes=estimated_minutes, actual_minutes=actual_minutes,
+                           start_time=start_time, completed_at=completed_at, created_at=datetime.now(), status=status)
+
+
+async def get_learning_patterns() -> list:
+    """Get all learning patterns."""
+    from .models import LearningPattern
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT * FROM learning_patterns ORDER BY confidence DESC")
+        rows = await cursor.fetchall()
+        return [LearningPattern(**dict(zip([col[0] for col in cursor.description], row))) for row in rows]
+
+
+async def save_learning_pattern(pattern_type: str, pattern_text: str, confidence: float, sample_count: int):
+    """Save a new learning pattern."""
+    from .models import LearningPattern
+    async with aiosqlite.connect(DB_PATH) as db:
+        now = datetime.now().isoformat()
+        cursor = await db.execute(
+            """INSERT INTO learning_patterns (pattern_type, pattern_text, confidence, sample_count, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (pattern_type, pattern_text, confidence, sample_count, now)
+        )
+        await db.commit()
+        return LearningPattern(id=cursor.lastrowid, pattern_type=pattern_type, pattern_text=pattern_text,
+                              confidence=confidence, sample_count=sample_count, created_at=datetime.now())
+
+
+async def delete_learning_pattern(pattern_id: int) -> bool:
+    """Delete a learning pattern."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM learning_patterns WHERE id = ?", (pattern_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def get_learning_stats() -> dict:
+    """Get learning system statistics."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        duration_count = (await db.execute("SELECT COUNT(*) FROM task_durations")).fetchone()[0]
+        pattern_count = (await db.execute("SELECT COUNT(*) FROM learning_patterns")).fetchone()[0]
+        avg_actual = (await db.execute("SELECT AVG(actual_minutes) FROM task_durations WHERE actual_minutes IS NOT NULL")).fetchone()[0]
+        return {
+            "total_records": duration_count,
+            "total_patterns": pattern_count,
+            "avg_actual_duration": round(avg_actual, 1) if avg_actual else 0
+        }
 
 
 async def batch_complete_events(start: datetime | None = None, end: datetime | None = None) -> int:

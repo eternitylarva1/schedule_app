@@ -50,6 +50,11 @@
         if (utils.loadAiProviders) {
             await utils.loadAiProviders();
         }
+
+        // Initialize Learning UI
+        if (window.SettingsLearningUI) {
+            await window.SettingsLearningUI.init();
+        }
     }
 
     function closeSettingsView() {
@@ -181,6 +186,174 @@
         }
     }
 
+    // Settings Learning UI (AI Learning section)
+    const SettingsLearningUI = {
+        _isLearning: false,
+
+        cacheElements() {
+            this.statsEl = document.getElementById('learningTaskCount');
+            this.patternCountEl = document.getElementById('learningPatternCount');
+            this.avgDurationEl = document.getElementById('learningAvgDuration');
+            this.startBtn = document.getElementById('startLearningBtn');
+            this.statusEl = document.getElementById('learningStatus');
+            this.patternsEl = document.getElementById('learningPatterns');
+        },
+
+        bindEvents() {
+            if (this.startBtn) {
+                this.startBtn.addEventListener('click', () => this.startLearning());
+            }
+        },
+
+        async loadStats() {
+            const { apiCall } = getUtils();
+            try {
+                const resp = await apiCall('ai/stats');
+                if (resp && resp.data) {
+                    if (this.statsEl) {
+                        this.statsEl.textContent = resp.data.total_records || 0;
+                    }
+                    if (this.patternCountEl) {
+                        this.patternCountEl.textContent = resp.data.total_patterns || 0;
+                    }
+                    if (this.avgDurationEl) {
+                        const avg = resp.data.avg_actual_duration;
+                        this.avgDurationEl.textContent = avg ? `${avg}分钟` : '-';
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load learning stats', e);
+                if (this.statsEl) this.statsEl.textContent = '-';
+                if (this.patternCountEl) this.patternCountEl.textContent = '-';
+                if (this.avgDurationEl) this.avgDurationEl.textContent = '-';
+            }
+        },
+
+        showStatus(message, type = '') {
+            if (!this.statusEl) return;
+            this.statusEl.textContent = message;
+            this.statusEl.style.display = message ? 'block' : 'none';
+            this.statusEl.className = 'learning-status' + (type ? ' ' + type : '');
+        },
+
+        async startLearning() {
+            if (this._isLearning) return;
+            const { apiCall, showToast } = getUtils();
+
+            this._isLearning = true;
+            if (this.startBtn) {
+                this.startBtn.disabled = true;
+                this.startBtn.textContent = '⏳ 分析中...';
+            }
+            this.showStatus('正在分析任务数据...', 'loading');
+
+            try {
+                const result = await apiCall('ai/learn', { method: 'POST' });
+                if (result && !result.error) {
+                    this.showStatus('分析完成！', '');
+                    showToast('任务规律分析完成');
+                    await this.loadStats();
+                    await this.loadPatterns();
+                } else {
+                    this.showStatus(result?.message || '分析失败', 'error');
+                    showToast(result?.message || '分析失败');
+                }
+            } catch (e) {
+                console.error('Learning failed', e);
+                this.showStatus('分析失败：' + (e.message || '未知错误'), 'error');
+                showToast('分析失败');
+            } finally {
+                this._isLearning = false;
+                if (this.startBtn) {
+                    this.startBtn.disabled = false;
+                    this.startBtn.textContent = '🔍 分析任务规律';
+                }
+            }
+        },
+
+        async loadPatterns() {
+            const { apiCall } = getUtils();
+            if (!this.patternsEl) return;
+
+            try {
+                const resp = await apiCall('ai/patterns');
+                const patterns = (resp && resp.data) || [];
+
+                if (patterns.length === 0) {
+                    this.patternsEl.innerHTML = '<div class="learning-pattern-empty" style="text-align:center;color:var(--text-muted);font-size:var(--font-sm);padding:var(--space-md);">暂无学习到的规律<br>点击上方按钮开始分析</div>';
+                    return;
+                }
+
+                this.patternsEl.innerHTML = patterns.map(p => `
+                    <div class="learning-pattern-card" data-id="${p.id}">
+                        <div class="learning-pattern-header">
+                            <span class="learning-pattern-type">${escapeHtml(p.pattern_type || '通用')}</span>
+                            <span class="learning-pattern-confidence">置信度: ${p.confidence || 0}%</span>
+                        </div>
+                        <div class="learning-pattern-text">${escapeHtml(p.pattern_text || p.content || '')}</div>
+                        <div class="learning-pattern-footer">
+                            <button class="btn btn-secondary add-to-context-btn" data-text="${escapeHtml(p.pattern_text || p.content || '')}">添加到自我描述</button>
+                            <button class="btn btn-danger delete-pattern-btn" data-id="${p.id}">删除</button>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Bind events
+                this.patternsEl.querySelectorAll('.add-to-context-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.addToSelfDescription(btn.dataset.text));
+                });
+                this.patternsEl.querySelectorAll('.delete-pattern-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.deletePattern(btn.dataset.id));
+                });
+            } catch (e) {
+                console.error('Failed to load patterns', e);
+                this.patternsEl.innerHTML = '<div style="color:var(--danger);font-size:var(--font-sm);padding:var(--space-sm);text-align:center;">加载规律失败</div>';
+            }
+        },
+
+        async addToSelfDescription(patternText) {
+            const { apiCall, showToast } = getUtils();
+            try {
+                const result = await apiCall('user-contexts', {
+                    method: 'POST',
+                    body: JSON.stringify({ content: patternText }),
+                });
+                if (result && !result.error) {
+                    showToast('已添加到自我描述');
+                } else {
+                    showToast(result?.message || '添加失败');
+                }
+            } catch (e) {
+                console.error('Failed to add to self description', e);
+                showToast('添加失败');
+            }
+        },
+
+        async deletePattern(patternId) {
+            const { apiCall, showToast } = getUtils();
+            try {
+                const result = await apiCall(`ai/patterns/${patternId}`, { method: 'DELETE' });
+                if (result && !result.error) {
+                    showToast('规律已删除');
+                    await this.loadPatterns();
+                    await this.loadStats();
+                } else {
+                    showToast(result?.message || '删除失败');
+                }
+            } catch (e) {
+                console.error('Failed to delete pattern', e);
+                showToast('删除失败');
+            }
+        },
+
+        async init() {
+            this.cacheElements();
+            this.bindEvents();
+            await this.loadStats();
+            await this.loadPatterns();
+        }
+    };
+
     window.ScheduleAppSettings = {
         openSettingsView,
         closeSettingsView,
@@ -189,5 +362,12 @@
         loadUserContexts,
         saveUserContext,
     };
+
+    window.SettingsLearningUI = SettingsLearningUI;
+
+    // Initialize learning UI after settings module loads
+    if (window.ScheduleAppCore && window.ScheduleAppCore.state) {
+        SettingsLearningUI.init();
+    }
 
 })();

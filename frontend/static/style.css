@@ -2699,6 +2699,101 @@ textarea {
     font-size: var(--font-size-sm);
 }
 
+/* AI Learning Section */
+.learning-stats {
+    display: flex;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.learning-stat-item {
+    flex: 1;
+    text-align: center;
+}
+
+.learning-stat-label {
+    display: block;
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.learning-stat-value {
+    display: block;
+    font-size: var(--font-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.learning-status {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-sm);
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.learning-status.loading {
+    color: var(--primary);
+}
+
+.learning-status.error {
+    color: var(--danger);
+}
+
+.learning-patterns-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.learning-pattern-card {
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--primary);
+}
+
+.learning-pattern-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-xs);
+}
+
+.learning-pattern-type {
+    font-size: var(--font-xs);
+    color: var(--primary);
+    font-weight: 500;
+}
+
+.learning-pattern-confidence {
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+}
+
+.learning-pattern-text {
+    font-size: var(--font-sm);
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+    line-height: 1.4;
+}
+
+.learning-pattern-footer {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: flex-end;
+}
+
+.learning-pattern-footer .btn {
+    font-size: var(--font-xs);
+    padding: 4px 8px;
+}
+
 /* Event History List in Settings */
 .event-history-list {
     margin-top: var(--space-sm);

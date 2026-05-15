@@ -140,10 +140,43 @@ async def init_app() -> web.Application:
     return app
 
 
+def run_both():
+    """Run both HTTP and HTTPS servers."""
+    import ssl
+    import os
+    from aiohttp import web
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    app = loop.run_until_complete(init_app())
+
+    key_file = os.path.join(os.path.dirname(__file__), "key.pem")
+    cert_file = os.path.join(os.path.dirname(__file__), "cert.pem")
+
+    if os.path.exists(key_file) and os.path.exists(cert_file):
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.load_cert_chain(cert_file, key_file)
+        print(f"Running HTTP on 8080 and HTTPS on 8443")
+        runner = web.AppRunner(app)
+        loop.run_until_complete(runner.setup())
+
+        site1 = web.TCPSite(runner, host="0.0.0.0", port=8080)
+        loop.run_until_complete(site1.start())
+        site2 = web.TCPSite(runner, host="0.0.0.0", port=8443, ssl_context=ssl_context)
+        loop.run_until_complete(site2.start())
+
+        try:
+            loop.run_forever()
+        except KeyboardInterrupt:
+            pass
+    else:
+        print("No SSL certificate found, running HTTP only on 8080")
+        web.run_app(app, host="0.0.0.0", port=8080)
+
+
 def main():
     """Run the server."""
-    app = asyncio.run(init_app())
-    web.run_app(app, host="0.0.0.0", port=8080)
+    run_both()
 
 
 if __name__ == "__main__":
