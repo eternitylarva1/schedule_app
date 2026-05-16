@@ -47,13 +47,12 @@
     // ============================================
 
 
-    const selection = window.ScheduleAppSelection || {};
-    const markEventDoneQuick = (...args) => selection.markEventDoneQuick?.(...args);
-    const getSelectionSet = (...args) => selection.getSelectionSet?.(...args);
-    const exitSelectionMode = (...args) => selection.exitSelectionMode?.(...args);
-    const enterSelectionMode = (...args) => selection.enterSelectionMode?.(...args);
-    const toggleSelection = (...args) => selection.toggleSelection?.(...args);
-    const renderSelectionBar = (...args) => selection.renderSelectionBar?.(...args);
+    const markEventDoneQuick = (...args) => window.ScheduleAppSelection?.markEventDoneQuick?.(...args);
+    const getSelectionSet = (...args) => window.ScheduleAppSelection?.getSelectionSet?.(...args);
+    const exitSelectionMode = (...args) => window.ScheduleAppSelection?.exitSelectionMode?.(...args);
+    const enterSelectionMode = (...args) => window.ScheduleAppSelection?.enterSelectionMode?.(...args);
+    const toggleSelection = (...args) => window.ScheduleAppSelection?.toggleSelection?.(...args);
+    const renderSelectionBar = (...args) => window.ScheduleAppSelection?.renderSelectionBar?.(...args);
 
     // ============================================
     // Event Drag/Resize Handling
@@ -759,39 +758,53 @@
             container.appendChild(groupEl);
         });
         
-        // Bind select-all buttons
+// Bind select-all buttons
         container.querySelectorAll('.todo-select-all-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const dateKey = btn.dataset.dateKey;
-                const group = container.querySelector(`.todo-date-group[data-date-key="${dateKey}"]`);
-                if (!group) return;
-                const eventIds = Array.from(group.querySelectorAll('.todo-item'))
-                    .map(el => el.dataset.eventId)
-                    .filter(id => {
-                        const e = allEvents.find(ev => String(ev.id) === String(id));
-                        return e && e.status !== 'done';
+                try {
+                    console.log('[SelectAll] click fired');
+                    e.stopPropagation();
+                    e.preventDefault();
+                    const dateKey = btn.dataset.dateKey;
+                    console.log('[SelectAll] dateKey=', dateKey);
+                    const group = container.querySelector(`.todo-date-group[data-date-key="${dateKey}"]`);
+                    console.log('[SelectAll] group found=', !!group);
+                    if (!group) {
+                        return;
+                    }
+                    const itemIds = Array.from(group.querySelectorAll('.todo-item')).map(el => el.dataset.eventId);
+                    console.log('[SelectAll] itemIds=', itemIds);
+                    const pending = itemIds.filter(id => {
+                        const ev = state.events.find(e => String(e.id) === String(id));
+                        return ev && ev.status !== 'done';
                     });
-                if (eventIds.length === 0) {
-                    showToast('该日期没有待完成项');
-                    return;
-                }
-                eventIds.forEach(id => {
-                    if (!state.selectionMode.todoIds.has(String(id))) {
+                    console.log('[SelectAll] pending=', pending);
+                    if (pending.length === 0) {
+                        showToast('该日期没有待完成项');
+                        return;
+                    }
+                    console.log('[SelectAll] calling enterSelectionMode');
+                    enterSelectionMode('todo', null);
+                    console.log('[SelectAll] after enter, active=', state.selectionMode.active);
+                    pending.forEach(id => {
+                        console.log('[SelectAll] toggling', id);
                         toggleSelection('todo', id);
-                    }
-                });
-                // Apply visual to all items in this group
-                group.querySelectorAll('.todo-item').forEach(el => {
-                    el.classList.add('selection-mode');
-                    const cb = el.querySelector('.todo-checkbox');
-                    if (cb) {
-                        const isSelected = state.selectionMode.todoIds.has(el.dataset.eventId);
-                        cb.classList.toggle('selected', isSelected);
-                        el.classList.toggle('selected', isSelected);
-                    }
-                });
-                renderSelectionBar('todo');
+                        console.log('[SelectAll] size now', state.selectionMode.todoIds.size);
+                    });
+                    group.querySelectorAll('.todo-item').forEach(el => {
+                        el.classList.add('selection-mode');
+                        const cb = el.querySelector('.todo-checkbox');
+                        if (cb) {
+                            const isSelected = state.selectionMode.todoIds.has(el.dataset.eventId);
+                            cb.classList.toggle('selected', isSelected);
+                            el.classList.toggle('selected', isSelected);
+                        }
+                    });
+                    renderSelectionBar('todo');
+                    console.log('[SelectAll] done, final size=', state.selectionMode.todoIds.size);
+                } catch(err) {
+                    console.error('[SelectAll] Error:', err.message, err.stack);
+                }
             });
         });
         
