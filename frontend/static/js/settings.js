@@ -197,11 +197,24 @@
             this.startBtn = document.getElementById('startLearningBtn');
             this.statusEl = document.getElementById('learningStatus');
             this.patternsEl = document.getElementById('learningPatterns');
+            // Backup buttons
+            this.exportBtn = document.getElementById('exportDataBtn');
+            this.importBtn = document.getElementById('importDataBtn');
+            this.importFile = document.getElementById('importDataFile');
+            this.importClearOption = document.getElementById('importClearOption');
+            this.importClearCheckbox = document.getElementById('importClearCheckbox');
         },
 
         bindEvents() {
             if (this.startBtn) {
                 this.startBtn.addEventListener('click', () => this.startLearning());
+            }
+            if (this.exportBtn) {
+                this.exportBtn.addEventListener('click', () => this.exportData());
+            }
+            if (this.importBtn && this.importFile) {
+                this.importBtn.addEventListener('click', () => this.importFile.click());
+                this.importFile.addEventListener('change', (e) => this.handleImportFile(e));
             }
         },
 
@@ -329,21 +342,71 @@
             }
         },
 
-        async deletePattern(patternId) {
+async deletePattern(patternId) {
             const { apiCall, showToast } = getUtils();
             try {
                 const result = await apiCall(`ai/patterns/${patternId}`, { method: 'DELETE' });
                 if (result && !result.error) {
-                    showToast('规律已删除');
+                    showToast('已删除规律');
                     await this.loadPatterns();
-                    await this.loadStats();
-                } else {
-                    showToast(result?.message || '删除失败');
                 }
             } catch (e) {
                 console.error('Failed to delete pattern', e);
                 showToast('删除失败');
             }
+        },
+
+        async exportData() {
+            const { apiCall, showToast } = getUtils();
+            try {
+                showToast('正在导出...');
+                const resp = await apiCall('backup/export');
+                if (!resp) {
+                    showToast('导出失败');
+                    return;
+                }
+                const data = resp.data || resp;
+                const json = JSON.stringify(data, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `schedule_backup_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('导出成功');
+            } catch (e) {
+                console.error('Export failed', e);
+                showToast('导出失败');
+            }
+        },
+
+        async handleImportFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const { apiCall, showToast } = getUtils();
+            const clear = this.importClearCheckbox?.checked || false;
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                showToast('正在导入...');
+                const resp = await apiCall('backup/import', {
+                    method: 'POST',
+                    body: JSON.stringify({ data, clear }),
+                });
+                if (resp && !resp.error) {
+                    showToast('导入成功');
+                    if (this.importClearOption) this.importClearOption.style.display = 'none';
+                } else {
+                    showToast(resp?.message || '导入失败');
+                }
+            } catch (err) {
+                console.error('Import failed', err);
+                showToast('导入失败：文件格式错误');
+            }
+            e.target.value = '';
         },
 
         async init() {
