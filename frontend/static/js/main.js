@@ -111,7 +111,7 @@
         showPrompt,
     } = window.ScheduleAppCore;
 
-    selection.configure?.({
+    window.ScheduleAppSelection?.configure?.({
         loadData,
         renderTodoView,
         renderGoalsView,
