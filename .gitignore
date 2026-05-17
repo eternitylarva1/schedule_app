@@ -42,6 +42,10 @@ test_report_*.txt
 # codenomad (working directory config)
 .codenomad/
 
+# SSL certificates
+*.pem
+*.key
+
 # Environment
 .env
 .env.local
