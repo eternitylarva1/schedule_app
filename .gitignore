@@ -64,3 +64,4 @@ send_qq*.py
 SPEC_testing_update.md
 test_*.py
 test.png
+**/opencode_files/**
