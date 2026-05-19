@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, List, Optional
 
-from .models import Event, EventHistory, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation, Budget, TaskDuration, LearningPattern
+from .models import Event, EventHistory, Goal, GoalConversation, Note, Expense, NoteGroup, NoteConversation, Budget, TaskDuration, LearningPattern, ErrorLog
 
 DB_PATH = Path(__file__).parent / "schedule.db"
 
@@ -429,6 +429,19 @@ async def init_db() -> None:
                 confidence REAL DEFAULT 0.0,
                 sample_count INTEGER DEFAULT 0,
                 created_at TEXT
+            )
+        """)
+        
+        # Client-side error logs
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS error_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message TEXT NOT NULL,
+                stack TEXT DEFAULT '',
+                source TEXT DEFAULT '',
+                user_agent TEXT DEFAULT '',
+                url TEXT DEFAULT '',
+                timestamp TEXT
             )
         """)
         
@@ -2714,6 +2727,52 @@ async def cleanup_test_entries() -> dict[str, int]:
         "budgets_deleted": budget_result.rowcount or 0,
         "goals_deleted": goal_result.rowcount or 0,
     }
+
+
+# ============ Error Log CRUD ============
+
+async def create_error_log(error_log: ErrorLog) -> ErrorLog:
+    """Create a new error log entry."""
+    now = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            """INSERT INTO error_logs (message, stack, source, user_agent, url, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (error_log.message, error_log.stack, error_log.source,
+             error_log.user_agent, error_log.url, now),
+        )
+        await db.commit()
+        error_log.id = cursor.lastrowid
+        error_log.timestamp = datetime.now()
+    return error_log
+
+
+async def get_error_logs(limit: int = 50, offset: int = 0) -> List[ErrorLog]:
+    """Get recent error logs, newest first."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        rows = await db.execute_fetchall(
+            """SELECT id, message, stack, source, user_agent, url, timestamp
+               FROM error_logs ORDER BY timestamp DESC LIMIT ? OFFSET ?""",
+            (limit, offset),
+        )
+    return [ErrorLog(
+        id=row[0], message=row[1], stack=row[2] or "", source=row[3] or "",
+        user_agent=row[4] or "", url=row[5] or "",
+        timestamp=datetime.fromisoformat(row[6]) if row[6] else None
+    ) for row in rows]
+
+
+async def delete_error_logs(ids: List[int]) -> int:
+    """Delete error logs by IDs. Returns count of deleted."""
+    if not ids:
+        return 0
+    placeholders = ",".join(["?" for _ in ids])
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute(
+            f"DELETE FROM error_logs WHERE id IN ({placeholders})", ids
+        )
+        await db.commit()
+        return cursor.rowcount
 
 
 # ============ Budget CRUD ============

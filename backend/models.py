@@ -382,6 +382,31 @@ class TaskDuration:
 
 
 @dataclass
+class ErrorLog:
+    """Client-side error log for debugging."""
+    id: int | None = None
+    message: str = ""
+    stack: str = ""
+    source: str = ""  # "window.onerror" / "unhandledrejection" / "console.error"
+    user_agent: str = ""
+    url: str = ""
+    timestamp: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        if d.get('timestamp') and isinstance(d['timestamp'], datetime):
+            d['timestamp'] = d['timestamp'].isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "ErrorLog":
+        if d.get('timestamp') and isinstance(d['timestamp'], str):
+            d['timestamp'] = datetime.fromisoformat(d['timestamp'])
+        d = {k: v for k, v in d.items() if v is not None}
+        return cls(**d)
+
+
+@dataclass
 class LearningPattern:
     """AI-generated learning pattern from historical task data."""
     id: int | None = None

@@ -332,6 +332,14 @@
                                 </div>
                                 <button class="btn btn-secondary" id="testQQChannelBtn">发送测试</button>
                             </div>
+                            <div class="settings-item">
+                                <div class="settings-item-info">
+                                    <span class="settings-item-title">错误日志</span>
+                                    <span class="settings-item-desc">查看手机端上报的 JS 错误</span>
+                                </div>
+                                <button class="btn btn-secondary" id="viewErrorLogsBtn">查看</button>
+                            </div>
+                            <div id="errorLogsList" class="error-logs-list" style="display:none;"></div>
                         </div>
                     </div>
                 </div>
@@ -879,6 +887,60 @@
                 console.log('SW/cache cleanup failed:', err);
             }
         });
+
+        // ============================================
+        // Global Error Handler (bandwidth-conscious)
+        // Captures only real JS errors that crash pages
+        // ============================================
+        (function() {
+            var ERROR_LOG_URL = '/api/errors/log';
+            // Dev mode flag - disable error logging when needed
+            var DISABLED = false;
+            // Prevent double-send within same event loop
+            var lastMsg = '', lastSend = 0;
+
+            function sendError(data) {
+                if (DISABLED) return;
+                var now = Date.now();
+                // Dedupe: ignore exact duplicate within 1s
+                if (data.message === lastMsg && now - lastSend < 1000) return;
+                lastMsg = data.message;
+                lastSend = now;
+
+                navigator.sendBeacon && navigator.sendBeacon(ERROR_LOG_URL, JSON.stringify(data));
+            }
+
+            // window.onerror: catches uncaught JS errors
+            window.onerror = function(msg, src, line, col, err) {
+                // Ignore internal errors and non-error objects
+                if (msg == null || typeof msg !== 'string') return true;
+                // Ignore generic message src errors that provide no info
+                if (msg === 'Error' && !src) return true;
+                sendError({
+                    message: String(msg).substring(0, 500),
+                    stack: err && err.stack ? err.stack.substring(0, 2000) : (line + ':' + col + ' @ ' + src).substring(0, 2000),
+                    source: 'window.onerror',
+                    user_agent: navigator.userAgent.substring(0, 200),
+                    url: window.location.href.substring(0, 500)
+                });
+                return false; // let default handler run
+            };
+
+            // unhandledrejection: catches async errors not handled by .catch()
+            window.addEventListener('unhandledrejection', function(e) {
+                var reason = e && e.reason;
+                if (!reason) return;
+                var msg = reason.message || reason.description || String(reason);
+                var stack = reason.stack || '';
+                sendError({
+                    message: msg.substring(0, 500),
+                    stack: stack.substring(0, 2000),
+                    source: 'unhandledrejection',
+                    user_agent: navigator.userAgent.substring(0, 200),
+                    url: window.location.href.substring(0, 500)
+                });
+            });
+        })();
     </script>
 </body>
 </html>

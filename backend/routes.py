@@ -7,7 +7,7 @@ from aiohttp import web
 from typing import Any
 
 from . import db
-from .models import Event, EventHistory, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES, NoteGroup, Budget
+from .models import Event, EventHistory, Goal, GoalConversation, Note, Expense, CATEGORIES, EXPENSE_CATEGORIES, NoteGroup, Budget, ErrorLog
 
 
 def json_response(data: Any, code: int = 0) -> web.Response:
@@ -2733,6 +2733,53 @@ async def cleanup_test_entries(request: web.Request) -> web.Response:
         return error_response(f"清理测试条目失败: {str(e)}")
 
 
+async def log_error(request: web.Request) -> web.Response:
+    """POST /api/errors/log - log a client-side error."""
+    try:
+        body_bytes = await request.read()
+        try:
+            body = json.loads(body_bytes.decode()) if body_bytes else {}
+        except (ValueError, UnicodeDecodeError):
+            return error_response("无效的 JSON")
+        
+        error_log = ErrorLog(
+            message=body.get("message", ""),
+            stack=body.get("stack", ""),
+            source=body.get("source", ""),
+            user_agent=body.get("user_agent", ""),
+            url=body.get("url", ""),
+        )
+        result = await db.create_error_log(error_log)
+        return json_response(result.to_dict())
+    except Exception as e:
+        return error_response(f"记录错误失败: {str(e)}")
+
+
+async def get_error_logs(request: web.Request) -> web.Response:
+    """GET /api/errors - get recent error logs."""
+    try:
+        limit = int(request.query.get("limit", 50))
+        offset = int(request.query.get("offset", 0))
+        logs = await db.get_error_logs(limit=limit, offset=offset)
+        return json_response([log.to_dict() for log in logs])
+    except Exception as e:
+        return error_response(f"获取错误日志失败: {str(e)}")
+
+
+async def delete_error_logs(request: web.Request) -> web.Response:
+    """DELETE /api/errors - delete error logs by IDs."""
+    try:
+        body_bytes = await request.read()
+        body = json.loads(body_bytes.decode()) if body_bytes else {}
+        ids = body.get("ids", [])
+        if not isinstance(ids, list):
+            return error_response("ids must be an array")
+        count = await db.delete_error_logs(ids)
+        return json_response({"deleted": count})
+    except Exception as e:
+        return error_response(f"删除错误日志失败: {str(e)}")
+
+
 async def test_qq_channel(request: web.Request) -> web.Response:
     """POST /api/test-qq-channel - send test message to QQ to verify channel."""
     try:
@@ -2964,6 +3011,11 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_put("/api/settings/{key}", update_setting)
     app.router.add_post("/api/settings/cleanup_test_entries", cleanup_test_entries)
     app.router.add_post("/api/test-qq-channel", test_qq_channel)
+    
+    # Error log endpoints
+    app.router.add_post("/api/errors/log", log_error)
+    app.router.add_get("/api/errors", get_error_logs)
+    app.router.add_delete("/api/errors", delete_error_logs)
     
     # AI Providers
     app.router.add_get("/api/ai-providers", get_ai_providers)

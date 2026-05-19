@@ -4354,6 +4354,65 @@
         }
     }
 
+    async function handleViewErrorLogs() {
+        const container = document.getElementById('errorLogsList');
+        if (!container) return;
+
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            await loadErrorLogs();
+        } else {
+            container.style.display = 'none';
+        }
+    }
+
+    async function loadErrorLogs() {
+        const container = document.getElementById('errorLogsList');
+        if (!container) return;
+
+        try {
+            const resp = await fetch('/api/errors?limit=50');
+            const json = await resp.json();
+            if (json.code !== 0 || !Array.isArray(json.data)) {
+                container.innerHTML = '<div style="padding:8px;color:#999;">加载失败</div>';
+                return;
+            }
+            const logs = json.data;
+            if (!logs.length) {
+                container.innerHTML = '<div style="padding:8px;color:#999;">暂无错误日志</div>';
+                return;
+            }
+            container.innerHTML = logs.map(log => `
+                <div style="border-bottom:1px solid #eee;padding:8px;font-size:12px;">
+                    <div style="color:#c00;font-weight:bold;">${escHtml(log.message||'').substring(0,100)}</div>
+                    <div style="color:#888;margin:4px 0;">${log.source} @ ${log.url||''}</div>
+                    <div style="color:#666;white-space:pre-wrap;word-break:break-all;font-size:11px;max-height:80px;overflow:hidden;">${escHtml(log.stack||'').substring(0,300)}</div>
+                    <div style="color:#aaa;font-size:10px;margin-top:4px;">${log.timestamp||''}</div>
+                </div>
+            `).join('') + '<button onclick="handleClearErrorLogs()" style="margin:8px;padding:4px 12px;background:#fdd;border:none;border-radius:4px;cursor:pointer;">清除所有日志</button>';
+        } catch {
+            container.innerHTML = '<div style="padding:8px;color:#999;">加载失败</div>';
+        }
+    }
+
+    async function handleClearErrorLogs() {
+        try {
+            const resp = await fetch('/api/errors', { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ids: []}) });
+            const json = await resp.json();
+            showToast('已清除错误日志');
+            document.getElementById('errorLogsList').innerHTML = '<div style="padding:8px;color:#999;">暂无错误日志</div>';
+        } catch {
+            showToast('清除失败');
+        }
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Expose for inline onclick handlers in settings
+    window.handleClearErrorLogs = handleClearErrorLogs;
+
     async function handleCleanupTestEntries() {
         const confirmed = await showConfirm('确定一键清理测试条目吗？\n将删除包含“测试/test/demo/debug/样例/示例/tmp/临时”等关键词的日程、笔记和记账条目。');
         if (!confirmed) return;
@@ -5364,6 +5423,7 @@
         elements.autoAssignBudgetFromLlm.addEventListener('change', handleAutoAssignBudgetToggle);
         document.getElementById('cleanupTestEntriesBtn')?.addEventListener('click', handleCleanupTestEntries);
         document.getElementById('testQQChannelBtn')?.addEventListener('click', handleTestQQChannel);
+        document.getElementById('viewErrorLogsBtn')?.addEventListener('click', handleViewErrorLogs);
         document.getElementById('semanticHelpBtn')?.addEventListener('click', showSemanticHelpModal);
         elements.openUserContextBtn?.addEventListener('click', () => {
             openUserContextModal();
