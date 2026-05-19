@@ -4412,6 +4412,8 @@
 
     // Expose for inline onclick handlers in settings
     window.handleClearErrorLogs = handleClearErrorLogs;
+    window.handleViewErrorLogs = handleViewErrorLogs;
+    window.loadErrorLogs = loadErrorLogs;
 
     async function handleCleanupTestEntries() {
         const confirmed = await showConfirm('确定一键清理测试条目吗？\n将删除包含“测试/test/demo/debug/样例/示例/tmp/临时”等关键词的日程、笔记和记账条目。');
