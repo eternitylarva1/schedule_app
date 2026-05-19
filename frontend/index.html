@@ -42,6 +42,13 @@
                 <input type="text" class="llm-input" id="llmInput" placeholder="输入自然语言创建日程..." autocomplete="off">
                 <button class="llm-btn" id="llmBtn">AI</button>
             </div>
+            <div class="llm-input-failed hidden" id="llmInputFailed">
+                <span class="llm-input-failed-text" id="llmInputFailedText"></span>
+                <div class="llm-input-failed-actions">
+                    <button class="llm-input-failed-retry" id="llmInputFailedRetry">重试</button>
+                    <button class="llm-input-failed-cancel" id="llmInputFailedCancel">取消</button>
+                </div>
+            </div>
             <div class="llm-queue-status hidden" id="llmQueueStatus" aria-live="polite">
                 <div class="llm-queue-main">
                     <span class="llm-queue-text" id="llmQueueText">AI处理中...</span>

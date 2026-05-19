@@ -105,6 +105,8 @@
     llmQueueCancelBtn: document.getElementById('llmQueueCancelBtn'),
     llmQueueCopyBtn: document.getElementById('llmQueueCopyBtn'),
     llmQueueDetail: document.getElementById('llmQueueDetail'),
+    llmInputFailed: document.getElementById('llmInputFailed'),
+    llmInputFailedText: document.getElementById('llmInputFailedText'),
     dayView: document.getElementById('dayView'),
     weekView: document.getElementById('weekView'),
     monthView: document.getElementById('monthView'),

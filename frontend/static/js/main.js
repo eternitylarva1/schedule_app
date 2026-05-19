@@ -4932,9 +4932,52 @@
         if (elements.llmInput) {
             elements.llmInput.value = '';
         }
+        // Clear any failed state
+        hideLlmFailedBanner();
 
         await loadData();
         return true;
+    }
+
+    function showLlmFailedBanner(text, errorMsg) {
+        if (!elements.llmInputFailed || !elements.llmInputFailedText) return;
+        elements.llmInputFailedText.textContent = `❌ ${errorMsg}: ${text.substring(0, 100)}`;
+        elements.llmInputFailed.classList.remove('hidden');
+        // Persist so it survives refresh
+        try {
+            localStorage.setItem('llm_failed_text', text);
+            localStorage.setItem('llm_failed_error', errorMsg);
+        } catch(e) {}
+    }
+
+    function hideLlmFailedBanner() {
+        if (!elements.llmInputFailed) return;
+        elements.llmInputFailed.classList.add('hidden');
+        try {
+            localStorage.removeItem('llm_failed_text');
+            localStorage.removeItem('llm_failed_error');
+        } catch(e) {}
+    }
+
+    function restoreLlmFailedToInput() {
+        try {
+            const text = localStorage.getItem('llm_failed_text') || '';
+            if (text && elements.llmInput) {
+                elements.llmInput.value = text;
+            }
+        } catch(e) {}
+        hideLlmFailedBanner();
+    }
+
+    function restoreLlmFailedFromStorage() {
+        try {
+            const text = localStorage.getItem('llm_failed_text') || '';
+            const errorMsg = localStorage.getItem('llm_failed_error') || '执行失败';
+            if (text && elements.llmInputFailed && elements.llmInputFailedText) {
+                elements.llmInputFailedText.textContent = `❌ ${errorMsg}: ${text.substring(0, 100)}`;
+                elements.llmInputFailed.classList.remove('hidden');
+            }
+        } catch(e) {}
     }
 
     async function processLlmQueue() {
@@ -4970,9 +5013,9 @@
                 console.error('LLM Error:', error);
                 showToast(`❌ 执行失败: ${error.message || '未知错误'}`);
                 state.llmCycleFailed += 1;
-                // 失败时把文本还原到输入框，方便用户修改重试
-                if (request && request.text && elements.llmInput) {
-                    elements.llmInput.value = request.text;
+                // 失败时显示 banner，让用户选择重试或取消
+                if (request && request.text) {
+                    showLlmFailedBanner(request.text, error.message || '执行失败');
                 }
                 }
             } finally {
@@ -5354,7 +5397,24 @@
         if (elements.llmQueueCancelBtn) {
             elements.llmQueueCancelBtn.addEventListener('click', () => cancelLlmGeneration(true));
         }
-        
+
+        // Failed banner buttons
+        if (elements.llmInputFailed) {
+            elements.llmInputFailed.querySelector('.llm-input-failed-retry')?.addEventListener('click', () => {
+                // Put text back into input and retry
+                const text = localStorage.getItem('llm_failed_text') || '';
+                if (text && elements.llmInput) {
+                    elements.llmInput.value = text;
+                    hideLlmFailedBanner();
+                    elements.llmInput.focus();
+                    handleLlmSubmit();
+                }
+            });
+            elements.llmInputFailed.querySelector('.llm-input-failed-cancel')?.addEventListener('click', () => {
+                hideLlmFailedBanner();
+            });
+        }
+
         // 复制按钮：将当前处理的文本复制到剪贴板
         if (elements.llmQueueCopyBtn) {
             elements.llmQueueCopyBtn.addEventListener('click', async () => {
@@ -5769,7 +5829,8 @@
         
         await loadData();
         
-        // Check if there's a hash route
+        // Restore failed LLM text from localStorage (survives refresh)
+        restoreLlmFailedFromStorage();
         const route = parseHashRoute();
         if (route === 'settings') {
             await switchView('settings');
@@ -5784,6 +5845,8 @@
         // Expose to window for external tools (Playwright, etc.)
         window.switchView = switchView;
         window.scheduleAppState = state;
+        window.restoreLlmFailedToInput = restoreLlmFailedToInput;
+        window.hideLlmFailedBanner = hideLlmFailedBanner;
         
         // Expose budget functions for module system
         window.ScheduleAppBudget = {
