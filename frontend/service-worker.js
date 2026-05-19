@@ -1,4 +1,4 @@
-const CACHE_NAME = 'schedule-app-v20';
+const CACHE_NAME = 'schedule-app-v21';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -11,7 +11,7 @@ const STATIC_ASSETS = [
   '/static/js/budget.js?v=20260426-08',
   '/static/js/notepad.js?v=20260426-06',
   '/static/js/settings.js?v=20260429-01',
-  '/static/js/main.js?v=20260517-01',
+  '/static/js/main.js?v=20260520-01',
   '/static/js/goals.js?v=20260425-01',
   '/static/js/selection.js?v=20260425-01',
   '/static/js/calendar-views.js?v=20260425-01',
