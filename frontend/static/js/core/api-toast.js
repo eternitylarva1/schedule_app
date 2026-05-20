@@ -649,8 +649,9 @@ function showToastWithUndo(message, undoCallback) {
         createBudget,
         updateBudget,
         deleteBudget,
-        showToast,
-        showConfirm,
-        showPrompt,
-    };
+showToast,
+    showToastWithUndo,
+    showConfirm,
+    showPrompt,
+};
 })(window);

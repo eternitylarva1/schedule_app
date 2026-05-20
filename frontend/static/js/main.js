@@ -4943,9 +4943,9 @@ const deleted = Number(stats.events_deleted || 0);
 const completed = Number(stats.events_completed || 0);
 const uncompleted = Number(stats.events_uncompleted || 0);
 
-// Check for event_postpone operation details
-const operations = Array.isArray(result.operations) ? result.operations : [];
-const postponeOp = operations.find(op => op.action === 'event_postpone');
+// Check for event_postpone operation details from actual execution result
+const actualOperations = Array.isArray(result.operations) ? result.operations : [];
+const postponeOp = actualOperations.find(op => op.action === 'event_postpone');
 
 if (postponeOp && moved > 0) {
     const details = postponeOp.details || [];
