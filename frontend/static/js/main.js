@@ -2187,6 +2187,7 @@
                     elements.daySlider.classList.remove('hidden');
                     elements.weekView.classList.add('hidden');
                     elements.monthView.classList.add('hidden');
+                    elements.timeline.innerHTML = '<div class="skeleton" style="height:200px;margin:12px;"></div>';
                     renderTimeline();
                     // Scroll to current time if viewing today
                     if (isToday(state.currentDate)) {
@@ -2216,6 +2217,7 @@
                     elements.daySlider.classList.add('hidden');
                     elements.weekView.classList.remove('hidden');
                     elements.monthView.classList.add('hidden');
+                    elements.weekGrid.innerHTML = '<div class="skeleton" style="height:200px;margin:12px;"></div>';
                     renderWeekView();
                 } else if (state.calendarSubview === 'month') {
                     elements.dayView.classList.add('hidden');
@@ -2224,6 +2226,7 @@
                     elements.monthView.classList.remove('hidden');
                     // Keep month alignment: state.currentMonth = first day
                     state.currentMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
+                    elements.monthGrid.innerHTML = '<div class="skeleton" style="height:200px;margin:12px;"></div>';
                     renderMonthView();
                 }
                 break;
