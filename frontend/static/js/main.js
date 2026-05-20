@@ -4935,15 +4935,52 @@
             throw new Error('执行失败');
         }
 
-        const stats = result.stats || {};
-        const created = Number(stats.events_created || 0);
-        const updated = Number(stats.events_updated || 0);
-        const moved = Number(stats.events_moved || 0);
-        const deleted = Number(stats.events_deleted || 0);
-        const completed = Number(stats.events_completed || 0);
-        const uncompleted = Number(stats.events_uncompleted || 0);
+const stats = result.stats || {};
+const created = Number(stats.events_created || 0);
+const updated = Number(stats.events_updated || 0);
+const moved = Number(stats.events_moved || 0);
+const deleted = Number(stats.events_deleted || 0);
+const completed = Number(stats.events_completed || 0);
+const uncompleted = Number(stats.events_uncompleted || 0);
 
-        if (deleted > 0 || completed > 0 || uncompleted > 0) {
+// Check for event_postpone operation details
+const operations = Array.isArray(result.operations) ? result.operations : [];
+const postponeOp = operations.find(op => op.action === 'event_postpone');
+
+if (postponeOp && moved > 0) {
+    const details = postponeOp.details || [];
+    let timeStr = '';
+    if (details.length > 0 && details[0].new_start) {
+        const d = new Date(details[0].new_start);
+        timeStr = `，从 ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} 开始`;
+    }
+    let warning = '';
+    if (details.length > 0 && details[0].new_start) {
+        const lastNewStart = new Date(details[details.length - 1].new_start);
+        if (lastNewStart.getHours() >= 22) warning = ' (部分时间排到深夜)';
+    }
+    // Store undo details
+    const undoDetails = details.map(d => ({ id: d.id, old_start: d.old_start, old_end: d.old_end }));
+    showToastWithUndo(`已推迟 ${moved} 个日程${timeStr}${warning}`, async () => {
+        try {
+            const undoResult = await apiCall('events/postpone-undo', {
+                method: 'POST',
+                body: JSON.stringify({ details: undoDetails }),
+            });
+            if (undoResult && undoResult.restored > 0) {
+                showToast(`已恢复 ${undoResult.restored} 个日程的原时间`);
+                await loadData();
+            } else {
+                showToast('撤销失败，请手动调整');
+            }
+        } catch (e) {
+            showToast('撤销失败: ' + (e.message || '网络错误'));
+        }
+    });
+} else if (postponeOp && moved === 0) {
+    const msg = postponeOp.message || '没有需要推迟的日程';
+    showToast(msg);
+} else if (deleted > 0 || completed > 0 || uncompleted > 0) {
             const parts = [];
             if (created > 0) parts.push(`创建${created}`);
             if (deleted > 0) parts.push(`删除${deleted}`);
@@ -5810,10 +5847,32 @@
                 opacity: 0;
                 transition: transform var(--transition-normal), opacity var(--transition-normal);
             }
-            .toast.visible {
-                transform: translateX(-50%) translateY(0);
-                opacity: 1;
-            }
+.toast.visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+.toast-with-undo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+}
+.toast-msg {
+    flex: 1;
+}
+.toast-undo-btn {
+    background: var(--primary, #4f46e5);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: var(--font-size-sm, 13px);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.toast-undo-btn:active {
+    opacity: 0.8;
+}
         `;
         document.head.appendChild(style);
     }

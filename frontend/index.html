@@ -39,7 +39,7 @@
         <!-- LLM Input Area -->
         <div class="llm-input-area" id="llmInputArea">
             <div class="llm-input-wrapper">
-                <input type="text" class="llm-input" id="llmInput" placeholder="输入自然语言创建日程..." autocomplete="off">
+                <input type="text" class="llm-input" id="llmInput" placeholder="输入自然语言创建日程，如：把今天剩下的任务推迟到现在" autocomplete="off">
                 <button class="llm-btn" id="llmBtn">AI</button>
             </div>
             <div class="llm-input-failed hidden" id="llmInputFailed">
@@ -49,14 +49,16 @@
                     <button class="llm-input-failed-cancel" id="llmInputFailedCancel">取消</button>
                 </div>
             </div>
-            <div class="llm-queue-status hidden" id="llmQueueStatus" aria-live="polite">
+<div class="llm-queue-status hidden" id="llmQueueStatus" aria-live="polite">
                 <div class="llm-queue-main">
                     <span class="llm-queue-text" id="llmQueueText">AI处理中...</span>
                     <div class="llm-queue-right">
                         <span class="llm-queue-meta" id="llmQueueMeta">进行中</span>
                         <button class="llm-queue-copy-btn" id="llmQueueCopyBtn" type="button" title="复制">📋</button>
-                        <button class="llm-queue-cancel-btn hidden" id="llmQueueCancelBtn" type="button">取消</button>
                     </div>
+                </div>
+            </div>
+            <div class="llm-hint">尝试："把剩下的任务推迟到现在"</div>
                 </div>
                 <div class="llm-queue-detail" id="llmQueueDetail"></div>
                 <div class="llm-queue-progress-track">

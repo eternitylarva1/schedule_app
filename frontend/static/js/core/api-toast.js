@@ -483,29 +483,61 @@
     // ============================================
     let toastTimeout = null;
 
-    function showToast(message) {
-        // Remove existing toast
-        const existing = document.querySelector('.toast');
-        if (existing) {
-            existing.remove();
-        }
-
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.textContent = message;
-        document.body.appendChild(toast);
-
-        // Trigger animation
-        requestAnimationFrame(() => {
-            toast.classList.add('visible');
-        });
-
-        clearTimeout(toastTimeout);
-        toastTimeout = setTimeout(() => {
-            toast.classList.remove('visible');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+function showToast(message) {
+    // Remove existing toast
+    const existing = document.querySelector('.toast');
+    if (existing) {
+        existing.remove();
     }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('visible');
+    });
+
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+function showToastWithUndo(message, undoCallback) {
+    // Remove existing toast
+    const existing = document.querySelector('.toast');
+    if (existing) {
+        existing.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-with-undo';
+    toast.innerHTML = `<span class="toast-msg">${message}</span><button class="toast-undo-btn">撤销</button>`;
+    document.body.appendChild(toast);
+
+    const undoBtn = toast.querySelector('.toast-undo-btn');
+    undoBtn.addEventListener('click', () => {
+        clearTimeout(toastTimeout);
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 300);
+        if (undoCallback) undoCallback();
+    });
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('visible');
+    });
+
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => toast.remove(), 300);
+    }, 5000); // Longer timeout for undo
+}
 
     function showModal({ message, mode = 'confirm', placeholder = '', initialValue = '' }) {
         return new Promise((resolve) => {

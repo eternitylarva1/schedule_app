@@ -1089,6 +1089,58 @@ async def move_event_by_title(title: str, new_start_time: datetime) -> int:
         return cursor.rowcount
 
 
+async def postpone_remaining_events_preview(today_str: Optional[str] = None, from_time: Optional[str] = None) -> dict:
+    """Preview what postpone_remaining_events would do, without modifying the database.
+
+    Returns:
+        {"moved": int, "details": [...], "message": str}
+    """
+    from datetime import date
+    now = datetime.now()
+    if not today_str:
+        today_str = date.today().isoformat()
+    if not from_time:
+        from_time = now.strftime("%H:%M")
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT id, title, start_time, end_time, is_test
+            FROM events WHERE status = 'pending'
+            AND start_time >= ? AND start_time <= ?
+            ORDER BY start_time ASC""",
+            (f"{today_str}T00:00:00", f"{today_str}T23:59:59"),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+    remaining = rows
+    if not remaining:
+        return {"moved": 0, "details": [], "message": "今天没有待进行的日程"}
+
+    cursor_time = now
+    details = []
+    for row in remaining:
+        event_start = datetime.fromisoformat(row["start_time"]) if isinstance(row["start_time"], str) else row["start_time"]
+        event_end = datetime.fromisoformat(row["end_time"]) if row["end_time"] and isinstance(row["end_time"], str) else None
+        if event_end is None:
+            duration = timedelta(minutes=30)
+        else:
+            ev_end = datetime.fromisoformat(row["end_time"]) if isinstance(row["end_time"], str) else row["end_time"]
+            duration = ev_end - event_start
+
+        new_start = cursor_time
+        new_end = new_start + duration
+        details.append({
+            "id": row["id"],
+            "title": row["title"],
+            "old_start": event_start.isoformat() if isinstance(event_start, datetime) else str(event_start),
+            "new_start": new_start.isoformat(),
+        })
+        cursor_time = new_end
+
+    return {"moved": len(details), "details": details[:3], "message": ""}
+
+
 async def postpone_remaining_events(today_str: Optional[str] = None, from_time: Optional[str] = None) -> dict:
     """Postpone all pending events today after 'from_time' to start sequentially from now.
     
@@ -1111,6 +1163,15 @@ async def postpone_remaining_events(today_str: Optional[str] = None, from_time: 
     
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        # First check: any events at all today?
+        async with db.execute(
+            """SELECT id FROM events
+            WHERE start_time >= ? AND start_time <= ?
+            LIMIT 1""",
+            (f"{today_str}T00:00:00", f"{today_str}T23:59:59"),
+        ) as cursor:
+            has_any = await cursor.fetchone()
+        
         async with db.execute(
             """SELECT id, title, start_time, end_time, is_test
                FROM events WHERE status = 'pending'
@@ -1124,7 +1185,9 @@ async def postpone_remaining_events(today_str: Optional[str] = None, from_time: 
     remaining = rows
     
     if not remaining:
-        return {"moved": 0, "details": []}
+        if not has_any:
+            return {"moved": 0, "details": [], "message": "今天没有任何日程"}
+        return {"moved": 0, "details": [], "message": "今天没有待进行的日程"}
     
     # Calculate deltas: each event shifts from where its predecessor would end
     cursor_time = now
@@ -1154,13 +1217,47 @@ async def postpone_remaining_events(today_str: Optional[str] = None, from_time: 
                 "id": row["id"],
                 "title": row["title"],
                 "old_start": event_start.isoformat() if isinstance(event_start, datetime) else str(event_start),
+                "old_end": (event_start + duration).isoformat(),
                 "new_start": new_start.isoformat(),
+                "new_end": new_end.isoformat(),
             })
             cursor_time = new_end
             moved += 1
         await db.commit()
     
     return {"moved": moved, "details": details}
+
+
+async def undo_postpone_events(details: list) -> dict:
+    """Undo a postpone operation by restoring original start/end times.
+
+    Args:
+        details: List of dicts with {id, old_start, old_end} to restore.
+
+    Returns:
+        {"restored": int}
+    """
+    restored = 0
+    updated_at = datetime.now().isoformat()
+    async with aiosqlite.connect(DB_PATH) as db:
+        for item in details:
+            event_id = item.get("id")
+            old_start = item.get("old_start")
+            if not event_id or not old_start:
+                continue
+            # Calculate old_end from old_start + duration, or use provided old_end
+            old_end = item.get("old_end")
+            if not old_end:
+                # Default: keep 1 hour if no end time stored
+                old_start_dt = datetime.fromisoformat(old_start) if isinstance(old_start, str) else old_start
+                old_end = (old_start_dt + timedelta(hours=1)).isoformat()
+            await db.execute(
+                """UPDATE events SET start_time = ?, end_time = ?, updated_at = ? WHERE id = ?""",
+                (old_start, old_end, updated_at, event_id),
+            )
+            restored += 1
+        await db.commit()
+    return {"restored": restored}
 
 
 async def get_events_by_title(title: str) -> List["Event"]:

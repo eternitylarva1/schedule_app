@@ -359,17 +359,37 @@ async def undo_event_modification(request: web.Request) -> web.Response:
         modification_id = int(request.match_info.get("id", 0))
         if not modification_id:
             return error_response("无效的ID")
-        
+
         event = await db.undo_event_modification(modification_id)
         if not event:
             return error_response("找不到要撤销的修改")
-        
+
         return json_response({
             "restored": event.to_dict(),
             "message": "已撤销到之前的版本"
         })
     except Exception as e:
         return error_response(f"撤销修改失败: {str(e)}")
+
+
+async def undo_postpone(request: web.Request) -> web.Response:
+    """POST /api/events/postpone-undo - undo last postpone operation.
+
+    Body: {"details": [{"id": 123, "old_start": "...", "old_end": "..."}, ...]}
+    """
+    try:
+        body = await request.json()
+        details = body.get("details", [])
+        if not details or not isinstance(details, list):
+            return error_response("无效的撤销数据")
+
+        result = await db.undo_postpone_events(details)
+        return json_response({
+            "restored": result.get("restored", 0),
+            "message": f"已恢复 {result.get('restored', 0)} 个日程的原时间"
+        })
+    except Exception as e:
+        return error_response(f"撤销推迟失败: {str(e)}")
 
 
 async def get_stats(request: web.Request) -> web.Response:
@@ -885,8 +905,12 @@ async def _handle_event_operation(op, action, user_text, dry_run):
             "action": "event_postpone",
         }
         if dry_run:
+            result = await db.postpone_remaining_events_preview()
+            preview["affected"] = result.get("moved", 0)
+            preview["details"] = result.get("details", [])[:3]
+            preview["message"] = result.get("message", "")
             return {"preview": preview}
-        
+
         from datetime import date
         result = await db.postpone_remaining_events()
         return {"preview": {**preview, **result}, "affected": result.get("moved", 0)}
@@ -3102,6 +3126,9 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/budget-templates", create_budget_template)
     app.router.add_delete("/api/budget-templates/{id}", delete_budget_template)
 
-    # Backup / Export / Import endpoints
+# Backup / Export / Import endpoints
     app.router.add_get("/api/backup/export", export_backup)
     app.router.add_post("/api/backup/import", import_backup)
+
+    # Postpone undo endpoint
+    app.router.add_post("/api/events/postpone-undo", undo_postpone)
