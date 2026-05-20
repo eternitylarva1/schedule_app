@@ -1089,6 +1089,80 @@ async def move_event_by_title(title: str, new_start_time: datetime) -> int:
         return cursor.rowcount
 
 
+async def postpone_remaining_events(today_str: Optional[str] = None, from_time: Optional[str] = None) -> dict:
+    """Postpone all pending events today after 'from_time' to start sequentially from now.
+    
+    Args:
+        today_str: Date string 'YYYY-MM-DD', defaults to today
+        from_time: 'HH:MM' to identify which events remain (after this time)
+    
+    Returns:
+        {"moved": int, "details": [...]}
+    """
+    from datetime import date
+    now = datetime.now()
+    if not today_str:
+        today_str = date.today().isoformat()
+    if not from_time:
+        from_time = now.strftime("%H:%M")
+    
+    # Parse from_time to a datetime for comparison
+    from_dt = datetime.fromisoformat(f"{today_str}T{from_time}:00")
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT id, title, start_time, end_time, is_test
+               FROM events WHERE status = 'pending'
+               AND start_time >= ? AND start_time <= ?
+               ORDER BY start_time ASC""",
+            (f"{today_str}T00:00:00", f"{today_str}T23:59:59"),
+        ) as cursor:
+            rows = await cursor.fetchall()
+    
+    # Filter: include all pending events (user may have overslept and wants ALL remaining to shift)
+    remaining = rows
+    
+    if not remaining:
+        return {"moved": 0, "details": []}
+    
+    # Calculate deltas: each event shifts from where its predecessor would end
+    cursor_time = now
+    details = []
+    moved = 0
+    updated_at = datetime.now().isoformat()
+    
+    async with aiosqlite.connect(DB_PATH) as db:
+        for row in remaining:
+            event_start = datetime.fromisoformat(row["start_time"]) if isinstance(row["start_time"], str) else row["start_time"]
+            event_end = datetime.fromisoformat(row["end_time"]) if row["end_time"] and (isinstance(row["end_time"], str) or True) else None
+            if event_end is None:
+                duration = timedelta(minutes=30)
+            else:
+                end_str = row["end_time"]
+                ev_end = datetime.fromisoformat(end_str) if isinstance(end_str, str) else end_str
+                duration = ev_end - event_start
+            
+            new_start = cursor_time
+            new_end = new_start + duration
+            
+            await db.execute(
+                """UPDATE events SET start_time = ?, end_time = ?, updated_at = ? WHERE id = ?""",
+                (new_start.isoformat(), new_end.isoformat(), updated_at, row["id"]),
+            )
+            details.append({
+                "id": row["id"],
+                "title": row["title"],
+                "old_start": event_start.isoformat() if isinstance(event_start, datetime) else str(event_start),
+                "new_start": new_start.isoformat(),
+            })
+            cursor_time = new_end
+            moved += 1
+        await db.commit()
+    
+    return {"moved": moved, "details": details}
+
+
 async def get_events_by_title(title: str) -> List["Event"]:
     """Get all events matching title (partial match)."""
     async with aiosqlite.connect(DB_PATH) as db:

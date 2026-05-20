@@ -889,6 +889,7 @@ class LLMService:
         - event_create: 创建日程/待办
         - event_update: 修改日程/待办的标题/时间/时长
         - event_move: 移动日程到另一天（只改日期，不改时间点）
+        - event_postpone: 将今天还未开始的、从"现在"时间点以后的所有pending日程顺延，从现在开始依次排列（保持原时长和顺序）
         - event_delete: 删除日程/待办（批量或按标题）
         - event_complete: 完成日程/待办（批量或按标题）
         - event_uncomplete: 撤销完成（批量或按标题）
@@ -945,8 +946,9 @@ class LLMService:
         3) event操作规则：
            - event_create: start_time必填（ISO格式）
            - event_update: original_title必填，可同时修改title/start_time/duration_minutes
-           - event_move: original_title + 新日期时间
-           - event_delete/complete/uncomplete: target_title或scope=all
+- event_move: original_title + 新日期时间
+            - event_postpone: 不需要参数，自动将今天当前时间之后所有pending日程顺延
+            - event_delete/complete/uncomplete: target_title或scope=all
            - event_query: target_title（可选）或date_range（today/week/month/all）
         4) expense操作规则：
            - expense_create: amount（金额）+ expense_category（分类）+ note（备注可选）

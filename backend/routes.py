@@ -696,6 +696,8 @@ def _update_event_stats(stats, action, affected):
         stats["events_uncompleted"] += affected
     elif action == "event_query":
         stats["events_queried"] += affected
+    elif action == "event_postpone":
+        stats["events_moved"] += affected
 
 
 def _update_expense_stats(stats, action, affected):
@@ -875,6 +877,19 @@ async def _handle_event_operation(op, action, user_text, dry_run):
             events = [e for e in events if target_title in (e.title or "")]
         
         return {"preview": preview, "affected": len(events), "data": [e.to_dict() for e in events]}
+    
+    # event_postpone
+    if action == "event_postpone":
+        preview = {
+            "domain": "event",
+            "action": "event_postpone",
+        }
+        if dry_run:
+            return {"preview": preview}
+        
+        from datetime import date
+        result = await db.postpone_remaining_events()
+        return {"preview": {**preview, **result}, "affected": result.get("moved", 0)}
     
     # event_delete / event_complete / event_uncomplete
     if action in ("event_delete", "event_complete", "event_uncomplete"):
