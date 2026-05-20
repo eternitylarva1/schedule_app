@@ -810,6 +810,17 @@
         
         // 恢复滚动位置
         if (scrollParent) scrollParent.scrollTop = scrollTop;
+
+        // Show swipe hint on first visit
+        if (!localStorage.getItem('swipe_hint_seen') && container.children.length > 0) {
+            localStorage.setItem('swipe_hint_seen', '1');
+            const hint = document.createElement('div');
+            hint.className = 'swipe-hint left visible';
+            hint.textContent = '← 左滑编辑/删除';
+            hint.style.cssText = 'top:40%;left:16px;opacity:1;';
+            elements.app.appendChild(hint);
+            setTimeout(() => hint.remove(), 3000);
+        }
     }
 
     // ============================================
@@ -2184,6 +2195,8 @@
                 // Render based on calendar subview
                 if (state.calendarSubview === 'day') {
                     elements.dayView.classList.remove('hidden');
+                    elements.dayView.classList.add('view-enter');
+                    setTimeout(() => elements.dayView.classList.remove('view-enter'), 300);
                     elements.daySlider.classList.remove('hidden');
                     elements.weekView.classList.add('hidden');
                     elements.monthView.classList.add('hidden');
@@ -2216,6 +2229,8 @@
                     elements.dayView.classList.add('hidden');
                     elements.daySlider.classList.add('hidden');
                     elements.weekView.classList.remove('hidden');
+                    elements.weekView.classList.add('view-enter');
+                    setTimeout(() => elements.weekView.classList.remove('view-enter'), 300);
                     elements.monthView.classList.add('hidden');
                     elements.weekGrid.innerHTML = '<div class="skeleton" style="height:200px;margin:12px;"></div>';
                     renderWeekView();
@@ -2224,6 +2239,8 @@
                     elements.daySlider.classList.add('hidden');
                     elements.weekView.classList.add('hidden');
                     elements.monthView.classList.remove('hidden');
+                    elements.monthView.classList.add('view-enter');
+                    setTimeout(() => elements.monthView.classList.remove('view-enter'), 300);
                     // Keep month alignment: state.currentMonth = first day
                     state.currentMonth = new Date(state.currentDate.getFullYear(), state.currentDate.getMonth(), 1);
                     elements.monthGrid.innerHTML = '<div class="skeleton" style="height:200px;margin:12px;"></div>';
@@ -2232,21 +2249,29 @@
                 break;
             case 'todo':
                 elements.todoView.classList.remove('hidden');
+                elements.todoView.classList.add('view-enter');
+                setTimeout(() => elements.todoView.classList.remove('view-enter'), 300);
                 await renderTodoView();
                 break;
             case 'notepad':
                 if (elements.notepadView) {
                     elements.notepadView.classList.remove('hidden');
+                    elements.notepadView.classList.add('view-enter');
+                    setTimeout(() => elements.notepadView.classList.remove('view-enter'), 300);
                     await renderNotepadView();
                 }
                 break;
             case 'goals':
                 elements.goalsView.classList.remove('hidden');
+                elements.goalsView.classList.add('view-enter');
+                setTimeout(() => elements.goalsView.classList.remove('view-enter'), 300);
                 await renderGoalsView();
                 break;
             case 'settings':
                 if (elements.settingsView) {
                     elements.settingsView.classList.remove('hidden');
+                    elements.settingsView.classList.add('view-enter');
+                    setTimeout(() => elements.settingsView.classList.remove('view-enter'), 300);
                 }
                 await openSettingsView();
                 break;
@@ -5847,6 +5872,13 @@
             const savedView = localStorage.getItem('lastView') || 'day';
             const lastView = allowedViews.has(savedView) ? savedView : 'day';
             await switchView(lastView);
+        }
+        
+        // FAB discoverability: pulse on first visit
+        if (!localStorage.getItem('fab_seen') && elements.contentAddBtn) {
+            elements.contentAddBtn.classList.add('pulse-once');
+            setTimeout(() => elements.contentAddBtn.classList.remove('pulse-once'), 2000);
+            localStorage.setItem('fab_seen', '1');
         }
         
         // Expose to window for external tools (Playwright, etc.)

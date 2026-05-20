@@ -2169,6 +2169,15 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
+@keyframes fabPulse {
+    0%, 70%, 100% { transform: scale(1); }
+    80% { transform: scale(1.15); }
+    90% { transform: scale(0.95); }
+}
+.content-fab.pulse-once {
+    animation: fabPulse 0.6s ease-in-out 3;
+}
+
 .add-icon {
     width: 56px;
     height: 56px;
