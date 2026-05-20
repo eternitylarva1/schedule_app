@@ -5516,6 +5516,10 @@
             loadDeletedExpenses();
         });
         
+        // Settings modal backdrop tap-to-close
+        elements.settingsBackdrop?.addEventListener('click', closeSettingsModal);
+        elements.settingsClose?.addEventListener('click', closeSettingsModal);
+        
         // AI Provider modal events
         elements.addAiProviderBtn?.addEventListener('click', () => openAiProviderModal());
         elements.aiProviderBackdrop?.addEventListener('click', closeAiProviderModal);

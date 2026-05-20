@@ -12,7 +12,7 @@
     
     --text-primary: #f9fafb;
     --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
+    --text-muted: #9ca3af;
     
     --border-color: #374151;
     --border-light: #4b5563;
@@ -249,8 +249,8 @@ body {
 }
 
 .nav-arrow-btn {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border: none;
     background: transparent;
     color: var(--text-primary);
@@ -1309,8 +1309,8 @@ body {
 }
 
 .todo-checkbox {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border: 2px solid var(--border-light);
     border-radius: 50%;
     cursor: pointer;
