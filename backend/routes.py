@@ -2789,6 +2789,19 @@ async def log_error(request: web.Request) -> web.Response:
             url=body.get("url", ""),
         )
         result = await db.create_error_log(error_log)
+        
+        # Send QQ notification for errors
+        try:
+            import sys
+            sys.path.insert(0, '/home/gaoming/AI_Planner')
+            from send_message import send_private_message
+            msg = f"[计划助手错误报告]\n来源: {error_log.source}\n页面: {error_log.url}\n错误: {error_log.message}"
+            if error_log.stack:
+                msg += f"\n堆栈: {error_log.stack[:200]}"
+            send_private_message(user_id=2674610176, message=msg)
+        except Exception:
+            pass  # Don't fail if QQ notification fails
+        
         return json_response(result.to_dict())
     except Exception as e:
         return error_response(f"记录错误失败: {str(e)}")

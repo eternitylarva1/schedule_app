@@ -5810,19 +5810,49 @@ if (postponeOp && moved > 0) {
     }
 
     function registerGlobalErrorHandlers() {
-        window.addEventListener('error', (event) => {
+        window.addEventListener('error', async (event) => {
             const msg = event?.error?.message || event?.message || 'Unknown Error';
+            const stack = event?.error?.stack || '';
             console.error('[GlobalError]', event.error || event);
             showToast(`页面错误: ${msg}`);
             showFatalDebugBanner(msg);
+            // Send error to server for notification
+            try {
+                await apiCall('errors/log', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: msg,
+                        stack: stack,
+                        source: 'window.onerror',
+                        url: window.location.href
+                    })
+                });
+            } catch (e) {
+                console.error('[ErrorLog] Failed to send:', e);
+            }
         });
 
-        window.addEventListener('unhandledrejection', (event) => {
+        window.addEventListener('unhandledrejection', async (event) => {
             const reason = event?.reason;
             const msg = typeof reason === 'string' ? reason : (reason?.message || 'Unhandled Promise Rejection');
+            const stack = reason?.stack || '';
             console.error('[UnhandledRejection]', reason);
             showToast(`异步错误: ${msg}`);
             showFatalDebugBanner(msg);
+            // Send error to server for notification
+            try {
+                await apiCall('errors/log', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: msg,
+                        stack: stack,
+                        source: 'unhandledrejection',
+                        url: window.location.href
+                    })
+                });
+            } catch (e) {
+                console.error('[ErrorLog] Failed to send:', e);
+            }
         });
     }
 
