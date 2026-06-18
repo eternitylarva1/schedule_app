@@ -47,6 +47,7 @@
     breakdownHorizon: 'short',
     goals: [],
     goalsHorizon: 'short',
+    expandedGoalIds: new Set(),
     enableDragResize: false,
     qqReminderEnabled: false,
     defaultTaskReminderEnabled: true,

@@ -221,6 +221,7 @@
             tab.addEventListener('click', async (e) => {
                 const horizon = e.target.dataset.horizon;
                 state.goalsHorizon = horizon;
+                state.expandedGoalIds.clear();
                 renderGoalsViewSkeleton();
                 await renderGoalsList();
             });
@@ -328,6 +329,19 @@
             });
             return count;
         }
+
+        function restoreGoalExpandedState(listEl) {
+            if (!state.expandedGoalIds || state.expandedGoalIds.size === 0) return;
+            state.expandedGoalIds.forEach(id => {
+                const card = listEl.querySelector(`.goal-card[data-goal-id="${id}"]`);
+                if (!card) return;
+                card.classList.add('expanded');
+                const children = card.querySelector('.goal-children');
+                if (children) children.classList.remove('hidden');
+                const toggleBtn = card.querySelector('.goal-action-btn[data-action="toggle"]');
+                if (toggleBtn) toggleBtn.textContent = '▼';
+            });
+        }
         
         function renderSubtasks(subtasks, depth = 1, parentId = null) {
             if (!subtasks || subtasks.length === 0 || depth > 2) return '';
@@ -381,7 +395,9 @@
                 </div>
             `;
         }).join('');
-        
+
+        restoreGoalExpandedState(listEl);
+
         listEl.querySelectorAll('.goal-action-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -445,17 +461,24 @@
                     const confirmed = await showConfirm('确定删除这个目标吗？');
                     if (confirmed) {
                         await deleteGoal(goalId);
+                        state.expandedGoalIds.delete(String(goalId));
                         showToast?.('已删除');
                         await renderGoalsList();
                     }
                 } else if (action === 'toggle') {
                     const card = btn.closest('.goal-card');
                     const children = card.querySelector('.goal-children');
-                    card.classList.toggle('expanded');
-                    children.classList.toggle('hidden');
-                    btn.textContent = card.classList.contains('expanded') ? '▼' : '▶';
+                    const isExpanded = card.classList.toggle('expanded');
+                    children.classList.toggle('hidden', !isExpanded);
+                    btn.textContent = isExpanded ? '▼' : '▶';
+                    if (isExpanded) {
+                        state.expandedGoalIds.add(String(goalId));
+                    } else {
+                        state.expandedGoalIds.delete(String(goalId));
+                    }
                 } else if (action === 'complete') {
                     await updateGoal(goalId, { status: 'done' });
+                    state.expandedGoalIds.delete(String(goalId));
                     showToast?.('已完成 ✓');
                     await renderGoalsList();
                 } else if (action === 'edit') {
