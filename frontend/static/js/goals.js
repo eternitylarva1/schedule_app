@@ -330,6 +330,106 @@
             return count;
         }
 
+        function formatGoalDate(start, end) {
+            const fmt = (d) => {
+                if (!d) return '';
+                const dt = new Date(d);
+                if (isNaN(dt.getTime())) return '';
+                return `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`;
+            };
+            const s = fmt(start), e = fmt(end);
+            if (s && e) return s + '-' + e;
+            if (s) return s;
+            if (e) return '~' + e;
+            return '';
+        }
+
+        function markRange(start, end, set) {
+            if (!start || isNaN(start.getTime())) return;
+            const e = (end && !isNaN(end.getTime())) ? end : start;
+            const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+            const limit = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
+            while (cur < limit) {
+                set.add(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`);
+                cur.setDate(cur.getDate() + 1);
+            }
+        }
+
+        function renderMiniCalendar(goal, allGoals, year, month) {
+            if (!goal.start_date && !goal.end_date) return '';
+            // default to goal's start_date month or current month
+            if (year === undefined || month === undefined) {
+                const sd = goal.start_date ? new Date(goal.start_date) : new Date();
+                year = sd.getFullYear();
+                month = sd.getMonth();
+            }
+            const today = new Date();
+
+            // collect date coverage
+            const covered = new Set();
+            const subCovered = new Set();
+            const others = new Set();
+            if (goal.start_date || goal.end_date) {
+                markRange(parseDate(goal.start_date), parseDate(goal.end_date), covered);
+            }
+            if (goal.subtasks) {
+                for (const st of goal.subtasks) {
+                    if (st.start_date || st.end_date) {
+                        markRange(parseDate(st.start_date), parseDate(st.end_date), subCovered);
+                    }
+                }
+            }
+            for (const g of allGoals) {
+                if (g.id === goal.id) continue;
+                if (g.start_date || g.end_date) {
+                    markRange(parseDate(g.start_date), parseDate(g.end_date), others);
+                }
+            }
+
+            // build grid
+            const firstDay = new Date(year, month, 1);
+            const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Mon=0
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            let cells = '';
+            for (let i = 0; i < startDow; i++) {
+                cells += '<div class="goal-calendar-cell outside"></div>';
+            }
+            for (let d = 1; d <= daysInMonth; d++) {
+                const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                let cls = 'goal-calendar-cell';
+                if (covered.has(ds)) cls += ' covered';
+                if (subCovered.has(ds) && !covered.has(ds)) cls += ' sub-covered';
+                if (others.has(ds)) cls += ' other';
+                if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cls += ' today';
+                cells += `<div class="${cls}"><span class="day-num">${d}</span></div>`;
+            }
+
+            return `<div class="goal-calendar" data-goal-id="${goal.id}" data-year="${year}" data-month="${month}">
+                <div class="goal-calendar-nav">
+                    <button class="goal-calendar-nav-btn cal-prev" data-goal-id="${goal.id}">◀</button>
+                    <span>${year}年${month + 1}月</span>
+                    <button class="goal-calendar-nav-btn cal-next" data-goal-id="${goal.id}">▶</button>
+                </div>
+                <div class="goal-calendar-grid">
+                    <div class="goal-calendar-day-header">一</div>
+                    <div class="goal-calendar-day-header">二</div>
+                    <div class="goal-calendar-day-header">三</div>
+                    <div class="goal-calendar-day-header">四</div>
+                    <div class="goal-calendar-day-header">五</div>
+                    <div class="goal-calendar-day-header weekend">六</div>
+                    <div class="goal-calendar-day-header weekend">日</div>
+                    ${cells}
+                </div>
+            </div>`;
+        }
+
+        function parseDate(d) {
+            if (!d) return null;
+            const date = new Date(d);
+            return isNaN(date.getTime()) ? null : date;
+        }
+
         function restoreGoalExpandedState(listEl) {
             if (!state.expandedGoalIds || state.expandedGoalIds.size === 0) return;
             state.expandedGoalIds.forEach(id => {
@@ -353,6 +453,7 @@
                                 <div class="goal-title-wrap">
                                     <div class="goal-title">${escapeHtml(st.title)}</div>
                                     <div class="goal-meta">${countSubtasks(st) > 0 ? countSubtasks(st) + '项' : ''}</div>
+                                    ${st.start_date || st.end_date ? `<div class="goal-date-badge"><span class="date-range">📅 ${formatGoalDate(st.start_date, st.end_date)}</span></div>` : ''}
                                 </div>
                                 <div class="goal-actions">
                                     <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${st.id}" title="AI细分">📋</button>
@@ -378,6 +479,7 @@
                         <div class="goal-title-wrap">
                             <div class="goal-title">${escapeHtml(goal.title)}</div>
                             <div class="goal-meta">${subtaskCount > 0 ? subtaskCount + '项' : ''}</div>
+                            ${goal.start_date || goal.end_date ? `<div class="goal-date-badge"><span class="date-range">📅 ${formatGoalDate(goal.start_date, goal.end_date)}</span></div>` : ''}
                         </div>
                         <div class="goal-actions">
                             <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
@@ -388,6 +490,7 @@
                         </div>
                     </div>
                     <div class="goal-children hidden">
+                        ${renderMiniCalendar(goal, goals)}
                         <div class="goal-deliverables-section" id="deliverables-${goal.id}"></div>
                         ${renderSubtasks(goal.subtasks)}
                         <button class="goal-add-subtask-btn" data-parent-id="${goal.id}">+ 添加子任务</button>
@@ -397,6 +500,29 @@
         }).join('');
 
         restoreGoalExpandedState(listEl);
+
+        // Calendar nav button delegation (◀ ▶)
+        listEl.addEventListener('click', (e) => {
+            const navBtn = e.target.closest('.goal-calendar-nav-btn');
+            if (!navBtn) return;
+            e.stopPropagation();
+            const container = navBtn.closest('.goal-calendar');
+            if (!container) return;
+            const goalId = parseInt(navBtn.dataset.goalId);
+            let newMonth = parseInt(container.dataset.month, 10);
+            let newYear = parseInt(container.dataset.year, 10);
+            if (navBtn.classList.contains('cal-prev')) {
+                newMonth--;
+                if (newMonth < 0) { newMonth = 11; newYear--; }
+            } else {
+                newMonth++;
+                if (newMonth > 11) { newMonth = 0; newYear++; }
+            }
+            const goal = goals.find(g => g.id === goalId);
+            if (goal) {
+                container.outerHTML = renderMiniCalendar(goal, goals, newYear, newMonth);
+            }
+        });
 
         listEl.querySelectorAll('.goal-action-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {

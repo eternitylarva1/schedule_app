@@ -5201,3 +5201,124 @@ textarea {
 .ai-floating-send:hover {
     transform: scale(1.05);
 }
+
+/* ============================================
+   Goal Mini Calendar (inside goal-children)
+   ============================================ */
+.goal-calendar {
+    margin-bottom: var(--space-md);
+    padding: var(--space-sm);
+    background: var(--bg-secondary, #f8f9fc);
+    border-radius: var(--radius-md);
+    max-width: 320px;
+}
+
+.goal-calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.goal-calendar-nav-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 15px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.goal-calendar-nav-btn:active {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.goal-calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.goal-calendar-day-header {
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-muted, #94a3b8);
+    padding: 3px 0;
+}
+
+.goal-calendar-day-header.weekend {
+    color: var(--text-muted, #94a3b8);
+}
+
+.goal-calendar-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    position: relative;
+}
+
+.goal-calendar-cell .day-num {
+    position: relative;
+    z-index: 1;
+    line-height: 1;
+}
+
+.goal-calendar-cell.covered {
+    background: rgba(59, 130, 246, 0.18);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.goal-calendar-cell.sub-covered {
+    background: rgba(59, 130, 246, 0.10);
+}
+
+.goal-calendar-cell.other {
+    background: rgba(148, 163, 184, 0.10);
+}
+
+.goal-calendar-cell.today {
+    outline: 2px solid var(--primary-color, #3b82f6);
+    outline-offset: -2px;
+    border-radius: 6px;
+    font-weight: 700;
+}
+
+.goal-calendar-cell.today.covered {
+    outline: 2px solid #1d4ed8;
+}
+
+.goal-calendar-cell.outside {
+    color: var(--text-muted, #cbd5e1);
+}
+
+/* Date badge on goal card head */
+.goal-date-badge {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.goal-date-badge .date-range {
+    color: var(--primary-color, #3b82f6);
+    font-weight: 500;
+}
+
+/* Date badge on subtask cards */
+.goal-subtask .goal-date-badge {
+    padding-left: 4px;
+}
