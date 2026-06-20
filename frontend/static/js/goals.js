@@ -303,8 +303,13 @@
         const utils = getUtils();
         const { fetchGoals, updateGoal, deleteGoal, showToast, showConfirm, showPrompt } = utils;
 
-        const listEl = elements.goalsContainer.querySelector('.goals-list');
+        let listEl = elements.goalsContainer.querySelector('.goals-list');
         if (!listEl) return;
+        // Clone+replace to drop accumulated event listeners from previous renders
+        const listParent = listEl.parentNode;
+        const freshListEl = listEl.cloneNode(false);
+        listParent.replaceChild(freshListEl, listEl);
+        listEl = freshListEl;
         
         const goals = await fetchGoals(state.goalsHorizon);
         const goalsSelectionActive = state.selectionMode.active && state.selectionMode.type === 'goals';
