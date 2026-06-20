@@ -580,6 +580,44 @@
             }
         });
 
+        // Calendar cell click → add subtask for empty date
+        listEl.addEventListener('click', async (e) => {
+            const cell = e.target.closest('.goal-calendar-cell');
+            if (!cell) return;
+            if (cell.classList.contains('sub-covered') || cell.classList.contains('outside')) return;
+            if (e.target.closest('.goal-calendar-nav-btn')) return;
+            if (e.target.closest('.goal-date-btn')) return;
+            e.stopPropagation();
+            if (state.selectionMode.active) return;
+            const container = cell.closest('.goal-calendar');
+            if (!container) return;
+            const goalId = parseInt(container.dataset.goalId, 10);
+            const year = parseInt(container.dataset.year, 10);
+            const month = parseInt(container.dataset.month, 10);
+            const day = parseInt(cell.querySelector('.day-num').textContent, 10);
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const title = await showPrompt(`添加子任务 (${dateStr})：`, { placeholder: '例如：调研竞品' });
+            if (!title) return;
+            try {
+                const parentGoal = findGoalById(goals, goalId);
+                const existingCount = parentGoal ? (parentGoal.subtasks?.length || 0) : 0;
+                const color = GOAL_COLORS[existingCount % GOAL_COLORS.length];
+                await createGoal({
+                    title,
+                    parent_id: goalId,
+                    horizon: state.goalsHorizon,
+                    start_date: new Date(year, month, day).toISOString(),
+                    end_date: new Date(year, month, day).toISOString(),
+                    color
+                });
+                showToast?.('子任务已添加');
+                await renderGoalsList();
+            } catch (err) {
+                console.error(err);
+                showToast?.('添加失败');
+            }
+        });
+
         listEl.querySelectorAll('.goal-action-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();

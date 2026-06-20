@@ -5342,6 +5342,10 @@ textarea {
     color: var(--text-muted, #cbd5e1);
 }
 
+.goal-calendar-cell:not(.sub-covered):not(.outside) {
+    cursor: pointer;
+}
+
 /* Date badge on goal card head */
 .goal-date-badge {
     font-size: 10px;
