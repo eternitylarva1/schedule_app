@@ -5318,6 +5318,33 @@ textarea {
     font-weight: 500;
 }
 
+.goal-date-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: inline-block;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.goal-date-btn:hover .date-range,
+.goal-date-btn:active .date-range {
+    text-decoration: underline;
+}
+
+.goal-date-placeholder .date-range {
+    color: var(--text-muted);
+    font-weight: 400;
+    opacity: 0.6;
+}
+
+.goal-date-placeholder:hover .date-range,
+.goal-date-placeholder:active .date-range {
+    opacity: 1;
+    color: var(--primary-color);
+}
+
 /* Date badge on subtask cards */
 .goal-subtask .goal-date-badge {
     padding-left: 4px;

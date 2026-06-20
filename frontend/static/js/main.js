@@ -6291,6 +6291,7 @@ if (postponeOp && moved > 0) {
     window.ScheduleAppCore.openExpenseModal = openExpenseModal;
     window.ScheduleAppCore.showNoteDetail = showNoteDetail;
     window.ScheduleAppCore.showNoteEdit = showNoteEdit;
+    window.ScheduleAppCore.openGoalEditModal = openGoalEditModal;
     window.ScheduleAppCore.openGoalDiscussModal = openGoalDiscussModal;
     window.ScheduleAppCore.showAddGoalModal = showAddGoalModal;
     window.ScheduleAppCore.createGoal = function(payload) {

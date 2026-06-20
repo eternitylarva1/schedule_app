@@ -330,6 +330,17 @@
             return count;
         }
 
+        function findGoalById(goals, id) {
+            for (const g of goals) {
+                if (g.id === id) return g;
+                if (g.subtasks && g.subtasks.length) {
+                    const found = findGoalById(g.subtasks, id);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
         function formatGoalDate(start, end) {
             const fmt = (d) => {
                 if (!d) return '';
@@ -453,7 +464,9 @@
                                 <div class="goal-title-wrap">
                                     <div class="goal-title">${escapeHtml(st.title)}</div>
                                     <div class="goal-meta">${countSubtasks(st) > 0 ? countSubtasks(st) + '项' : ''}</div>
-                                    ${st.start_date || st.end_date ? `<div class="goal-date-badge"><span class="date-range">📅 ${formatGoalDate(st.start_date, st.end_date)}</span></div>` : ''}
+                                    ${st.start_date || st.end_date
+                                        ? `<button class="goal-date-badge goal-date-btn" data-action="setDate" data-goal-id="${st.id}" title="点击设置日期"><span class="date-range">📅 ${formatGoalDate(st.start_date, st.end_date)}</span></button>`
+                                        : `<button class="goal-date-badge goal-date-btn goal-date-placeholder" data-action="setDate" data-goal-id="${st.id}" title="点击设置日期">📅 设置日期</button>`}
                                 </div>
                                 <div class="goal-actions">
                                     <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${st.id}" title="AI细分">📋</button>
@@ -479,7 +492,9 @@
                         <div class="goal-title-wrap">
                             <div class="goal-title">${escapeHtml(goal.title)}</div>
                             <div class="goal-meta">${subtaskCount > 0 ? subtaskCount + '项' : ''}</div>
-                            ${goal.start_date || goal.end_date ? `<div class="goal-date-badge"><span class="date-range">📅 ${formatGoalDate(goal.start_date, goal.end_date)}</span></div>` : ''}
+                            ${goal.start_date || goal.end_date
+                                ? `<button class="goal-date-badge goal-date-btn" data-action="setDate" data-goal-id="${goal.id}" title="点击设置日期"><span class="date-range">📅 ${formatGoalDate(goal.start_date, goal.end_date)}</span></button>`
+                                : `<button class="goal-date-badge goal-date-btn goal-date-placeholder" data-action="setDate" data-goal-id="${goal.id}" title="点击设置日期">📅 设置日期</button>`}
                         </div>
                         <div class="goal-actions">
                             <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
@@ -521,6 +536,21 @@
             const goal = goals.find(g => g.id === goalId);
             if (goal) {
                 container.outerHTML = renderMiniCalendar(goal, goals, newYear, newMonth);
+            }
+        });
+
+        // Date badge click → open edit modal
+        listEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('.goal-date-btn');
+            if (!btn) return;
+            if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
+            e.stopPropagation();
+            const goalId = parseInt(btn.dataset.goalId);
+            const goal = findGoalById(goals, goalId);
+            if (!goal) return;
+            const core = window.ScheduleAppCore;
+            if (core && typeof core.openGoalEditModal === 'function') {
+                core.openGoalEditModal(goal);
             }
         });
 
