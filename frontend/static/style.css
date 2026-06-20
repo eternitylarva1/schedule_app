@@ -5283,8 +5283,23 @@ textarea {
     font-weight: 600;
 }
 
-.goal-calendar-cell.sub-covered {
+.goal-calendar-cell.sub-covered:not(.covered) {
     background: rgba(59, 130, 246, 0.10);
+}
+
+/* Subtask dot indicator: small dot on dates covered by subtasks */
+.goal-calendar-cell.sub-covered::after {
+    content: '';
+    position: absolute;
+    bottom: 1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #3b82f6;
+    z-index: 2;
+    box-shadow: 0 0 0 1px white;
 }
 
 .goal-calendar-cell.other {

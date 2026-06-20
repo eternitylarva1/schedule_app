@@ -410,7 +410,7 @@
                 const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 let cls = 'goal-calendar-cell';
                 if (covered.has(ds)) cls += ' covered';
-                if (subCovered.has(ds) && !covered.has(ds)) cls += ' sub-covered';
+                if (subCovered.has(ds)) cls += ' sub-covered';
                 if (others.has(ds)) cls += ' other';
                 if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cls += ' today';
                 cells += `<div class="${cls}"><span class="day-num">${d}</span></div>`;
