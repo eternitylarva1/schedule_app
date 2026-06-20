@@ -100,6 +100,7 @@ class Goal:
     # AI conversation context
     ai_context: str = ""  # Stored conversation history
     is_test: bool = False
+    color: str = ""
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

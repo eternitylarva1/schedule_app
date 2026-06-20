@@ -2794,6 +2794,11 @@
     }
     
     async function openGoalEditModal(goal) {
+        const colors = (window.ScheduleAppGoals && window.ScheduleAppGoals.GOAL_COLORS) || [
+            '#4CAF50', '#FF5722', '#9C27B0', '#00BCD4',
+            '#FF9800', '#607D8B', '#E91E63', '#3F51B5',
+            '#8BC34A', '#795548'
+        ];
         const editHtml = `
             <div class="modal" id="goalEditModal">
                 <div class="modal-backdrop" id="goalEditBackdrop"></div>
@@ -2815,6 +2820,15 @@
                             <div class="form-group">
                                 <label for="goalEditEnd">截止日期</label>
                                 <input type="date" id="goalEditEnd" value="${goal.end_date ? new Date(goal.end_date).toISOString().slice(0, 10) : ''}">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>颜色</label>
+                            <div class="goal-color-picker">
+                                <button class="goal-color-option no-color${!goal.color ? ' selected' : ''}" data-color="">无</button>
+                                ${colors.map(c => `
+                                    <button class="goal-color-option${goal.color === c ? ' selected' : ''}" data-color="${c}" style="background:${c}"></button>
+                                `).join('')}
                             </div>
                         </div>
                     </div>
@@ -2840,6 +2854,14 @@
         const startInput = document.getElementById('goalEditStart');
         const endInput = document.getElementById('goalEditEnd');
         
+        // Color picker click handler
+        modal.querySelectorAll('.goal-color-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                modal.querySelectorAll('.goal-color-option').forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+            });
+        });
+        
         const closeModal = () => modal.remove();
         backdrop.addEventListener('click', closeModal);
         closeBtn.addEventListener('click', closeModal);
@@ -2858,6 +2880,11 @@
             }
             if (endInput.value) {
                 updates.end_date = new Date(endInput.value).toISOString();
+            }
+            
+            const selectedColor = modal.querySelector('.goal-color-option.selected');
+            if (selectedColor) {
+                updates.color = selectedColor.dataset.color || '';
             }
             
             const result = await updateGoal(goal.id, updates);

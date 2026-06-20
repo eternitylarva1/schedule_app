@@ -1413,6 +1413,7 @@ async def create_goal(request: web.Request) -> web.Response:
             parent_id=parent_id,
             root_goal_id=data.get("root_goal_id"),
             order=data.get("order", 0),
+            color=data.get("color", ""),
             ai_context=data.get("ai_context", ""),
             is_test=bool(data.get("is_test", False)),
         )
@@ -1450,6 +1451,7 @@ async def update_goal(request: web.Request) -> web.Response:
             parent_id=data.get("parent_id", existing.parent_id),
             root_goal_id=data.get("root_goal_id", existing.root_goal_id),
             order=data.get("order", existing.order),
+            color=data.get("color", existing.color),
             ai_context=data.get("ai_context", existing.ai_context),
             is_test=data.get("is_test", existing.is_test),
         )

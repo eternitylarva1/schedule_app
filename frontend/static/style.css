@@ -5287,19 +5287,47 @@ textarea {
     background: rgba(59, 130, 246, 0.10);
 }
 
-/* Subtask dot indicator: small dot on dates covered by subtasks */
-.goal-calendar-cell.sub-covered::after {
-    content: '';
-    position: absolute;
-    bottom: 1px;
-    left: 50%;
-    transform: translateX(-50%);
+/* Subtask dots: colored dots arranged horizontally above day number */
+.goal-calendar-cell.sub-covered {
+    flex-direction: column;
+    padding-top: 2px;
+    gap: 0;
+}
+
+.goal-calendar-cell.sub-covered .day-num {
+    line-height: 1;
+    margin-top: 1px;
+}
+
+.goal-calendar-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    min-height: 7px;
+}
+
+.goal-calendar-dot {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #3b82f6;
-    z-index: 2;
-    box-shadow: 0 0 0 1px white;
+    display: inline-block;
+    flex-shrink: 0;
+    border: 1px solid white;
+    box-sizing: content-box;
+}
+
+.goal-calendar-dot-more {
+    font-size: 8px;
+    color: var(--text-muted);
+    line-height: 1;
+    flex-shrink: 0;
+    margin-left: 1px;
 }
 
 .goal-calendar-cell.other {
@@ -5363,4 +5391,51 @@ textarea {
 /* Date badge on subtask cards */
 .goal-subtask .goal-date-badge {
     padding-left: 4px;
+}
+
+/* Goal card color bar */
+.goal-card.color-bar {
+    border-left: 4px solid var(--goal-color, transparent);
+}
+
+/* Color picker in edit modal */
+.goal-color-picker {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.goal-color-option {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.goal-color-option.selected {
+    border-color: var(--text-primary);
+}
+
+.goal-color-option:active {
+    transform: scale(0.9);
+}
+
+.goal-color-option.no-color {
+    border: 2px dashed var(--text-muted);
+    background: transparent !important;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.goal-color-option.no-color.selected {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
 }

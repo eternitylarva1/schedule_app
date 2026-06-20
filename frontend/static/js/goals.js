@@ -10,6 +10,12 @@
     const getElements = () => (window.ScheduleAppCore && window.ScheduleAppCore.elements) || {};
     const getUtils = () => window.ScheduleAppCore || {};
 
+    const GOAL_COLORS = [
+        '#4CAF50', '#FF5722', '#9C27B0', '#00BCD4',
+        '#FF9800', '#607D8B', '#E91E63', '#3F51B5',
+        '#8BC34A', '#795548'
+    ];
+
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -366,9 +372,21 @@
             }
         }
 
+        function markRangeMap(start, end, map, subtask) {
+            if (!start || isNaN(start.getTime())) return;
+            const e = (end && !isNaN(end.getTime())) ? end : start;
+            const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+            const limit = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
+            while (cur < limit) {
+                const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+                if (!map.has(ds)) map.set(ds, []);
+                map.get(ds).push({ color: subtask.color || '#3b82f6', title: subtask.title, id: subtask.id });
+                cur.setDate(cur.getDate() + 1);
+            }
+        }
+
         function renderMiniCalendar(goal, allGoals, year, month) {
             if (!goal.start_date && !goal.end_date) return '';
-            // default to goal's start_date month or current month
             if (year === undefined || month === undefined) {
                 const sd = goal.start_date ? new Date(goal.start_date) : new Date();
                 year = sd.getFullYear();
@@ -376,9 +394,8 @@
             }
             const today = new Date();
 
-            // collect date coverage
             const covered = new Set();
-            const subCovered = new Set();
+            const subCoveredMap = new Map();
             const others = new Set();
             if (goal.start_date || goal.end_date) {
                 markRange(parseDate(goal.start_date), parseDate(goal.end_date), covered);
@@ -386,7 +403,7 @@
             if (goal.subtasks) {
                 for (const st of goal.subtasks) {
                     if (st.start_date || st.end_date) {
-                        markRange(parseDate(st.start_date), parseDate(st.end_date), subCovered);
+                        markRangeMap(parseDate(st.start_date), parseDate(st.end_date), subCoveredMap, st);
                     }
                 }
             }
@@ -397,9 +414,8 @@
                 }
             }
 
-            // build grid
             const firstDay = new Date(year, month, 1);
-            const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Mon=0
+            const startDow = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
             let cells = '';
@@ -410,10 +426,20 @@
                 const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
                 let cls = 'goal-calendar-cell';
                 if (covered.has(ds)) cls += ' covered';
-                if (subCovered.has(ds)) cls += ' sub-covered';
-                if (others.has(ds)) cls += ' other';
-                if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cls += ' today';
-                cells += `<div class="${cls}"><span class="day-num">${d}</span></div>`;
+                const subInfos = subCoveredMap.get(ds);
+                if (subInfos && subInfos.length > 0) {
+                    cls += ' sub-covered';
+                    if (others.has(ds)) cls += ' other';
+                    if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cls += ' today';
+                    const visible = subInfos.slice(0, 3);
+                    const dots = visible.map(si => `<span class="goal-calendar-dot" style="background:${si.color}"></span>`).join('');
+                    const more = subInfos.length > 3 ? `<span class="goal-calendar-dot-more">+${subInfos.length - 3}</span>` : '';
+                    cells += `<div class="${cls}"><span class="goal-calendar-dots">${dots}${more}</span><span class="day-num">${d}</span></div>`;
+                } else {
+                    if (others.has(ds)) cls += ' other';
+                    if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cls += ' today';
+                    cells += `<div class="${cls}"><span class="day-num">${d}</span></div>`;
+                }
             }
 
             return `<div class="goal-calendar" data-goal-id="${goal.id}" data-year="${year}" data-month="${month}">
@@ -459,7 +485,7 @@
             return `
                 <div class="goal-subtasks depth-${depth}">
                     ${subtasks.map(st => `
-                        <div class="goal-card goal-subtask${goalsSelectionActive ? ' selection-mode' : ''}${(goalsSelectionActive && state.selectionMode.goalIds.has(String(st.id))) ? ' selected' : ''}" data-goal-id="${st.id}">
+                        <div class="goal-card goal-subtask${goalsSelectionActive ? ' selection-mode' : ''}${(goalsSelectionActive && state.selectionMode.goalIds.has(String(st.id))) ? ' selected' : ''}" data-goal-id="${st.id}"${st.color ? ` style="border-left: 4px solid ${st.color}"` : ''}>
                             <div class="goal-card-head">
                                 <div class="goal-title-wrap">
                                     <div class="goal-title">${escapeHtml(st.title)}</div>
@@ -487,7 +513,7 @@
             const selectedClass = goalsSelectionActive && state.selectionMode.goalIds.has(String(goal.id)) ? ' selected' : '';
             const selectionClass = goalsSelectionActive ? ' selection-mode' : '';
             return `
-                <div class="goal-card${selectionClass}${selectedClass}" data-goal-id="${goal.id}">
+                <div class="goal-card${selectionClass}${selectedClass}" data-goal-id="${goal.id}"${goal.color ? ` style="border-left: 4px solid ${goal.color}"` : ''}>
                     <div class="goal-card-head">
                         <div class="goal-title-wrap">
                             <div class="goal-title">${escapeHtml(goal.title)}</div>
@@ -596,11 +622,15 @@
                                 body: JSON.stringify({ text: title, horizon: state.goalsHorizon || 'short' })
                             });
                             if (result && result.subtasks) {
-                                for (const st of result.subtasks) {
+                                const existingSubtasks = (parentGoal && parentGoal.subtasks) || [];
+                                for (let i = 0; i < result.subtasks.length; i++) {
+                                    const st = result.subtasks[i];
+                                    const colorIndex = (existingSubtasks.length + i) % GOAL_COLORS.length;
                                     await createGoal({
                                         title: st.title,
                                         parent_id: parseInt(goalId),
-                                        horizon: state.goalsHorizon || 'short'
+                                        horizon: state.goalsHorizon || 'short',
+                                        color: GOAL_COLORS[colorIndex]
                                     });
                                 }
                                 showToast?.(`已添加 ${result.subtasks.length} 个子任务`);
@@ -655,10 +685,18 @@
                 const title = await showPrompt('输入子任务名称：', { placeholder: '例如：完成第一章复习' });
                 if (title && title.trim()) {
                     try {
+                        // auto-assign color based on existing sibling count
+                        let color = '';
+                        const parentG = findGoalById(goals, parentId);
+                        if (parentG) {
+                            const existingCount = (parentG.subtasks || []).length;
+                            color = GOAL_COLORS[existingCount % GOAL_COLORS.length];
+                        }
                         await createGoal({
                             title: title.trim(),
                             parent_id: parentId,
                             horizon: state.goalsHorizon,
+                            color: color
                         });
                         showToast?.('子任务已添加');
                         await renderGoalsList();
@@ -915,7 +953,8 @@ async function openGoalDiscussModal(goalId = null) {
             try {
                 await createGoal({
                     title: title,
-                    horizon: state.goalsHorizon || 'short'
+                    horizon: state.goalsHorizon || 'short',
+                    color: GOAL_COLORS[0]
                 });
                 closeModal();
                 await renderGoalsList();
@@ -948,6 +987,7 @@ window.ScheduleAppGoals = {
         createGoal,
         updateGoal,
         deleteGoal,
+        GOAL_COLORS: GOAL_COLORS,
     };
 
 })();

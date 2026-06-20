@@ -140,6 +140,7 @@ async def init_db() -> None:
                 parent_id INTEGER,
                 root_goal_id INTEGER,
                 goal_order INTEGER DEFAULT 0,
+                color TEXT DEFAULT '',
                 ai_context TEXT DEFAULT '',
                 created_at TEXT,
                 updated_at TEXT,
@@ -151,6 +152,12 @@ async def init_db() -> None:
         # Add is_test column to goals table
         try:
             await db.execute("ALTER TABLE goals ADD COLUMN is_test INTEGER DEFAULT 0")
+        except Exception:
+            pass
+
+        # Add color column to goals table
+        try:
+            await db.execute("ALTER TABLE goals ADD COLUMN color TEXT DEFAULT ''")
         except Exception:
             pass
 
@@ -1827,8 +1834,8 @@ async def create_goal(goal: Goal) -> Goal:
         cursor = await db.execute(
             """INSERT INTO goals
                (title, description, horizon, status, start_date, end_date,
-                parent_id, root_goal_id, goal_order, ai_context, is_test, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                parent_id, root_goal_id, goal_order, color, ai_context, is_test, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 goal.title,
                 goal.description,
@@ -1839,6 +1846,7 @@ async def create_goal(goal: Goal) -> Goal:
                 goal.parent_id,
                 root_goal_id,
                 goal.order,
+                goal.color,
                 goal.ai_context,
                 1 if goal.is_test else 0,
                 now,
@@ -1893,6 +1901,7 @@ async def get_goals(horizon: str | None = None, include_subtasks: bool = True) -
                     parent_id=row["parent_id"],
                     root_goal_id=row["root_goal_id"],
                     order=row["goal_order"] or 0,
+                    color=row["color"] or "",
                     ai_context=row["ai_context"] or "",
                     is_test=bool(row["is_test"]) if "is_test" in row.keys() and row["is_test"] is not None else False,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
@@ -1920,6 +1929,7 @@ async def get_goal(goal_id: int) -> Optional[Goal]:
                 parent_id=row["parent_id"],
                 root_goal_id=row["root_goal_id"],
                 order=row["goal_order"] or 0,
+                color=row["color"] or "",
                 ai_context=row["ai_context"] or "",
                 is_test=bool(row["is_test"]) if "is_test" in row.keys() and row["is_test"] is not None else False,
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
@@ -1949,6 +1959,7 @@ async def get_goal_subtasks(goal_id: int) -> List[Goal]:
                     parent_id=row["parent_id"],
                     root_goal_id=row["root_goal_id"],
                     order=row["goal_order"] or 0,
+                    color=row["color"] or "",
                     ai_context=row["ai_context"] or "",
                     is_test=bool(row["is_test"]) if "is_test" in row.keys() and row["is_test"] is not None else False,
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
@@ -1994,7 +2005,7 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
             """UPDATE goals SET
                title = ?, description = ?, horizon = ?, status = ?,
                start_date = ?, end_date = ?, parent_id = ?, root_goal_id = ?,
-               goal_order = ?, ai_context = ?, is_test = ?, updated_at = ?
+               goal_order = ?, color = ?, ai_context = ?, is_test = ?, updated_at = ?
                WHERE id = ?""",
             (
                 goal.title,
@@ -2006,6 +2017,7 @@ async def update_goal(goal_id: int, goal: Goal) -> Optional[Goal]:
                 goal.parent_id,
                 goal.root_goal_id,
                 goal.order,
+                goal.color,
                 goal.ai_context,
                 1 if goal.is_test else 0,
                 now,
