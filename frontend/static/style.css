@@ -5287,34 +5287,28 @@ textarea {
     background: rgba(59, 130, 246, 0.10);
 }
 
-/* Subtask dots: colored dots arranged horizontally above day number */
+/* Subtask dots: colored dots at bottom of cell, day-num stays centered */
 .goal-calendar-cell.sub-covered {
-    flex-direction: column;
-    padding-top: 2px;
-    gap: 0;
-}
-
-.goal-calendar-cell.sub-covered .day-num {
-    line-height: 1;
-    margin-top: 1px;
+    /* day-num keeps original centering */
 }
 
 .goal-calendar-dots {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 2px;
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    flex-wrap: nowrap;
-    overflow: hidden;
-    min-height: 7px;
+    z-index: 2;
+    pointer-events: none;
+    max-width: 90%;
 }
 
 .goal-calendar-dot {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
     border-radius: 50%;
     display: inline-block;
     flex-shrink: 0;
@@ -5323,11 +5317,10 @@ textarea {
 }
 
 .goal-calendar-dot-more {
-    font-size: 8px;
+    font-size: 7px;
     color: var(--text-muted);
     line-height: 1;
     flex-shrink: 0;
-    margin-left: 1px;
 }
 
 .goal-calendar-cell.other {
