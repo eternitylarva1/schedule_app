@@ -266,6 +266,9 @@
                 content: (noteInput?.content || '').trim(),
                 group_id: noteInput?.group_id !== undefined ? noteInput.group_id : undefined,
                 sort_order: noteInput?.sort_order !== undefined ? noteInput.sort_order : undefined,
+                is_pinned: noteInput?.is_pinned !== undefined ? noteInput.is_pinned : undefined,
+                color: noteInput?.color !== undefined ? noteInput.color : undefined,
+                is_archived: noteInput?.is_archived !== undefined ? noteInput.is_archived : undefined,
             };
         return await apiCall(`notes/${noteId}`, {
             method: 'PUT',
