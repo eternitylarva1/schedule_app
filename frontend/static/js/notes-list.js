@@ -230,8 +230,12 @@
                             if (input) input.focus();
                         }, 100);
                     } else {
+                        // Phase 3.2: render inline editor (instead of modal)
                         const editor = window.ScheduleAppNoteEditor;
-                        if (editor && typeof editor.showNoteDetail === 'function') {
+                        if (editor && typeof editor.renderInlineEditor === 'function') {
+                            editor.renderInlineEditor(note);
+                        } else if (editor && typeof editor.showNoteDetail === 'function') {
+                            // Fallback to modal
                             editor.showNoteDetail(note);
                         }
                     }
@@ -249,7 +253,10 @@
 
                 if (action === 'edit') {
                     const note = state.notes.find(n => n.id === noteId);
-                    if (note && editor && typeof editor.showNoteEdit === 'function') {
+                    if (note && editor && typeof editor.renderInlineEditor === 'function') {
+                        // Phase 3.2: inline editor is the same as "edit" now
+                        editor.renderInlineEditor(note);
+                    } else if (note && editor && typeof editor.showNoteEdit === 'function') {
                         editor.showNoteEdit(note);
                     }
                 } else if (action === 'delete') {

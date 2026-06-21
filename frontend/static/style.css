@@ -5777,3 +5777,158 @@ textarea {
         display: none;
     }
 }
+
+/* ============================================
+   Note Inline Editor (NOTES_REFACTOR 阶段 3.2)
+   渲染到 .notes-main 容器
+   ============================================ */
+
+.note-inline-editor {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+    background: var(--bg-primary);
+}
+
+.note-inline-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+
+.note-inline-title {
+    flex: 1;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.note-inline-title:focus {
+    background: var(--bg-secondary, #f8f9fc);
+}
+
+.note-inline-toolbar-right {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.note-inline-pin-btn,
+.note-inline-ai-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s;
+}
+
+.note-inline-pin-btn.active {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #f59e0b;
+}
+
+.note-inline-pin-btn:active,
+.note-inline-ai-btn:active {
+    background: var(--bg-secondary, #f8f9fc);
+}
+
+/* 颜色行 */
+.note-inline-color-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 4px 0;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.note-inline-color-option {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    cursor: pointer;
+    padding: 0;
+    font-size: 10px;
+    color: var(--text-muted, #94a3b8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s;
+}
+
+.note-inline-color-option.selected {
+    border-color: var(--text-primary);
+    transform: scale(1.1);
+}
+
+.note-inline-color-option.no-color {
+    background: transparent !important;
+    border-style: dashed;
+}
+
+.note-inline-color-option:active {
+    transform: scale(0.9);
+}
+
+/* 编辑区 */
+.note-inline-content {
+    flex: 1;
+    min-height: 0;
+    padding: 12px;
+    background: var(--bg-secondary, #f8f9fc);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-y: auto;
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.note-inline-content:focus {
+    border-color: var(--primary-color, #3b82f6);
+}
+
+.note-inline-content:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted, #94a3b8);
+}
+
+/* 底部 */
+.note-inline-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 8px;
+    font-size: 11px;
+    color: var(--text-muted, #94a3b8);
+    flex-shrink: 0;
+}
+
+.note-inline-save-status {
+    font-style: italic;
+}
