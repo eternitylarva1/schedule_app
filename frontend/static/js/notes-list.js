@@ -78,7 +78,8 @@
         const elements = getElements();
         const { fetchNotes, fetchNoteGroups, deleteNoteGroup, showToast, showConfirm, deleteNote, updateNote } = getUtils();
 
-        const container = elements.notepadContainer;
+        // Phase 3.1: use new sidebar container (with fallback to legacy)
+        const container = document.getElementById('notesListScroll') || elements.notepadContainer;
         const notes = await fetchNotes();
         const groups = await fetchNoteGroups() || [];
 
@@ -91,10 +92,10 @@
 
         if ((!notes || notes.length === 0) && (!groups || groups.length === 0)) {
             container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">📝</div>
-                    <div class="empty-text">暂无笔记</div>
-                    <div class="empty-hint">在上方输入内容添加笔记</div>
+                <div class="notes-empty">
+                    <div class="notes-empty-icon">📝</div>
+                    <div class="notes-empty-text">暂无笔记</div>
+                    <div class="notes-empty-hint">在底部输入框添加一条</div>
                 </div>
             `;
             return;
@@ -115,6 +116,23 @@
         });
 
         let html = '';
+
+        // Phase 3.1: pinned notes are shown at the top in a "📌 固定" group
+        const pinnedNotes = notes.filter(n => n.is_pinned);
+        if (pinnedNotes.length > 0) {
+            html += `
+                <details class="note-group" data-group-id="__pinned" open>
+                    <summary class="note-group-header" data-group-id="__pinned">
+                        <span class="note-group-toggle">▼</span>
+                        <span class="note-group-name">📌 固定</span>
+                        <span class="note-group-count">${pinnedNotes.length}</span>
+                    </summary>
+                    <div class="note-group-content">
+                        ${pinnedNotes.map(note => renderNoteItem(note)).join('')}
+                    </div>
+                </details>
+            `;
+        }
 
         const sortedGroups = groups.sort((a, b) => a.sort_order - b.sort_order);
         sortedGroups.forEach(group => {
@@ -153,14 +171,6 @@
             `;
         }
 
-        html += `
-            <div class="add-group-container">
-                <button class="add-group-btn" id="addGroupBtn">
-                    <span>+</span> 新建分组
-                </button>
-            </div>
-        `;
-
         container.innerHTML = html;
 
         container.querySelectorAll('.note-group-delete').forEach(btn => {
@@ -177,9 +187,11 @@
             });
         });
 
-        const addGroupBtn = document.getElementById('addGroupBtn');
-        if (addGroupBtn) {
-            addGroupBtn.addEventListener('click', () => {
+        // New sidebar "add group" button (footer)
+        const newAddGroupBtn = document.getElementById('notesAddGroupBtn');
+        if (newAddGroupBtn && newAddGroupBtn.dataset.bound !== '1') {
+            newAddGroupBtn.dataset.bound = '1';
+            newAddGroupBtn.addEventListener('click', () => {
                 showAddGroupPrompt();
             });
         }
@@ -198,6 +210,15 @@
                 const note = state.notes.find(n => n.id === noteId);
                 if (note) {
                     state.selectedNote = note;
+                    // Phase 3.1: highlight active note
+                    container.querySelectorAll('.note-item.active').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                    // Phase 3.1: switch to detail tab on mobile
+                    const notesApp = document.getElementById('notesApp');
+                    if (notesApp) notesApp.dataset.active = 'detail';
+                    const subtabs = document.querySelectorAll('.notes-mobile-subtab');
+                    subtabs.forEach(t => t.classList.toggle('active', t.dataset.mobileSubtab === 'detail'));
+
                     const aiOpen = window.ScheduleAppNoteAI && window.ScheduleAppNoteAI.isOpen && window.ScheduleAppNoteAI.isOpen();
                     if (aiOpen) {
                         const contextContent = document.getElementById('aiChatContextContent');
@@ -242,6 +263,7 @@
             });
         });
 
+
         container.querySelectorAll('.note-group-header').forEach(header => {
             header.addEventListener('click', (e) => {
                 if (noteDragState.draggedNoteId && !e.target.closest('.note-group-delete')) {
@@ -263,18 +285,19 @@
     }
 
     function renderNoteItem(note) {
+        const isPinned = !!note.is_pinned;
+        const noteColor = note.color || '';
+        // Phase 3.1: compact sidebar layout
+        const inlineColor = noteColor ? ` style="--note-color: ${escapeHtml(noteColor)};"` : '';
         return `
             <div class="swipe-item note-swipe" data-note-id="${note.id}" draggable="true">
                 <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">✏️ 编辑</div>
                 <div class="swipe-action swipe-action-right" data-action="delete" data-note-id="${note.id}">🗑️ 删除</div>
                 <div class="swipe-content">
-                    <div class="note-item" data-note-id="${note.id}">
-                        <div class="note-drag-handle" title="拖动排序">⋮⋮</div>
-                        ${note.title ? `<div class="note-title">${escapeHtml(note.title)}</div>` : ''}
-                        <div class="note-content">${escapeHtml(truncate2Lines(note.content))}</div>
-                        <div class="note-meta">
-                            <span class="note-time">${formatNoteTime(note.created_at)}</span>
-                        </div>
+                    <div class="note-item${isPinned ? ' pinned' : ''}" data-note-id="${note.id}"${inlineColor}>
+                        ${note.title ? `<div class="note-item-title">${escapeHtml(note.title)}</div>` : '<div class="note-item-title" style="color:var(--text-muted, #94a3b8); font-style:italic;">无标题</div>'}
+                        <div class="note-item-preview">${escapeHtml(truncate2Lines(note.content))}</div>
+                        <div class="note-item-time">${formatNoteTime(note.created_at)}</div>
                     </div>
                 </div>
             </div>
@@ -296,15 +319,26 @@
     }
 
     function initNoteDragDrop() {
-        const container = getElements().notepadContainer;
-        if (!container) return;
+        // Phase 3.1: also listen on the new sidebar container
+        const containers = [
+            getElements().notepadContainer,
+            document.getElementById('notesListScroll'),
+        ].filter(Boolean);
 
-        container.addEventListener('dragstart', handleNoteDragStart, false);
-        container.addEventListener('dragover', handleNoteDragOver, false);
-        container.addEventListener('dragenter', handleNoteDragEnter, false);
-        container.addEventListener('dragleave', handleNoteDragLeave, false);
-        container.addEventListener('drop', handleNoteDrop, false);
-        container.addEventListener('dragend', handleNoteDragEnd, false);
+        if (!containers.length) return;
+
+        // Use a set to avoid double-binding on the same element
+        const seen = new Set();
+        containers.forEach(container => {
+            if (seen.has(container)) return;
+            seen.add(container);
+            container.addEventListener('dragstart', handleNoteDragStart, false);
+            container.addEventListener('dragover', handleNoteDragOver, false);
+            container.addEventListener('dragenter', handleNoteDragEnter, false);
+            container.addEventListener('dragleave', handleNoteDragLeave, false);
+            container.addEventListener('drop', handleNoteDrop, false);
+            container.addEventListener('dragend', handleNoteDragEnd, false);
+        });
     }
 
     function handleNoteDragStart(e) {

@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=20260620-07">
+    <link rel="stylesheet" href="/static/style.css?v=20260621-02">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -118,15 +118,45 @@
                     <button class="notepad-tab active" data-subtype="notes">笔记</button>
                     <button class="notepad-tab" data-subtype="expense">记账</button>
                 </div>
+                <!-- Sub-tab for mobile: list / detail (only on notes subview) -->
+                <div class="notes-mobile-subtabs hidden" id="notesMobileSubtabs">
+                    <button class="notes-mobile-subtab active" data-mobile-subtab="list">列表</button>
+                    <button class="notes-mobile-subtab" data-mobile-subtab="detail">详情</button>
+                </div>
+                <!-- Notes app container (双栏布局) -->
+                <div class="notes-app hidden" id="notesApp" data-active="list">
+                    <div class="notes-sidebar" id="notesSidebar">
+                        <div class="notes-search-bar">
+                            <input type="text" id="notesSearchInput" placeholder="🔍 搜索笔记..." autocomplete="off">
+                        </div>
+                        <div class="notes-list-scroll" id="notesListScroll">
+                            <!-- groups + note items rendered here -->
+                        </div>
+                        <div class="notes-sidebar-footer">
+                            <button class="notes-add-group-btn" id="notesAddGroupBtn">+ 新建分组</button>
+                        </div>
+                    </div>
+                    <div class="notes-main" id="notesMain">
+                        <div class="notes-main-placeholder" id="notesMainPlaceholder">
+                            <div class="placeholder-icon">📝</div>
+                            <div class="placeholder-text">选择一条笔记查看详情</div>
+                            <div class="placeholder-hint">或顶栏 + 新建一条</div>
+                        </div>
+                        <!-- note detail / editor rendered here -->
+                    </div>
+                </div>
+                <!-- Top input (notes only) -->
                 <div class="notepad-input-area" id="notepadInputArea">
                     <input type="text" id="notepadInput" placeholder="输入内容，AI帮你整理..." autocomplete="off">
                     <button class="notepad-add-btn" id="notepadAddBtn">+</button>
                 </div>
+                <!-- Expense month selector -->
                 <div class="expense-month-selector hidden" id="expenseMonthSelector">
                     <button class="expense-month-btn" id="expenseMonthPrev">◀</button>
                     <input type="month" id="expenseMonthInput">
                     <button class="expense-month-btn" id="expenseMonthNext">▶</button>
                 </div>
+                <!-- Legacy notepad-container (expense list still rendered here) -->
                 <div class="notepad-container" id="notepadContainer"></div>
             </div>
 
@@ -863,11 +893,11 @@
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
     <script src="/static/js/utils2.js?v=20260425-01"></script>
     <script src="/static/js/budget.js?v=20260426-08"></script>
-    <script src="/static/js/note-ai.js?v=20260621-01"></script>
-    <script src="/static/js/note-editor.js?v=20260621-01"></script>
-    <script src="/static/js/notes-list.js?v=20260621-01"></script>
-    <script src="/static/js/expense.js?v=20260621-01"></script>
-    <script src="/static/js/notepad.js?v=20260621-01"></script>
+    <script src="/static/js/note-ai.js?v=20260622-01"></script>
+    <script src="/static/js/note-editor.js?v=20260622-01"></script>
+    <script src="/static/js/notes-list.js?v=20260622-01"></script>
+    <script src="/static/js/expense.js?v=20260622-01"></script>
+    <script src="/static/js/notepad.js?v=20260622-01"></script>
     <script src="/static/js/settings.js?v=20260429-01"></script>
     <script src="/static/js/main.js?v=20260621-01"></script>
     <script src="/static/js/goals.js?v=20260620-06"></script>

@@ -64,6 +64,36 @@
                 });
             });
 
+            // Phase 3.1: mobile sub-tab switching (list / detail)
+            const mobileSubtabs = document.getElementById('notesMobileSubtabs');
+            if (mobileSubtabs && mobileSubtabs.dataset.bound !== '1') {
+                mobileSubtabs.dataset.bound = '1';
+                mobileSubtabs.querySelectorAll('.notes-mobile-subtab').forEach(subtab => {
+                    subtab.addEventListener('click', () => {
+                        const target = subtab.dataset.mobileSubtab;
+                        const notesAppEl = document.getElementById('notesApp');
+                        if (notesAppEl) notesAppEl.dataset.active = target;
+                        mobileSubtabs.querySelectorAll('.notes-mobile-subtab').forEach(s => {
+                            s.classList.toggle('active', s.dataset.mobileSubtab === target);
+                        });
+                    });
+                });
+            }
+
+            // Phase 3.1: search input (real-time filter)
+            const searchInput = document.getElementById('notesSearchInput');
+            if (searchInput && searchInput.dataset.bound !== '1') {
+                searchInput.dataset.bound = '1';
+                let searchTimer = null;
+                searchInput.addEventListener('input', (e) => {
+                    clearTimeout(searchTimer);
+                    const q = e.target.value.trim();
+                    searchTimer = setTimeout(() => {
+                        filterNotesBySearch(q);
+                    }, 200);
+                });
+            }
+
             if (elements.notepadInput && elements.notepadAddBtn) {
                 if (elements.notepadAddBtn.dataset.bound !== '1') {
                     elements.notepadAddBtn.dataset.bound = '1';
@@ -136,11 +166,22 @@
             }
         }
 
+        // Phase 3.1: switch between new notes-app container and legacy expense container
+        const notesApp = document.getElementById('notesApp');
+        const mobileSubtabs = document.getElementById('notesMobileSubtabs');
         if (subtype === 'notes') {
+            if (notesApp) notesApp.classList.remove('hidden');
+            if (mobileSubtabs) mobileSubtabs.classList.remove('hidden');
+            if (container) container.classList.add('hidden');
+
             if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
                 await window.ScheduleAppNotesList.renderNotesList();
             }
         } else {
+            if (notesApp) notesApp.classList.add('hidden');
+            if (mobileSubtabs) mobileSubtabs.classList.add('hidden');
+            if (container) container.classList.remove('hidden');
+
             if (window.ScheduleAppExpense && typeof window.ScheduleAppExpense.renderExpenseList === 'function') {
                 await window.ScheduleAppExpense.renderExpenseList();
             }
@@ -237,5 +278,29 @@
         renderNotepadContent,
         handleNotepadAdd,
     };
+
+    // Phase 3.1: client-side search filter
+    function filterNotesBySearch(query) {
+        const listScroll = document.getElementById('notesListScroll');
+        if (!listScroll) return;
+        const q = (query || '').toLowerCase();
+        const items = listScroll.querySelectorAll('.note-item');
+        items.forEach(item => {
+            if (!q) {
+                item.style.display = '';
+            } else {
+                const text = (item.textContent || '').toLowerCase();
+                item.style.display = text.includes(q) ? '' : 'none';
+            }
+        });
+        listScroll.querySelectorAll('.note-group').forEach(group => {
+            const visible = group.querySelectorAll('.note-item:not([style*="display: none"])');
+            if (q && visible.length === 0) {
+                group.style.display = 'none';
+            } else {
+                group.style.display = '';
+            }
+        });
+    }
 
 })();
