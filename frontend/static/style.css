@@ -2259,6 +2259,17 @@ body {
     animation: shimmer 1.5s ease-in-out infinite;
 }
 
+/* Stage 5.2: Notes skeleton loader */
+.notes-skeleton { padding: 12px; }
+.skeleton-item {
+    height: 52px;
+    background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-hover) 50%, var(--bg-secondary) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
 /* Empty state */
 .empty-state {
     display: flex;
@@ -2279,6 +2290,41 @@ body {
 .empty-state-text {
     font-size: var(--font-size-md);
 }
+
+/* Stage 5.3: Notes empty state */
+.notes-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+}
+.notes-empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+.notes-empty-text {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+.notes-empty-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+.notes-empty-guide-btn {
+    margin-top: 12px;
+    padding: 6px 16px;
+    background: var(--accent-primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.notes-empty-guide-btn:hover { opacity: 0.85; }
 
 /* ============================================
    Touch Gestures

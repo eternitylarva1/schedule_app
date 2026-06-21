@@ -15,6 +15,13 @@
     const getElements = () => (window.ScheduleAppCore && window.ScheduleAppCore.elements) || {};
     const getUtils = () => window.ScheduleAppCore || {};
 
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
     // Re-entrancy guard for handleNotepadAdd
     let _isProcessingAdd = false;
 
@@ -84,6 +91,7 @@
             const searchInput = document.getElementById('notesSearchInput');
             if (searchInput && searchInput.dataset.bound !== '1') {
                 searchInput.dataset.bound = '1';
+                searchInput.setAttribute('aria-label', '搜索笔记');
                 let searchTimer = null;
                 searchInput.addEventListener('input', (e) => {
                     clearTimeout(searchTimer);
@@ -221,12 +229,48 @@
             input.value = '';
 
             if (state.notepadSubview === 'notes') {
-                const result = await createNote(text);
-                if (result) {
-                    showToast('笔记已保存');
-                    if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
-                        await window.ScheduleAppNotesList.renderNotesList();
+                // Stage 5.1 + 5.6: Optimistic update — insert note row immediately
+                const notesListModule = window.ScheduleAppNotesList;
+                const tempNote = {
+                    id: Date.now(), // temporary ID
+                    content: text,
+                    title: '',
+                    is_pinned: false,
+                    is_archived: false,
+                    group_id: null,
+                    created_at: new Date().toISOString()
+                };
+                const tempHtml = notesListModule && notesListModule.renderNoteItem
+                    ? notesListModule.renderNoteItem(tempNote)
+                    : `<div class="note-item" data-note-id="${tempNote.id}"><div class="note-item-preview no-title">${escapeHtml(text.substring(0, 80))}</div></div>`;
+
+                // Insert at top of ungrouped or first group
+                const listScroll = document.getElementById('notesListScroll');
+                if (listScroll) {
+                    const firstGroup = listScroll.querySelector('.note-group[data-group-id="ungrouped"] .note-group-content')
+                        || listScroll.querySelector('.note-group .note-group-content');
+                    if (firstGroup) {
+                        firstGroup.insertAdjacentHTML('afterbegin', tempHtml);
                     }
+                }
+
+                const { showToastWithUndo } = getUtils();
+                showToastWithUndo('笔记已保存', null);
+
+                // Background API call
+                try {
+                    const result = await createNote(text);
+                    if (result) {
+                        // Re-render to show real data with proper ID/timestamps
+                        if (notesListModule && typeof notesListModule.renderNotesList === 'function') {
+                            await notesListModule.renderNotesList();
+                        }
+                    }
+                } catch (e) {
+                    // On failure: remove the temp row and show error
+                    const tempEl = listScroll?.querySelector(`.note-item[data-note-id="${tempNote.id}"]`);
+                    if (tempEl) tempEl.closest('.note-swipe')?.remove();
+                    showToast('保存失败，请重试');
                 }
             } else {
                 state.isLlmProcessing = true;

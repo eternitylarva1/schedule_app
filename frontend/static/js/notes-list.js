@@ -76,9 +76,19 @@
     async function renderNotesList() {
         const state = getState();
         const elements = getElements();
-        const { fetchNotes, fetchNoteGroups, deleteNoteGroup, showToast, showConfirm, deleteNote, updateNote } = getUtils();
+        const { fetchNotes, fetchNoteGroups, deleteNoteGroup, showToast, showToastWithUndo, showConfirm, deleteNote, updateNote } = getUtils();
 
         const container = document.getElementById('notesListScroll') || elements.notepadContainer;
+
+        // Stage 5.2: Show loading skeleton before fetching
+        container.innerHTML = `
+            <div class="notes-skeleton">
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+                <div class="skeleton-item"></div>
+            </div>
+        `;
+
         const notes = await fetchNotes();
         const groups = await fetchNoteGroups() || [];
 
@@ -104,8 +114,18 @@
                     <div class="notes-empty-icon">📝</div>
                     <div class="notes-empty-text">暂无笔记</div>
                     <div class="notes-empty-hint">在底部输入框添加一条</div>
+                    <button class="notes-empty-guide-btn" id="notesEmptyGuideBtn">开始记录</button>
                 </div>
             `;
+            // Stage 5.3: Guide button focuses the input
+            document.getElementById('notesEmptyGuideBtn')?.addEventListener('click', () => {
+                const input = document.getElementById('notepadInput');
+                if (input) {
+                    input.focus();
+                    const notesApp = document.getElementById('notesApp');
+                    if (notesApp) notesApp.dataset.active = 'list';
+                }
+            });
             return;
         }
 
@@ -202,6 +222,8 @@
         }
 
         container.innerHTML = html;
+        container.setAttribute('role', 'listbox');
+        container.setAttribute('aria-label', '笔记列表');
 
         container.querySelectorAll('.note-group-delete').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -211,7 +233,7 @@
                 const confirmed = await showConfirm('删除分组？分组内的笔记将移至"未分组"。');
                 if (confirmed) {
                     await deleteNoteGroup(groupId);
-                    showToast('分组已删除');
+                    showToastWithUndo('分组已删除', null);
                     await renderNotesList();
                 }
             });
@@ -298,16 +320,32 @@
                         editor.showNoteEdit(note);
                     }
                 } else if (action === 'archive') {
-                    await updateNote(noteId, { is_archived: true });
-                    showToast('已归档');
-                    // Clear stale editor if showing this note
-                    if (editor && typeof editor.clearInlineEditor === 'function') {
-                        const ai = window.ScheduleAppNoteAI;
-                        if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === noteId) {
-                            editor.clearInlineEditor();
+                    // Stage 5.1 + 5.6: Optimistic update — immediately remove DOM element
+                    const swipeEl = btn.closest('.note-swipe');
+                    if (swipeEl) swipeEl.style.display = 'none';
+
+                    showToastWithUndo('已归档', async () => {
+                        // Undo: restore the note
+                        await updateNote(noteId, { is_archived: false });
+                        await renderNotesList();
+                    });
+
+                    // Background API call
+                    try {
+                        await updateNote(noteId, { is_archived: true });
+                        // Clear stale editor if showing this note
+                        if (editor && typeof editor.clearInlineEditor === 'function') {
+                            const ai = window.ScheduleAppNoteAI;
+                            if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === noteId) {
+                                editor.clearInlineEditor();
+                            }
                         }
+                    } catch (e) {
+                        // On failure: show error and re-render
+                        swipeEl.style.display = '';
+                        getUtils().showToast('归档失败');
+                        await renderNotesList();
                     }
-                    await renderNotesList();
                 } else if (action === 'restore') {
                     await updateNote(noteId, { is_archived: false });
                     showToast('已恢复');
@@ -315,12 +353,27 @@
                 } else if (action === 'delete') {
                     const confirmed = await showConfirm('确定永久删除这条笔记吗？');
                     if (confirmed) {
-                        await deleteNote(noteId);
-                        showToast('已永久删除');
-                        if (editor && typeof editor.clearInlineEditor === 'function') {
-                            editor.clearInlineEditor();
+                        // Stage 5.1 + 5.6: Optimistic update — immediately remove DOM element
+                        const swipeEl = btn.closest('.note-swipe');
+                        if (swipeEl) swipeEl.style.display = 'none';
+
+                        showToastWithUndo('已删除', () => {
+                            // Cannot undo permanent delete — show feedback
+                            getUtils().showToast('无法撤销');
+                        });
+
+                        // Background API call
+                        try {
+                            await deleteNote(noteId);
+                            if (editor && typeof editor.clearInlineEditor === 'function') {
+                                editor.clearInlineEditor();
+                            }
+                        } catch (e) {
+                            // On failure: show error and re-render
+                            swipeEl.style.display = '';
+                            getUtils().showToast('删除失败');
+                            await renderNotesList();
                         }
-                        await renderNotesList();
                     }
                 }
             });
@@ -405,11 +458,11 @@
         // Phase 3.3.5: if note has title, show title only (no preview)
         const hasTitle = !!(note.title || '').trim();
         return `
-            <div class="swipe-item note-swipe" data-note-id="${note.id}" data-is-trash="${isTrash ? '1' : '0'}" draggable="true">
-                <div class="swipe-action swipe-action-left" data-action="${leftAction}" data-note-id="${note.id}">${leftLabel}</div>
-                <div class="swipe-action swipe-action-right" data-action="${rightAction}" data-note-id="${note.id}">${rightLabel}</div>
+            <div class="swipe-item note-swipe" data-note-id="${note.id}" data-is-trash="${isTrash ? '1' : '0'}" draggable="true" role="listitem">
+                <div class="swipe-action swipe-action-left" data-action="${leftAction}" data-note-id="${note.id}" role="button" tabindex="0">${leftLabel}</div>
+                <div class="swipe-action swipe-action-right" data-action="${rightAction}" data-note-id="${note.id}" role="button" tabindex="0">${rightLabel}</div>
                 <div class="swipe-content">
-                    <div class="note-item${isPinned ? ' pinned' : ''}" data-note-id="${note.id}"${inlineColor}>
+                    <div class="note-item${isPinned ? ' pinned' : ''}" data-note-id="${note.id}"${inlineColor} role="button" tabindex="0">
                         ${hasTitle
                             ? `<div class="note-item-title">${escapeHtml(note.title)}</div>`
                             : `<div class="note-item-preview no-title">${escapeHtml(truncate2Lines(note.content, 80))}</div>`}
@@ -602,9 +655,45 @@
 
         if (noteId && targetGroupId !== noteDragState.sourceGroupId) {
             const { updateNote, showToast } = getUtils();
-            await updateNote(noteId, { group_id: targetGroupId });
+            const draggedEl = noteDragState.draggedElement;
+            const sourceGroupId = noteDragState.sourceGroupId;
+
+            // Stage 5.1 + 5.6: Optimistic update — move DOM element to new group immediately
+            if (draggedEl) {
+                let targetGroupEl = null;
+                if (noteDragState.dragOverGroupId) {
+                    targetGroupEl = document.querySelector(`.note-group[data-group-id="${noteDragState.dragOverGroupId}"] .note-group-content`);
+                } else if (noteDragState.selectedGroupId) {
+                    const gid = noteDragState.selectedGroupId === -1 ? 'ungrouped' : noteDragState.selectedGroupId;
+                    targetGroupEl = document.querySelector(`.note-group[data-group-id="${gid}"] .note-group-content`);
+                } else if (noteDragState.dragOverNoteId) {
+                    const overSwipe = document.querySelector(`.note-swipe[data-note-id="${noteDragState.dragOverNoteId}"]`);
+                    if (overSwipe) targetGroupEl = overSwipe.closest('.note-group-content');
+                }
+                if (targetGroupEl) {
+                    targetGroupEl.appendChild(draggedEl);
+                }
+            }
+
             showToast('笔记已移动');
-            await renderNotesList();
+
+            // Background API call
+            try {
+                await updateNote(noteId, { group_id: targetGroupId });
+            } catch (e) {
+                // On failure: show error and revert DOM
+                getUtils().showToast('移动失败');
+                // Move back to original group
+                if (draggedEl) {
+                    let sourceGroupEl = null;
+                    const sgid = sourceGroupId === '__pinned' ? '__pinned' : (sourceGroupId === null || sourceGroupId === 'ungrouped' ? 'ungrouped' : String(sourceGroupId));
+                    sourceGroupEl = document.querySelector(`.note-group[data-group-id="${sgid}"] .note-group-content`);
+                    if (!sourceGroupEl) sourceGroupEl = document.querySelector('.note-group[data-group-id="ungrouped"] .note-group-content');
+                    if (sourceGroupEl && draggedEl.parentElement !== sourceGroupEl) {
+                        sourceGroupEl.appendChild(draggedEl);
+                    }
+                }
+            }
         }
 
         noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null, selectedGroupId: null };
