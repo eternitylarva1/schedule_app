@@ -388,14 +388,17 @@
         const leftLabel = isTrash ? '↩ 恢复' : '✏️ 编辑';
         const rightAction = isTrash ? 'delete' : 'archive';
         const rightLabel = isTrash ? '🗑 删除' : '🗑 归档';
+        // Phase 3.3.5: if note has title, show title only (no preview)
+        const hasTitle = !!(note.title || '').trim();
         return `
             <div class="swipe-item note-swipe" data-note-id="${note.id}" data-is-trash="${isTrash ? '1' : '0'}" draggable="true">
                 <div class="swipe-action swipe-action-left" data-action="${leftAction}" data-note-id="${note.id}">${leftLabel}</div>
                 <div class="swipe-action swipe-action-right" data-action="${rightAction}" data-note-id="${note.id}">${rightLabel}</div>
                 <div class="swipe-content">
                     <div class="note-item${isPinned ? ' pinned' : ''}" data-note-id="${note.id}"${inlineColor}>
-                        ${note.title ? `<div class="note-item-title">${escapeHtml(note.title)}</div>` : '<div class="note-item-title" style="color:var(--text-muted);font-style:italic;">无标题</div>'}
-                        <div class="note-item-preview">${escapeHtml(truncate2Lines(note.content))}</div>
+                        ${hasTitle
+                            ? `<div class="note-item-title">${escapeHtml(note.title)}</div>`
+                            : `<div class="note-item-preview no-title">${escapeHtml(truncate2Lines(note.content, 80))}</div>`}
                         <div class="note-item-time">${formatNoteTime(note.created_at)}</div>
                     </div>
                 </div>
