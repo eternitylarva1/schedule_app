@@ -338,7 +338,8 @@
             today.setHours(0, 0, 0, 0);
             const parseDateKey = (key) => {
                 const [y, m, d] = key.split('-').map(Number);
-                return new Date(y, m - 1, d);
+                // Note: key uses getMonth() (0-indexed), so use m directly without -1
+                return new Date(y, m, d);
             };
             const dateA = parseDateKey(a);
             const dateB = parseDateKey(b);
