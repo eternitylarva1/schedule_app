@@ -3183,23 +3183,28 @@ async def check_and_reset_budget_period(budget_id: int) -> Optional[Budget]:
         return budget
     
     # Period has ended - need to reset
-    # Get current spent
-    spent = await get_budget_spent(budget_id)
-    remaining = budget.amount - spent
-    
-    # Handle rollover
-    if budget.rollover and remaining > 0:
-        # Add remaining to rollover_amount
-        new_rollover = budget.rollover_amount + remaining
-        # Apply rollover limit if set
-        if budget.rollover_limit is not None:
-            # Calculate max rollover based on limit (e.g., 2 months worth)
-            max_rollover = budget.amount * budget.rollover_limit
-            new_rollover = min(new_rollover, max_rollover)
-        budget.rollover_amount = new_rollover
-    
-    # Start new period
-    budget.period_start = next_start
+    # Only auto-reset if auto_reset is enabled; otherwise just advance the period window
+    if budget.auto_reset:
+        # Get current spent
+        spent = await get_budget_spent(budget_id)
+        remaining = budget.amount - spent
+        
+        # Handle rollover
+        if budget.rollover and remaining > 0:
+            # Add remaining to rollover_amount
+            new_rollover = budget.rollover_amount + remaining
+            # Apply rollover limit if set
+            if budget.rollover_limit is not None:
+                # Calculate max rollover based on limit (e.g., 2 months worth)
+                max_rollover = budget.amount * budget.rollover_limit
+                new_rollover = min(new_rollover, max_rollover)
+            budget.rollover_amount = new_rollover
+        
+        # Start new period
+        budget.period_start = next_start
+    else:
+        # auto_reset=False: just advance the period window without resetting spent
+        budget.period_start = next_start
     
     # Save changes
     return await update_budget(budget_id, budget)
