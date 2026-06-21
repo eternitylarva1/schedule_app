@@ -1,19 +1,17 @@
 /**
- * Schedule App - Note AI Module
- * Floating AI chat panel for notes. Refactored from main.js (lines 1105-1394)
- * as part of NOTES_REFACTOR stage 1.
+ * Schedule App - Note AI Module (Stage 4)
+ * Slide-in drawer on the right side of the note editor.
+ * Replaces the old floating window.
  *
- * Provides (on window.ScheduleAppNoteAI):
- *   - initAIChatPanel()  : bind events (called from main.js init())
- *   - showAIFloatingWindow(note) : open panel for a note
- *   - hideAIFloatingWindow()     : close panel
- *   - loadAIChatHistory()        : refresh from server
- *   - renderAIChatHistory()      : paint messages
- *   - sendAIChatMessage()        : send user input
- *   - insertAIResponseToNote(c)  : append AI text into current note
- *   - isOpen()                   : boolean, for other modules to check
- *   - getCurrentNoteId()         : note id of current AI context, or null
- *   - updateCurrentNoteContent(c): sync local note content after edit
+ * Public API (unchanged to avoid updating callers):
+ *   initAIChatPanel()             — bind drawer events (called from main.js init)
+ *   showAIFloatingWindow(note)    — open drawer for a note
+ *   hideAIFloatingWindow()        — close drawer
+ *   loadAIChatHistory()           — refresh from server
+ *   renderAIChatHistory()         — paint messages
+ *   sendAIChatMessage()           — send user input
+ *   insertAIResponseToNote(c)     — append AI text into current note
+ *   isOpen() / getCurrentNoteId() / updateCurrentNoteContent(c)
  */
 
 (function() {
@@ -45,7 +43,6 @@
         const isToday = isSameDay(date, now);
         const yesterday = new Date(now.getTime() - 86400000);
         const isYesterday = isSameDay(date, yesterday);
-
         if (isToday) {
             return `今天 ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
         } else if (isYesterday) {
@@ -55,58 +52,35 @@
         }
     }
 
-    // --- state (closure private) ---
-    let aiChatState = {
+    // --- state ---
+    let aiState = {
         isOpen: false,
         currentNote: null,
         conversations: [],
         isLoading: false,
-        isMinimized: false,
-        isDragging: false,
-        offsetX: 0,
-        offsetY: 0
     };
 
     function initAIChatPanel() {
-        const floatingWindow = document.getElementById('aiFloatingWindow');
-        const minimizeBtn = document.getElementById('aiFloatingMinimize');
-        const sendBtn = document.getElementById('aiFloatingSend');
-        const input = document.getElementById('aiFloatingInput');
-        const header = document.getElementById('aiFloatingHeader');
-
-        if (!floatingWindow) return;
-
-        floatingWindow.style.display = 'none';
-
-        if (minimizeBtn) {
-            minimizeBtn.addEventListener('click', () => {
-                aiChatState.isMinimized = !aiChatState.isMinimized;
-                if (aiChatState.isMinimized) {
-                    floatingWindow.classList.add('minimized');
-                    minimizeBtn.textContent = '□';
-                } else {
-                    floatingWindow.classList.remove('minimized');
-                    minimizeBtn.textContent = '─';
-                }
-            });
-        }
+        const sendBtn = document.getElementById('aiDrawerSend');
+        const input = document.getElementById('aiDrawerInput');
+        const closeBtn = document.getElementById('aiDrawerClose');
 
         if (sendBtn) {
             sendBtn.addEventListener('click', () => sendAIChatMessage());
         }
-
         if (input) {
             input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    sendAIChatMessage();
-                }
+                if (e.key === 'Enter') sendAIChatMessage();
             });
         }
+        if (closeBtn) {
+            closeBtn.addEventListener('click', hideAIFloatingWindow);
+        }
 
-        const history = document.getElementById('aiFloatingHistory');
+        const history = document.getElementById('aiDrawerHistory');
         if (history) {
             history.addEventListener('click', (e) => {
-                const insertBtn = e.target.closest('.ai-floating-insert-btn');
+                const insertBtn = e.target.closest('.ai-drawer-insert-btn');
                 if (insertBtn) {
                     const content = decodeURIComponent(insertBtn.dataset.content);
                     insertAIResponseToNote(content);
@@ -114,110 +88,67 @@
             });
         }
 
-        if (header) {
-            header.addEventListener('mousedown', startDrag);
-            header.addEventListener('touchstart', startDrag, { passive: false });
+        // Close on backdrop click
+        const backdrop = document.getElementById('aiDrawerBackdrop');
+        if (backdrop) {
+            backdrop.addEventListener('click', hideAIFloatingWindow);
         }
 
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('touchmove', drag, { passive: false });
-        document.addEventListener('mouseup', stopDrag);
-        document.addEventListener('touchend', stopDrag);
-    }
-
-    function startDrag(e) {
-        const floatingWindow = document.getElementById('aiFloatingWindow');
-        if (!floatingWindow) return;
-
-        aiChatState.isDragging = true;
-        const rect = floatingWindow.getBoundingClientRect();
-
-        if (e.type === 'touchstart') {
-            aiChatState.offsetX = e.touches[0].clientX - rect.left;
-            aiChatState.offsetY = e.touches[0].clientY - rect.top;
-        } else {
-            aiChatState.offsetX = e.clientX - rect.left;
-            aiChatState.offsetY = e.clientY - rect.top;
-        }
-    }
-
-    function drag(e) {
-        if (!aiChatState.isDragging) return;
-
-        const floatingWindow = document.getElementById('aiFloatingWindow');
-        if (!floatingWindow) return;
-
-        let clientX, clientY;
-        if (e.type === 'touchmove') {
-            clientX = e.touches[0].clientX;
-            clientY = e.touches[0].clientY;
-        } else {
-            clientX = e.clientX;
-            clientY = e.clientY;
-        }
-
-        const newLeft = clientX - aiChatState.offsetX;
-        const newTop = clientY - aiChatState.offsetY;
-
-        const maxLeft = window.innerWidth - floatingWindow.offsetWidth;
-        const maxTop = window.innerHeight - floatingWindow.offsetHeight;
-
-        floatingWindow.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
-        floatingWindow.style.top = Math.max(0, Math.min(newTop, maxTop)) + 'px';
-        floatingWindow.style.right = 'auto';
-
-        e.preventDefault();
-    }
-
-    function stopDrag() {
-        aiChatState.isDragging = false;
+        // Close on Esc
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && aiState.isOpen) {
+                hideAIFloatingWindow();
+            }
+        });
     }
 
     function showAIFloatingWindow(note) {
-        const floatingWindow = document.getElementById('aiFloatingWindow');
-        const context = document.getElementById('aiFloatingContext');
+        const drawer = document.getElementById('aiDrawer');
+        const backdrop = document.getElementById('aiDrawerBackdrop');
+        const contextEl = document.getElementById('aiDrawerContext');
+        const noteTitleEl = document.getElementById('aiDrawerNoteTitle');
+        if (!drawer) return;
 
-        if (!floatingWindow) return;
+        aiState.isOpen = true;
+        aiState.currentNote = note;
 
-        aiChatState.isOpen = true;
-        aiChatState.currentNote = note;
-        aiChatState.isMinimized = false;
-
-        floatingWindow.style.display = 'flex';
-        floatingWindow.classList.remove('minimized');
-        const minimizeBtn = document.getElementById('aiFloatingMinimize');
-        if (minimizeBtn) minimizeBtn.textContent = '─';
-
-        if (context) {
-            context.textContent = note.content ? note.content.substring(0, 200) + (note.content.length > 200 ? '...' : '') : '（空笔记）';
+        if (noteTitleEl) {
+            noteTitleEl.textContent = (note.title || '').trim() || '(无标题)';
         }
+        if (contextEl) {
+            contextEl.textContent = note.content || '（空笔记）';
+        }
+
+        if (backdrop) backdrop.classList.add('visible');
+        drawer.classList.add('open');
 
         loadAIChatHistory();
 
         setTimeout(() => {
-            const input = document.getElementById('aiFloatingInput');
-            if (input) {
-                input.focus();
-            }
-        }, 100);
+            const input = document.getElementById('aiDrawerInput');
+            if (input) input.focus();
+        }, 150);
     }
 
     function hideAIFloatingWindow() {
-        const floatingWindow = document.getElementById('aiFloatingWindow');
-        if (!floatingWindow) return;
+        const drawer = document.getElementById('aiDrawer');
+        const backdrop = document.getElementById('aiDrawerBackdrop');
+        if (!drawer) return;
 
-        aiChatState.isOpen = false;
-        aiChatState.currentNote = null;
-        aiChatState.conversations = [];
-        floatingWindow.style.display = 'none';
+        aiState.isOpen = false;
+        aiState.currentNote = null;
+        aiState.conversations = [];
+
+        drawer.classList.remove('open');
+        if (backdrop) backdrop.classList.remove('visible');
     }
 
     async function loadAIChatHistory() {
-        if (!aiChatState.currentNote) return;
+        if (!aiState.currentNote) return;
         const { fetchNoteConversations } = getUtils();
         try {
-            const conversations = await fetchNoteConversations(aiChatState.currentNote.id);
-            aiChatState.conversations = conversations || [];
+            const conversations = await fetchNoteConversations(aiState.currentNote.id);
+            aiState.conversations = conversations || [];
             renderAIChatHistory();
         } catch (error) {
             console.error('Failed to load chat history:', error);
@@ -225,20 +156,21 @@
     }
 
     function renderAIChatHistory() {
-        const container = document.getElementById('aiFloatingHistory');
+        const container = document.getElementById('aiDrawerHistory');
         if (!container) return;
 
-        if (aiChatState.conversations.length === 0) {
-            container.innerHTML = '<div class="ai-floating-empty">发送消息开始对话</div>';
+        if (aiState.conversations.length === 0) {
+            container.innerHTML = '<div class="ai-drawer-empty">发送消息开始对话</div>';
             return;
         }
 
-        container.innerHTML = aiChatState.conversations.map(conv => `
-            <div class="ai-floating-message ${conv.role}">
-                <div class="ai-floating-bubble">
+        container.innerHTML = aiState.conversations.map(conv => `
+            <div class="ai-drawer-message ${conv.role}">
+                <div class="ai-drawer-bubble">
                     ${escapeHtml(conv.content)}
-                    ${conv.role === 'assistant' ? `<button class="ai-floating-insert-btn" data-content="${encodeURIComponent(conv.content)}">↩ 插入</button>` : ''}
+                    ${conv.role === 'assistant' ? `<button class="ai-drawer-insert-btn" data-content="${encodeURIComponent(conv.content)}">↩ 插入</button>` : ''}
                 </div>
+                <div class="ai-drawer-time">${formatNoteTime(conv.created_at)}</div>
             </div>
         `).join('');
 
@@ -246,77 +178,70 @@
     }
 
     async function sendAIChatMessage() {
-        if (!aiChatState.currentNote || aiChatState.isLoading) return;
+        if (!aiState.currentNote || aiState.isLoading) return;
 
         const { chatWithNote, showToast } = getUtils();
-        const input = document.getElementById('aiFloatingInput');
+        const input = document.getElementById('aiDrawerInput');
         const message = input?.value.trim();
         if (!message) return;
 
-        const container = document.getElementById('aiFloatingHistory');
-        aiChatState.isLoading = true;
+        const container = document.getElementById('aiDrawerHistory');
+        aiState.isLoading = true;
         input.value = '';
 
         if (container) {
             container.innerHTML += `
-                <div class="ai-floating-message user">
-                    <div class="ai-floating-bubble">${escapeHtml(message)}</div>
+                <div class="ai-drawer-message user">
+                    <div class="ai-drawer-bubble">${escapeHtml(message)}</div>
                 </div>
-                <div class="ai-floating-message assistant">
-                    <div class="ai-floating-bubble" style="color: var(--text-muted);">思考中...</div>
+                <div class="ai-drawer-message assistant">
+                    <div class="ai-drawer-bubble" style="color: var(--text-muted);">思考中...</div>
                 </div>
             `;
             container.scrollTop = container.scrollHeight;
         }
 
         try {
-            const response = await chatWithNote(aiChatState.currentNote.id, message);
+            const response = await chatWithNote(aiState.currentNote.id, message);
 
             if (response) {
-                const thinkingEl = container?.querySelector('.ai-floating-message.assistant:last-child');
+                const thinkingEl = container?.querySelector('.ai-drawer-message.assistant:last-child');
                 if (thinkingEl) {
                     thinkingEl.innerHTML = `
-                        <div class="ai-floating-bubble">${escapeHtml(response.content)}<button class="ai-floating-insert-btn" data-content="${encodeURIComponent(response.content)}">↩ 插入</button></div>
+                        <div class="ai-drawer-bubble">${escapeHtml(response.content)}<button class="ai-drawer-insert-btn" data-content="${encodeURIComponent(response.content)}">↩ 插入</button></div>
                     `;
                 }
-
-                aiChatState.conversations.push({ role: 'user', content: message });
-                aiChatState.conversations.push({ role: 'assistant', content: response.content });
+                aiState.conversations.push({ role: 'user', content: message });
+                aiState.conversations.push({ role: 'assistant', content: response.content });
             }
         } catch (error) {
             console.error('Chat error:', error);
             showToast('AI 对话失败，请重试');
-
-            const thinkingEl = container?.querySelector('.ai-floating-message.assistant:last-child');
+            const thinkingEl = container?.querySelector('.ai-drawer-message.assistant:last-child');
             if (thinkingEl) thinkingEl.remove();
         } finally {
-            aiChatState.isLoading = false;
+            aiState.isLoading = false;
         }
     }
 
     async function insertAIResponseToNote(content) {
-        if (!aiChatState.currentNote) return;
+        if (!aiState.currentNote) return;
 
         const { updateNote, showToast } = getUtils();
 
-        const currentContent = aiChatState.currentNote.content || '';
+        const currentContent = aiState.currentNote.content || '';
         const newContent = currentContent
             ? currentContent + '\n\n---\nAI 回答：\n' + content
             : 'AI 回答：\n' + content;
 
         try {
-            await updateNote(aiChatState.currentNote.id, { content: newContent });
-            aiChatState.currentNote.content = newContent;
+            await updateNote(aiState.currentNote.id, { content: newContent });
+            aiState.currentNote.content = newContent;
 
-            const textareas = document.querySelectorAll('#noteEditTextarea');
-            const textarea = textareas[textareas.length - 1];
-            if (textarea) {
-                textarea.value = newContent;
-            }
-
-            const context = document.getElementById('aiFloatingContext');
-            if (context) {
-                context.textContent = newContent.substring(0, 200) + (newContent.length > 200 ? '...' : '');
+            // Update inline editor if open
+            const inlineContent = document.getElementById('noteInlineContent');
+            if (inlineContent) {
+                inlineContent.innerText = newContent;
             }
 
             showToast('已插入到笔记');
@@ -326,16 +251,15 @@
         }
     }
 
-    // Public API (used by notes-list.js / note-editor.js)
     function isOpen() {
-        return aiChatState.isOpen;
+        return aiState.isOpen;
     }
     function getCurrentNoteId() {
-        return aiChatState.currentNote ? aiChatState.currentNote.id : null;
+        return aiState.currentNote ? aiState.currentNote.id : null;
     }
     function updateCurrentNoteContent(newContent) {
-        if (aiChatState.currentNote) {
-            aiChatState.currentNote.content = newContent;
+        if (aiState.currentNote) {
+            aiState.currentNote.content = newContent;
         }
     }
 

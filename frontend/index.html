@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/style.css?v=20260621-05">
+    <link rel="stylesheet" href="/static/style.css?v=20260621-06">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -384,19 +384,21 @@
             </div>
         </main>
 
-        <!-- AI Chat Floating Window -->
-        <div class="ai-floating-window" id="aiFloatingWindow" style="display: none">
-            <div class="ai-floating-header" id="aiFloatingHeader">
-                <span>🤖 AI 助手</span>
-                <button class="ai-floating-minimize" id="aiFloatingMinimize">─</button>
+        <!-- AI Chat Drawer (replaces old floating window, Stage 4) -->
+        <div class="ai-drawer-backdrop" id="aiDrawerBackdrop"></div>
+        <div class="ai-drawer" id="aiDrawer">
+            <div class="ai-drawer-header">
+                <span class="ai-drawer-header-title">🤖 AI 助手</span>
+                <span class="ai-drawer-note-title" id="aiDrawerNoteTitle"></span>
+                <button class="ai-drawer-close" id="aiDrawerClose" title="关闭">×</button>
             </div>
-            <div class="ai-floating-context" id="aiFloatingContext">选择一个笔记开始对话</div>
-            <div class="ai-floating-history" id="aiFloatingHistory">
-                <div class="ai-floating-empty">发送消息开始对话</div>
+            <div class="ai-drawer-context" id="aiDrawerContext">选择一个笔记开始对话</div>
+            <div class="ai-drawer-history" id="aiDrawerHistory">
+                <div class="ai-drawer-empty">发送消息开始对话</div>
             </div>
-            <div class="ai-floating-input-area">
-                <input type="text" class="ai-floating-input" id="aiFloatingInput" placeholder="输入问题..." autocomplete="off">
-                <button class="ai-floating-send" id="aiFloatingSend">➤</button>
+            <div class="ai-drawer-input-area">
+                <input type="text" class="ai-drawer-input" id="aiDrawerInput" placeholder="输入问题..." autocomplete="off">
+                <button class="ai-drawer-send" id="aiDrawerSend">➤</button>
             </div>
         </div>
 
@@ -893,7 +895,7 @@
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
     <script src="/static/js/utils2.js?v=20260425-01"></script>
     <script src="/static/js/budget.js?v=20260426-08"></script>
-    <script src="/static/js/note-ai.js?v=20260622-02"></script>
+    <script src="/static/js/note-ai.js?v=20260622-03"></script>
     <script src="/static/js/note-editor.js?v=20260622-02"></script>
     <script src="/static/js/notes-list.js?v=20260622-04"></script>
     <script src="/static/js/expense.js?v=20260622-02"></script>
