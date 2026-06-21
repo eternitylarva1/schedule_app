@@ -3110,16 +3110,32 @@ async def delete_budget(budget_id: int) -> bool:
         return cursor.rowcount > 0
 
 
-async def get_budget_spent(budget_id: int) -> float:
-    """Get total spent amount for a budget."""
+async def get_budget_spent(budget_id: int, period_start: Optional[datetime] = None) -> float:
+    """Get total spent amount for a budget.
+
+    If period_start is provided, only sum expenses with expense_date >= period_start.
+    For expenses with empty expense_date, use created_at date as fallback (so legacy
+    expenses are attributed to the period when they were actually created).
+    """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE budget_id = ?",
-            (budget_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-            return row["total"] if row else 0.0
+        if period_start:
+            # Use COALESCE to fall back to created_at for empty expense_date
+            period_str = period_start.strftime("%Y-%m-%d")
+            async with db.execute(
+                """SELECT COALESCE(SUM(amount), 0) as total FROM expenses
+                   WHERE budget_id = ?
+                   AND COALESCE(NULLIF(expense_date, ''), date(created_at)) >= ?""",
+                (budget_id, period_str)
+            ) as cursor:
+                row = await cursor.fetchone()
+        else:
+            async with db.execute(
+                "SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE budget_id = ?",
+                (budget_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+        return row["total"] if row else 0.0
 
 
 def get_next_period_start(period_start: datetime, period: str) -> datetime:
@@ -3192,7 +3208,8 @@ async def check_and_reset_budget_period(budget_id: int) -> Optional[Budget]:
         # Don't accumulate rollover for multiple missed periods — that would
         # cause runaway growth (e.g., missed 3 months = 8x budget rollover)
         if budget.auto_reset and budget.rollover and not rollover_applied:
-            spent = await get_budget_spent(budget_id)
+            # Calculate spent within the current period (before advancing)
+            spent = await get_budget_spent(budget_id, period_start=budget.period_start)
             remaining = budget.amount - spent
             if remaining > 0:
                 new_rollover = budget.rollover_amount + remaining
@@ -3218,7 +3235,8 @@ async def get_budget_with_stats(budget_id: int) -> Optional[dict]:
     budget = await check_and_reset_budget_period(budget_id)
     if not budget:
         return None
-    spent = await get_budget_spent(budget_id)
+    # Filter spent by current period so it resets visually on period roll-over
+    spent = await get_budget_spent(budget_id, period_start=budget.period_start)
     # Effective amount includes rollover
     effective_amount = budget.amount + budget.rollover_amount
     return {
@@ -3251,7 +3269,8 @@ async def get_budgets_with_stats() -> List[dict]:
                 continue  # Skip if budget was deleted
             budget = reset_budget
             budget_id_for_spent = reset_budget.id
-            spent = await get_budget_spent(budget_id_for_spent) if budget_id_for_spent is not None else 0.0
+            # Filter spent by current period so it resets visually on period roll-over
+            spent = await get_budget_spent(budget_id_for_spent, period_start=budget.period_start) if budget_id_for_spent is not None else 0.0
         else:
             spent = 0.0
         # Effective amount includes rollover
