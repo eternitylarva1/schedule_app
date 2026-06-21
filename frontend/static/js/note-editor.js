@@ -265,6 +265,10 @@
         `;
     }
 
+    function getCurrentInlineNoteId() {
+        return _currentInlineNoteId;
+    }
+
     // ===== Legacy modals (kept as fallback) =====
 
     async function showNoteDetail(note) {
@@ -460,6 +464,8 @@
     window.ScheduleAppNoteEditor = {
         renderInlineEditor,
         clearInlineEditor,
+        flushAutoSave,
+        getCurrentInlineNoteId,
         showNoteDetail,
         showNoteEdit,
         closeAllModals,

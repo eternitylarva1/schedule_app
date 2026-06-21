@@ -146,7 +146,11 @@
         sortedGroups.forEach(group => {
             const isExpanded = state.expandedGroups.has(String(group.id));
             const groupData = groupMap[group.id] || { notes: [] };
-            const noteCount = groupData.notes.length;
+            // Skip pinned notes in regular groups (shown in 📌 固定 instead)
+            const unpinnedNotes = groupData.notes.filter(n => !n.is_pinned);
+            const noteCount = unpinnedNotes.length;
+
+            if (noteCount === 0 && groupData.notes.filter(n => n.is_pinned).length === 0) return; // skip empty groups (pinned notes moved to pinned group)
 
             html += `
                 <details class="note-group" data-group-id="${group.id}" ${isExpanded ? 'open' : ''}>
@@ -157,23 +161,24 @@
                         <button class="note-group-delete" data-group-id="${group.id}" title="删除分组">×</button>
                     </summary>
                     <div class="note-group-content ${isExpanded ? '' : 'collapsed'}">
-                        ${noteCount > 0 ? groupData.notes.map(note => renderNoteItem(note)).join('') : '<div class="note-group-empty">暂无笔记</div>'}
+                        ${unpinnedNotes.length > 0 ? unpinnedNotes.map(note => renderNoteItem(note)).join('') : '<div class="note-group-empty">暂无笔记</div>'}
                     </div>
                 </details>
             `;
         });
 
         const ungroupedExpanded = state.expandedGroups.has('ungrouped');
-        if (ungroupedNotes.length > 0) {
+        const ungroupedUnpinned = ungroupedNotes.filter(n => !n.is_pinned);
+        if (ungroupedUnpinned.length > 0) {
             html += `
                 <details class="note-group" data-group-id="ungrouped" ${ungroupedExpanded ? 'open' : ''}>
                     <summary class="note-group-header" data-group-id="ungrouped">
                         <span class="note-group-toggle">${ungroupedExpanded ? '▼' : '▶'}</span>
                         <span class="note-group-name">未分组</span>
-                        <span class="note-group-count">${ungroupedNotes.length}</span>
+                        <span class="note-group-count">${ungroupedUnpinned.length}</span>
                     </summary>
                     <div class="note-group-content ${ungroupedExpanded ? '' : 'collapsed'}">
-                        ${ungroupedNotes.map(note => renderNoteItem(note)).join('')}
+                        ${ungroupedUnpinned.map(note => renderNoteItem(note)).join('')}
                     </div>
                 </details>
             `;
@@ -234,6 +239,16 @@
                 const noteId = parseInt(item.dataset.noteId);
                 const note = state.notes.find(n => n.id === noteId);
                 if (note) {
+                    // Save current inline editor before switching
+                    const editor = window.ScheduleAppNoteEditor;
+                    if (editor) {
+                        const currentId = typeof editor.getCurrentInlineNoteId === 'function' ? editor.getCurrentInlineNoteId() : null;
+                        if (currentId !== null && currentId !== noteId && typeof editor.flushAutoSave === 'function') {
+                            const currentNote = state.notes.find(n => n.id === currentId);
+                            if (currentNote) editor.flushAutoSave(currentNote);
+                        }
+                    }
+
                     state.selectedNote = note;
                     // Phase 3.1: highlight active note
                     container.querySelectorAll('.note-item.active').forEach(el => el.classList.remove('active'));
@@ -256,7 +271,6 @@
                         }, 100);
                     } else {
                         // Phase 3.2: render inline editor (instead of modal)
-                        const editor = window.ScheduleAppNoteEditor;
                         if (editor && typeof editor.renderInlineEditor === 'function') {
                             editor.renderInlineEditor(note);
                         } else if (editor && typeof editor.showNoteDetail === 'function') {
