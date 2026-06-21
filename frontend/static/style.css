@@ -6274,37 +6274,43 @@ textarea {
     background: var(--note-color);
 }
 
-/* Pinned group — make it stand out */
+/* Pinned group — stand out with golden background */
+.notes-list-scroll .note-group[data-group-id="__pinned"] {
+    border-bottom: 2px solid rgba(245, 158, 11, 0.15) !important;
+}
 .notes-list-scroll .note-group[data-group-id="__pinned"] .note-group-header {
-    background: rgba(245, 158, 11, 0.06);
-    border-radius: var(--radius-md);
+    background: rgba(245, 158, 11, 0.08) !important;
     margin: 4px 6px;
+    border-radius: var(--radius-md);
     padding: 8px 12px;
 }
-
 .notes-list-scroll .note-group[data-group-id="__pinned"] .note-group-toggle {
     color: var(--accent-warning);
+    font-weight: 700;
 }
-
 .notes-list-scroll .note-group[data-group-id="__pinned"] .note-group-name {
     color: var(--accent-warning);
     font-weight: 700;
 }
 
+/* Color bar — wider and with shadow for visibility */
+.notes-list-scroll .note-item[style*="--note-color"]::before {
+    background: var(--note-color);
+    width: 4px;
+    box-shadow: 0 0 3px var(--note-color);
+    opacity: 1;
+}
+.notes-list-scroll .note-item[style*="--note-color"]:hover::before {
+    width: 6px;
+}
+
 /* AI drawer input — pulse briefly when drawer opens */
 @keyframes aiInputPulse {
-    0% { box-shadow: 0 0 0 2px var(--accent-primary); }
-    50% { box-shadow: 0 0 0 4px var(--accent-primary); }
-    100% { box-shadow: 0 0 0 2px var(--accent-primary); }
+    0%, 100% { box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4); }
+    50% { box-shadow: 0 0 0 5px rgba(99, 102, 241, 0.2); }
 }
-
 .ai-drawer.open .ai-drawer-input {
-    animation: aiInputPulse 1.5s ease-in-out 2;
-}
-
-/* Color bar — extra visible when hovered */
-.notes-list-scroll .note-item[style*="--note-color"]:hover::before {
-    width: 5px;
+    animation: aiInputPulse 2s ease-in-out 2;
 }
 .notes-list-scroll .note-item.pinned::after {
     content: '';
