@@ -92,7 +92,7 @@
                     <input type="text" id="noteInlineTitle" class="note-inline-title" placeholder="标题（可选）" value="${escapeHtml(note.title || '')}">
                     <div class="note-inline-toolbar-right">
                         <button type="button" class="note-inline-pin-btn${note.is_pinned ? ' active' : ''}" id="noteInlinePinBtn" title="${note.is_pinned ? '取消固定' : '固定'}">📌</button>
-                        <button type="button" class="note-inline-ai-btn" id="noteInlineAiBtn" title="AI 对话">🤖</button>
+                        <button type="button" class="note-inline-ai-btn" id="noteInlineAiBtn" title="打开 AI 助手对话">🤖</button>
                     </div>
                 </div>
                 <div class="note-inline-color-row" id="noteInlineColorRow">
@@ -145,7 +145,7 @@
                     note.is_pinned = newPinned;
                     pinBtn.classList.toggle('active', newPinned);
                     pinBtn.title = newPinned ? '取消固定' : '固定';
-                    showToast(newPinned ? '已固定' : '已取消固定');
+                    showToast(newPinned ? '已固定到顶部 📌' : '已取消固定');
                     // Refresh list to move note
                     if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
                         await window.ScheduleAppNotesList.renderNotesList();

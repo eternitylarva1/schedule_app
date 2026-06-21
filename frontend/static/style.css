@@ -5668,9 +5668,13 @@ textarea {
     top: 10px;
     bottom: 10px;
     width: 3px;
-    background: var(--note-color, var(--border-medium));
+    background: transparent;
     border-radius: 2px;
     transition: background 0.15s;
+}
+
+.notes-list-scroll .note-item[style*="--note-color"]::before {
+    background: var(--note-color);
 }
 
 /* Pinned — subtle dot */
@@ -6250,10 +6254,10 @@ textarea {
 }
 
 .notes-list-scroll .note-item.active::before {
-    background: var(--accent-primary);
+    background: var(--note-color, var(--accent-primary));
 }
 
-/* Left color stripe */
+/* Left color stripe — only visible when --note-color is set */
 .notes-list-scroll .note-item::before {
     content: '';
     position: absolute;
@@ -6261,9 +6265,13 @@ textarea {
     top: 10px;
     bottom: 10px;
     width: 3px;
-    background: var(--note-color, var(--border-medium));
+    background: transparent;
     border-radius: 2px;
     transition: background 0.15s;
+}
+
+.notes-list-scroll .note-item[style*="--note-color"]::before {
+    background: var(--note-color);
 }
 
 /* Pinned indicator — subtle dot instead of emoji */
