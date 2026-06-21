@@ -3158,54 +3158,56 @@ def get_next_period_start(period_start: datetime, period: str) -> datetime:
 
 async def check_and_reset_budget_period(budget_id: int) -> Optional[Budget]:
     """Check if budget period has ended and perform reset if needed.
-    
+
+    Handles multiple missed periods (offline for 2+ periods): loops and
+    advances period_start until current, but only applies rollover once
+    for the most recent missed period.
+
     Returns the updated budget, or None if budget doesn't exist.
     """
     budget = await get_budget(budget_id)
     if not budget:
         return None
-    
+
     # Skip if no period is set
     if not budget.period or budget.period == "none":
         return budget
-    
+
     # If no period_start, set it to now
     if not budget.period_start:
         budget.period_start = datetime.now()
         return await update_budget(budget_id, budget)
-    
-    # Calculate next period start
-    next_start = get_next_period_start(budget.period_start, budget.period)
+
+    # Loop: keep advancing period_start until we're in the current period
     now = datetime.now()
-    
-    # If current time is still within the period, nothing to do
-    if now < next_start:
-        return budget
-    
-    # Period has ended - need to reset
-    # Only auto-reset if auto_reset is enabled; otherwise just advance the period window
-    if budget.auto_reset:
-        # Get current spent
-        spent = await get_budget_spent(budget_id)
-        remaining = budget.amount - spent
-        
-        # Handle rollover
-        if budget.rollover and remaining > 0:
-            # Add remaining to rollover_amount
-            new_rollover = budget.rollover_amount + remaining
-            # Apply rollover limit if set
-            if budget.rollover_limit is not None:
-                # Calculate max rollover based on limit (e.g., 2 months worth)
-                max_rollover = budget.amount * budget.rollover_limit
-                new_rollover = min(new_rollover, max_rollover)
-            budget.rollover_amount = new_rollover
-        
-        # Start new period
+    rollover_applied = False
+    while True:
+        next_start = get_next_period_start(budget.period_start, budget.period)
+
+        # If still within the current period, stop
+        if now < next_start:
+            break
+
+        # Apply rollover only once for the first (most recent missed) period
+        # Don't accumulate rollover for multiple missed periods — that would
+        # cause runaway growth (e.g., missed 3 months = 8x budget rollover)
+        if budget.auto_reset and budget.rollover and not rollover_applied:
+            spent = await get_budget_spent(budget_id)
+            remaining = budget.amount - spent
+            if remaining > 0:
+                new_rollover = budget.rollover_amount + remaining
+                if budget.rollover_limit is not None:
+                    max_rollover = budget.amount * budget.rollover_limit
+                    new_rollover = min(new_rollover, max_rollover)
+                budget.rollover_amount = new_rollover
+            rollover_applied = True
+        elif not budget.auto_reset:
+            # auto_reset=False: just advance the window, no rollover
+            pass
+
+        # Advance to next period
         budget.period_start = next_start
-    else:
-        # auto_reset=False: just advance the period window without resetting spent
-        budget.period_start = next_start
-    
+
     # Save changes
     return await update_budget(budget_id, budget)
 
