@@ -266,7 +266,7 @@
                 if (a.status === 'done' && b.status !== 'done') return 1;
                 if (b.status === 'done' && a.status !== 'done') return -1;
                 if (a.status === 'done' && b.status === 'done') return 0;
-                
+
                 const aMeta = deadlineMeta(a);
                 const bMeta = deadlineMeta(b);
                 const aNoTimeLike = !a.start_time || aMeta.treatAsDeadlineWarning;
@@ -276,16 +276,7 @@
                 if (aNoTimeLike) return 1;
                 if (bNoTimeLike) return -1;
 
-                // Within each date group: put past pending events LAST, so today's events show first
-                const now = new Date();
-                const aStart = new Date(a.start_time);
-                const bStart = new Date(b.start_time);
-                const aIsPast = aStart < now;
-                const bIsPast = bStart < now;
-                if (aIsPast && !bIsPast) return 1;  // past → last
-                if (bIsPast && !aIsPast) return -1; // current/future → first
-
-                return aStart - bStart; // ASC by start_time within same time period
+                return new Date(a.start_time) - new Date(b.start_time);
             });
         
         if (allEvents.length === 0) {
@@ -358,9 +349,9 @@
             // Today always first among non-NO_TIME groups
             if (isTodayA && !isTodayB) return -1;
             if (isTodayB && !isTodayA) return 1;
-            // Past goes after today (but before future)
-            if (isPastA && !isPastB) return 1;
-            if (isPastB && !isPastA) return -1;
+            // After today: past pending events next, then future events
+            if (isPastA && !isPastB) return -1;  // past → before future
+            if (isPastB && !isPastA) return 1;   // future → after past
             // Both past or both future - sort by date
             return dateA - dateB;
         });
