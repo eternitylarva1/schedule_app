@@ -275,7 +275,17 @@
                 if (aNoTimeLike && bNoTimeLike) return 0;
                 if (aNoTimeLike) return 1;
                 if (bNoTimeLike) return -1;
-                return new Date(a.start_time) - new Date(b.start_time);
+
+                // Within each date group: put past pending events LAST, so today's events show first
+                const now = new Date();
+                const aStart = new Date(a.start_time);
+                const bStart = new Date(b.start_time);
+                const aIsPast = aStart < now;
+                const bIsPast = bStart < now;
+                if (aIsPast && !bIsPast) return 1;  // past → last
+                if (bIsPast && !aIsPast) return -1; // current/future → first
+
+                return aStart - bStart; // ASC by start_time within same time period
             });
         
         if (allEvents.length === 0) {
