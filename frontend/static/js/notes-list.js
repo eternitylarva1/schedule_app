@@ -225,6 +225,56 @@
         container.setAttribute('role', 'listbox');
         container.setAttribute('aria-label', '笔记列表');
 
+        // Stage 5: Group inline rename (double-click on group name)
+        container.querySelectorAll('.note-group-name').forEach(nameSpan => {
+            const groupEl = nameSpan.closest('.note-group');
+            const groupId = groupEl?.dataset.groupId;
+            // Skip special groups: __pinned, trash, ungrouped
+            if (!groupId || groupId === '__pinned' || groupId === 'trash' || groupId === 'ungrouped') return;
+
+            nameSpan.style.cursor = 'text';
+            nameSpan.title = '双击重命名';
+            nameSpan.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                const currentName = nameSpan.textContent;
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'note-group-name-input';
+                input.value = currentName;
+
+                nameSpan.replaceWith(input);
+                input.focus();
+                input.select();
+
+                const finish = async (save) => {
+                    if (save && input.value.trim() && input.value.trim() !== currentName) {
+                        const newName = input.value.trim();
+                        const span = document.createElement('span');
+                        span.className = 'note-group-name';
+                        span.textContent = newName;
+                        input.replaceWith(span);
+                        // Re-bind dblclick to new span
+                        const { updateNoteGroup } = getUtils();
+                        const gid = parseInt(groupId);
+                        if (gid && typeof updateNoteGroup === 'function') {
+                            await updateNoteGroup(gid, { name: newName });
+                        }
+                    } else {
+                        const span = document.createElement('span');
+                        span.className = 'note-group-name';
+                        span.textContent = currentName;
+                        input.replaceWith(span);
+                    }
+                };
+
+                input.addEventListener('blur', () => finish(true));
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+                    if (e.key === 'Escape') { finish(false); }
+                });
+            });
+        });
+
         container.querySelectorAll('.note-group-delete').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
