@@ -78,10 +78,18 @@
         const elements = getElements();
         const { fetchNotes, fetchNoteGroups, deleteNoteGroup, showToast, showConfirm, deleteNote, updateNote } = getUtils();
 
-        // Phase 3.1: use new sidebar container (with fallback to legacy)
         const container = document.getElementById('notesListScroll') || elements.notepadContainer;
         const notes = await fetchNotes();
         const groups = await fetchNoteGroups() || [];
+
+        // Phase 3.3: also fetch archived notes for trash group
+        let archivedNotes = [];
+        try {
+            archivedNotes = await fetchNotes(true);
+            archivedNotes = (archivedNotes || []).filter(n => n.is_archived);
+        } catch (e) {
+            // ignore
+        }
 
         if (state.expandedGroups.size === 0 && groups.length > 0) {
             groups.forEach((g) => {
@@ -171,6 +179,23 @@
             `;
         }
 
+        // Phase 3.3: trash group (archived notes, collapsed by default)
+        const trashExpanded = state.expandedGroups.has('trash');
+        if (archivedNotes.length > 0) {
+            html += `
+                <details class="note-group note-group-trash" data-group-id="trash" ${trashExpanded ? 'open' : ''}>
+                    <summary class="note-group-header" data-group-id="trash">
+                        <span class="note-group-toggle">${trashExpanded ? '▼' : '▶'}</span>
+                        <span class="note-group-name" style="color:var(--text-muted);">🗑 废纸篓</span>
+                        <span class="note-group-count">${archivedNotes.length}</span>
+                    </summary>
+                    <div class="note-group-content ${trashExpanded ? '' : 'collapsed'}">
+                        ${archivedNotes.map(note => renderNoteItem(note, true)).join('')}
+                    </div>
+                </details>
+            `;
+        }
+
         container.innerHTML = html;
 
         container.querySelectorAll('.note-group-delete').forEach(btn => {
@@ -254,16 +279,33 @@
                 if (action === 'edit') {
                     const note = state.notes.find(n => n.id === noteId);
                     if (note && editor && typeof editor.renderInlineEditor === 'function') {
-                        // Phase 3.2: inline editor is the same as "edit" now
                         editor.renderInlineEditor(note);
                     } else if (note && editor && typeof editor.showNoteEdit === 'function') {
                         editor.showNoteEdit(note);
                     }
+                } else if (action === 'archive') {
+                    await updateNote(noteId, { is_archived: true });
+                    showToast('已归档');
+                    // Clear stale editor if showing this note
+                    if (editor && typeof editor.clearInlineEditor === 'function') {
+                        const ai = window.ScheduleAppNoteAI;
+                        if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === noteId) {
+                            editor.clearInlineEditor();
+                        }
+                    }
+                    await renderNotesList();
+                } else if (action === 'restore') {
+                    await updateNote(noteId, { is_archived: false });
+                    showToast('已恢复');
+                    await renderNotesList();
                 } else if (action === 'delete') {
-                    const confirmed = await showConfirm('确定删除这条笔记吗？');
+                    const confirmed = await showConfirm('确定永久删除这条笔记吗？');
                     if (confirmed) {
                         await deleteNote(noteId);
-                        showToast('已删除');
+                        showToast('已永久删除');
+                        if (editor && typeof editor.clearInlineEditor === 'function') {
+                            editor.clearInlineEditor();
+                        }
                         await renderNotesList();
                     }
                 }
@@ -289,20 +331,70 @@
         });
 
         initNoteDragDrop();
+
+        // Phase 3.3: keyboard shortcuts
+        function handleNotesKeydown(e) {
+            const sidebar = document.getElementById('notesListScroll');
+            if (!sidebar) return;
+
+            // Cmd+N / Ctrl+N → create new note
+            if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+                e.preventDefault();
+                const input = document.getElementById('notepadInput');
+                if (input) input.focus();
+                return;
+            }
+
+            // Esc → clear search
+            if (e.key === 'Escape') {
+                const searchInput = document.getElementById('notesSearchInput');
+                if (searchInput && searchInput.value) {
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    searchInput.blur();
+                }
+                return;
+            }
+
+            // ↑/↓ → navigate between note items
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                const items = Array.from(sidebar.querySelectorAll('.note-item'));
+                if (!items.length) return;
+                const current = sidebar.querySelector('.note-item.active');
+                const idx = current ? items.indexOf(current) : -1;
+                const nextIdx = e.key === 'ArrowDown'
+                    ? Math.min(idx + 1, items.length - 1)
+                    : Math.max(idx - 1, 0);
+                if (nextIdx !== idx) {
+                    e.preventDefault();
+                    items[nextIdx].click();
+                }
+            }
+        }
+
+        // Remove old listener if any, then add new one
+        if (container._notesKeydownHandler) {
+            document.removeEventListener('keydown', container._notesKeydownHandler);
+        }
+        container._notesKeydownHandler = handleNotesKeydown;
+        document.addEventListener('keydown', handleNotesKeydown);
     }
 
-    function renderNoteItem(note) {
+    function renderNoteItem(note, isTrash = false) {
         const isPinned = !!note.is_pinned;
         const noteColor = note.color || '';
-        // Phase 3.1: compact sidebar layout
         const inlineColor = noteColor ? ` style="--note-color: ${escapeHtml(noteColor)};"` : '';
+        const leftAction = isTrash ? 'restore' : 'edit';
+        const leftLabel = isTrash ? '↩ 恢复' : '✏️ 编辑';
+        const rightAction = isTrash ? 'delete' : 'archive';
+        const rightLabel = isTrash ? '🗑 删除' : '🗑 归档';
         return `
-            <div class="swipe-item note-swipe" data-note-id="${note.id}" draggable="true">
-                <div class="swipe-action swipe-action-left" data-action="edit" data-note-id="${note.id}">✏️ 编辑</div>
-                <div class="swipe-action swipe-action-right" data-action="delete" data-note-id="${note.id}">🗑️ 删除</div>
+            <div class="swipe-item note-swipe" data-note-id="${note.id}" data-is-trash="${isTrash ? '1' : '0'}" draggable="true">
+                <div class="swipe-action swipe-action-left" data-action="${leftAction}" data-note-id="${note.id}">${leftLabel}</div>
+                <div class="swipe-action swipe-action-right" data-action="${rightAction}" data-note-id="${note.id}">${rightLabel}</div>
                 <div class="swipe-content">
                     <div class="note-item${isPinned ? ' pinned' : ''}" data-note-id="${note.id}"${inlineColor}>
-                        ${note.title ? `<div class="note-item-title">${escapeHtml(note.title)}</div>` : '<div class="note-item-title" style="color:var(--text-muted, #94a3b8); font-style:italic;">无标题</div>'}
+                        ${note.title ? `<div class="note-item-title">${escapeHtml(note.title)}</div>` : '<div class="note-item-title" style="color:var(--text-muted);font-style:italic;">无标题</div>'}
                         <div class="note-item-preview">${escapeHtml(truncate2Lines(note.content))}</div>
                         <div class="note-item-time">${formatNoteTime(note.created_at)}</div>
                     </div>

@@ -235,8 +235,8 @@
     // ============================================
     // Notes API Functions
     // ============================================
-    async function fetchNotes() {
-        const data = await apiCall('notes');
+    async function fetchNotes(includeArchived = false) {
+        const data = await apiCall('notes' + (includeArchived ? '?include_archived=true' : ''));
         if (data) {
             state.notes = data;
             return data;
