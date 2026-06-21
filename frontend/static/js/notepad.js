@@ -261,15 +261,25 @@
                 try {
                     const result = await createNote(text);
                     if (result) {
-                        // Re-render to show real data with proper ID/timestamps
-                        if (notesListModule && typeof notesListModule.renderNotesList === 'function') {
-                            await notesListModule.renderNotesList();
+                        // Add to state.notes
+                        state.notes = state.notes || [];
+                        state.notes.unshift(result);
+                        // Remove temp row and insert real note
+                        if (notesListModule && typeof notesListModule.removeNoteRow === 'function') {
+                            notesListModule.removeNoteRow(tempNote.id);
+                        }
+                        if (notesListModule && typeof notesListModule.insertNoteRow === 'function') {
+                            notesListModule.insertNoteRow(result);
                         }
                     }
                 } catch (e) {
                     // On failure: remove the temp row and show error
-                    const tempEl = listScroll?.querySelector(`.note-item[data-note-id="${tempNote.id}"]`);
-                    if (tempEl) tempEl.closest('.note-swipe')?.remove();
+                    if (notesListModule && typeof notesListModule.removeNoteRow === 'function') {
+                        notesListModule.removeNoteRow(tempNote.id);
+                    } else {
+                        const tempEl = listScroll?.querySelector(`.note-item[data-note-id="${tempNote.id}"]`);
+                        if (tempEl) tempEl.closest('.note-swipe')?.remove();
+                    }
                     showToast('保存失败，请重试');
                 }
             } else {

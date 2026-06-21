@@ -146,9 +146,9 @@
                     pinBtn.classList.toggle('active', newPinned);
                     pinBtn.title = newPinned ? '取消固定' : '固定';
                     showToast(newPinned ? '已固定到顶部 📌' : '已取消固定');
-                    // Refresh list to move note
-                    if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
-                        await window.ScheduleAppNotesList.renderNotesList();
+                    // Incremental DOM update — move note row to/from pinned section
+                    if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.togglePinRow === 'function') {
+                        window.ScheduleAppNotesList.togglePinRow(note.id, newPinned);
                     }
                 }
             } catch (e) {
@@ -179,9 +179,9 @@
                     if (result) {
                         note.color = newColor;
                         showToast(newColor ? '颜色已更新' : '颜色已清除');
-                        // Refresh list to update color bar
-                        if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
-                            await window.ScheduleAppNotesList.renderNotesList();
+                        // Incremental DOM update — only update the color bar
+                        if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.updateNoteColorRow === 'function') {
+                            window.ScheduleAppNotesList.updateNoteColorRow(note.id, newColor);
                         }
                     }
                 } catch (e) {
@@ -332,8 +332,9 @@
                 await deleteNote(note.id);
                 showToast('已删除');
                 closeModal();
-                if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
-                    await window.ScheduleAppNotesList.renderNotesList();
+                // Incremental DOM update — remove just this row
+                if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.removeNoteRow === 'function') {
+                    window.ScheduleAppNotesList.removeNoteRow(note.id);
                 }
             }
         });
@@ -442,9 +443,23 @@
                 if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === note.id && ai.updateCurrentNoteContent) {
                     ai.updateCurrentNoteContent(newContent);
                 }
+                // Update the note object (reference in state.notes)
+                note.title = newTitle;
+                note.content = newContent;
+                note.updated_at = result.updated_at;
+                const oldGroupId = note.group_id;
+                note.group_id = newGroupId;
                 closeModal();
-                if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
-                    await window.ScheduleAppNotesList.renderNotesList();
+                // Incremental DOM update — refresh the row; if group changed, move it too
+                const notesList = window.ScheduleAppNotesList;
+                if (notesList && typeof notesList.updateNoteRow === 'function') {
+                    notesList.updateNoteRow(note);
+                }
+                if (oldGroupId !== newGroupId && notesList && typeof notesList.moveNoteRow === 'function') {
+                    // Delay slightly to let updateNoteRow finish replacing the element
+                    setTimeout(() => {
+                        notesList.moveNoteRow(note.id, newGroupId);
+                    }, 0);
                 }
             }
         });

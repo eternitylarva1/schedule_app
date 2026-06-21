@@ -282,9 +282,16 @@
                 const groupId = parseInt(btn.dataset.groupId);
                 const confirmed = await showConfirm('删除分组？分组内的笔记将移至"未分组"。');
                 if (confirmed) {
-                    await deleteNoteGroup(groupId);
+                    // Incremental DOM update: move each note to ungrouped, then remove group
+                    const state = getState();
+                    const notesInGroup = state.notes.filter(n => n.group_id === groupId);
+                    notesInGroup.forEach(n => {
+                        n.group_id = null;
+                        moveNoteRow(n.id, null);
+                    });
+                    removeGroupRow(groupId);
                     showToastWithUndo('分组已删除', null);
-                    await renderNotesList();
+                    await deleteNoteGroup(groupId);
                 }
             });
         });
@@ -298,137 +305,8 @@
             });
         }
 
-        container.querySelectorAll('.note-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                if (e.target.closest('.swipe-action')) return;
-                const parentSwipe = item.closest('.swipe-item');
-                if (parentSwipe && parentSwipe.classList.contains('swipe-open')) {
-                    if (getUtils().closeAllOpenSwipeItems) {
-                        getUtils().closeAllOpenSwipeItems();
-                    }
-                    return;
-                }
-                const noteId = parseInt(item.dataset.noteId);
-                const note = state.notes.find(n => n.id === noteId);
-                if (note) {
-                    // Save current inline editor before switching
-                    const editor = window.ScheduleAppNoteEditor;
-                    if (editor) {
-                        const currentId = typeof editor.getCurrentInlineNoteId === 'function' ? editor.getCurrentInlineNoteId() : null;
-                        if (currentId !== null && currentId !== noteId && typeof editor.flushAutoSave === 'function') {
-                            const currentNote = state.notes.find(n => n.id === currentId);
-                            if (currentNote) editor.flushAutoSave(currentNote);
-                        }
-                    }
-
-                    state.selectedNote = note;
-                    // Phase 3.1: highlight active note
-                    container.querySelectorAll('.note-item.active').forEach(el => el.classList.remove('active'));
-                    item.classList.add('active');
-                    // Phase 3.1: switch to detail tab on mobile
-                    const notesApp = document.getElementById('notesApp');
-                    if (notesApp) notesApp.dataset.active = 'detail';
-                    const subtabs = document.querySelectorAll('.notes-mobile-subtab');
-                    subtabs.forEach(t => t.classList.toggle('active', t.dataset.mobileSubtab === 'detail'));
-
-                    const aiOpen = window.ScheduleAppNoteAI && window.ScheduleAppNoteAI.isOpen && window.ScheduleAppNoteAI.isOpen();
-                    if (aiOpen) {
-                        const contextContent = document.getElementById('aiChatContextContent');
-                        if (contextContent) {
-                            contextContent.textContent = note.content || '（空笔记）';
-                        }
-                        setTimeout(() => {
-                            const input = document.getElementById('aiChatInput');
-                            if (input) input.focus();
-                        }, 100);
-                    } else {
-                        // Phase 3.2: render inline editor (instead of modal)
-                        if (editor && typeof editor.renderInlineEditor === 'function') {
-                            editor.renderInlineEditor(note);
-                        } else if (editor && typeof editor.showNoteDetail === 'function') {
-                            // Fallback to modal
-                            editor.showNoteDetail(note);
-                        }
-                    }
-                }
-            });
-        });
-
-        container.querySelectorAll('.note-swipe .swipe-action').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const action = btn.dataset.action;
-                const noteId = parseInt(btn.dataset.noteId);
-                const editor = window.ScheduleAppNoteEditor;
-                const { deleteNote, showToast, showConfirm } = getUtils();
-
-                if (action === 'edit') {
-                    const note = state.notes.find(n => n.id === noteId);
-                    if (note && editor && typeof editor.renderInlineEditor === 'function') {
-                        editor.renderInlineEditor(note);
-                    } else if (note && editor && typeof editor.showNoteEdit === 'function') {
-                        editor.showNoteEdit(note);
-                    }
-                } else if (action === 'archive') {
-                    // Stage 5.1 + 5.6: Optimistic update — immediately remove DOM element
-                    const swipeEl = btn.closest('.note-swipe');
-                    if (swipeEl) swipeEl.style.display = 'none';
-
-                    showToastWithUndo('已归档', async () => {
-                        // Undo: restore the note
-                        await updateNote(noteId, { is_archived: false });
-                        await renderNotesList();
-                    });
-
-                    // Background API call
-                    try {
-                        await updateNote(noteId, { is_archived: true });
-                        // Clear stale editor if showing this note
-                        if (editor && typeof editor.clearInlineEditor === 'function') {
-                            const ai = window.ScheduleAppNoteAI;
-                            if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === noteId) {
-                                editor.clearInlineEditor();
-                            }
-                        }
-                    } catch (e) {
-                        // On failure: show error and re-render
-                        swipeEl.style.display = '';
-                        getUtils().showToast('归档失败');
-                        await renderNotesList();
-                    }
-                } else if (action === 'restore') {
-                    await updateNote(noteId, { is_archived: false });
-                    showToast('已恢复');
-                    await renderNotesList();
-                } else if (action === 'delete') {
-                    const confirmed = await showConfirm('确定永久删除这条笔记吗？');
-                    if (confirmed) {
-                        // Stage 5.1 + 5.6: Optimistic update — immediately remove DOM element
-                        const swipeEl = btn.closest('.note-swipe');
-                        if (swipeEl) swipeEl.style.display = 'none';
-
-                        showToastWithUndo('已删除', () => {
-                            // Cannot undo permanent delete — show feedback
-                            getUtils().showToast('无法撤销');
-                        });
-
-                        // Background API call
-                        try {
-                            await deleteNote(noteId);
-                            if (editor && typeof editor.clearInlineEditor === 'function') {
-                                editor.clearInlineEditor();
-                            }
-                        } catch (e) {
-                            // On failure: show error and re-render
-                            swipeEl.style.display = '';
-                            getUtils().showToast('删除失败');
-                            await renderNotesList();
-                        }
-                    }
-                }
-            });
-        });
-
+        // Use event delegation for note items and swipe actions
+        bindNoteRowEvents(container);
 
         container.querySelectorAll('.note-group-header').forEach(header => {
             header.addEventListener('click', (e) => {
@@ -730,6 +608,10 @@
             // Background API call
             try {
                 await updateNote(noteId, { group_id: targetGroupId });
+                // Update state.notes so the note's group_id stays consistent
+                const state = getState();
+                const noteInState = state.notes.find(n => n.id === noteId);
+                if (noteInState) noteInState.group_id = targetGroupId;
             } catch (e) {
                 // On failure: show error and revert DOM
                 getUtils().showToast('移动失败');
@@ -770,11 +652,421 @@
         noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null, selectedGroupId: null };
     }
 
+    // ============================================================
+    // Part 1: Incremental DOM update functions (no full re-render)
+    // ============================================================
+
+    /**
+     * Ensures the __pinned section exists in the DOM. If not, creates it and prepends
+     * before the first regular group. Returns the .note-group-content of the pinned section.
+     */
+    function ensurePinnedSection() {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return null;
+
+        let pinnedSection = container.querySelector('.note-group[data-group-id="__pinned"]');
+        if (pinnedSection) {
+            return pinnedSection.querySelector('.note-group-content');
+        }
+
+        // Create pinned section
+        const pinnedHtml = `
+            <details class="note-group" data-group-id="__pinned" open>
+                <summary class="note-group-header" data-group-id="__pinned">
+                    <span class="note-group-toggle">▼</span>
+                    <span class="note-group-name">📌 固定</span>
+                    <span class="note-group-count">0</span>
+                </summary>
+                <div class="note-group-content"></div>
+            </details>
+        `;
+
+        // Insert before first regular group (data-group-id is numeric)
+        const firstGroup = container.querySelector('.note-group[data-group-id]:not([data-group-id="__pinned"]):not([data-group-id="ungrouped"]):not([data-group-id="trash"])');
+        if (firstGroup) {
+            firstGroup.insertAdjacentHTML('beforebegin', pinnedHtml);
+        } else {
+            container.insertAdjacentHTML('afterbegin', pinnedHtml);
+        }
+
+        pinnedSection = container.querySelector('.note-group[data-group-id="__pinned"]');
+        return pinnedSection ? pinnedSection.querySelector('.note-group-content') : null;
+    }
+
+    /**
+     * Updates the count badge on a group header.
+     */
+    function updateGroupCount(groupId, count) {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return;
+        const group = container.querySelector(`.note-group[data-group-id="${groupId}"]`);
+        if (!group) return;
+        const countEl = group.querySelector('.note-group-count');
+        if (countEl) countEl.textContent = count;
+    }
+
+    /**
+     * insertNoteRow — insert a single note row into the right group section.
+     * @param {Object} note — the note object
+     * @param {string} position — 'top' or 'bottom'
+     */
+    function insertNoteRow(note, position = 'top') {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return;
+
+        const isTrash = !!note.is_archived;
+        const noteHtml = renderNoteItem(note, isTrash);
+
+        let targetContent = null;
+
+        if (note.is_pinned) {
+            targetContent = ensurePinnedSection();
+        } else if (note.group_id) {
+            targetContent = container.querySelector(`.note-group[data-group-id="${note.group_id}"] .note-group-content`);
+        } else {
+            targetContent = container.querySelector('.note-group[data-group-id="ungrouped"] .note-group-content');
+        }
+
+        if (!targetContent) return;
+
+        // Remove "暂无笔记" placeholder if present
+        const emptyPlaceholder = targetContent.querySelector('.note-group-empty');
+        if (emptyPlaceholder) emptyPlaceholder.remove();
+
+        if (position === 'top') {
+            targetContent.insertAdjacentHTML('afterbegin', noteHtml);
+        } else {
+            targetContent.insertAdjacentHTML('beforeend', noteHtml);
+        }
+
+        // Update group count
+        const groupId = note.is_pinned ? '__pinned' : (note.group_id || 'ungrouped');
+        const currentCount = targetContent.querySelectorAll('.note-swipe').length;
+        updateGroupCount(groupId, currentCount);
+
+        // Rebind click/swipe events on the new row
+        bindNoteRowEvents(container);
+    }
+
+    /**
+     * removeNoteRow — remove a single note row from the DOM.
+     * @param {number} noteId
+     */
+    function removeNoteRow(noteId) {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return;
+
+        const swipeEl = container.querySelector(`.note-swipe[data-note-id="${noteId}"]`);
+        if (!swipeEl) return;
+
+        const groupContent = swipeEl.closest('.note-group-content');
+        const groupId = swipeEl.closest('.note-group')?.dataset.groupId;
+
+        swipeEl.remove();
+
+        // If group content is now empty, show placeholder
+        if (groupContent && !groupContent.querySelector('.note-swipe')) {
+            groupContent.insertAdjacentHTML('beforeend', '<div class="note-group-empty">暂无笔记</div>');
+        }
+
+        // Update count
+        if (groupContent) {
+            const count = groupContent.querySelectorAll('.note-swipe').length;
+            if (groupId) updateGroupCount(groupId, count);
+        }
+    }
+
+    /**
+     * updateNoteRow — replace a single note row with fresh HTML (used after content edit).
+     * Preserves .active class if it was active.
+     * @param {Object} note
+     */
+    function updateNoteRow(note) {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return;
+
+        const existingSwipe = container.querySelector(`.note-swipe[data-note-id="${note.id}"]`);
+        if (!existingSwipe) return;
+
+        const wasActive = existingSwipe.querySelector('.note-item')?.classList.contains('active');
+        const isTrash = !!note.is_archived;
+        const newHtml = renderNoteItem(note, isTrash);
+
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newHtml;
+        const newSwipe = tempDiv.firstElementChild;
+
+        if (wasActive) {
+            const newItem = newSwipe.querySelector('.note-item');
+            if (newItem) newItem.classList.add('active');
+        }
+
+        existingSwipe.replaceWith(newSwipe);
+
+        // Rebind events
+        bindNoteRowEvents(container);
+    }
+
+    /**
+     * moveNoteRow — move a note row to a different group section.
+     * @param {number} noteId
+     * @param {number|null} targetGroupId — null means ungrouped
+     */
+    function moveNoteRow(noteId, targetGroupId) {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return;
+
+        const swipeEl = container.querySelector(`.note-swipe[data-note-id="${noteId}"]`);
+        if (!swipeEl) return;
+
+        const note = getState().notes.find(n => n.id === noteId);
+        const sourceGroupId = swipeEl.closest('.note-group')?.dataset.groupId;
+
+        // Determine target group ID string
+        let targetGroupIdStr = targetGroupId !== null ? String(targetGroupId) : 'ungrouped';
+        // Pinned notes go to __pinned regardless of their group_id
+        if (note?.is_pinned) {
+            targetGroupIdStr = '__pinned';
+        }
+
+        const targetContent = container.querySelector(`.note-group[data-group-id="${targetGroupIdStr}"] .note-group-content`);
+        if (!targetContent || !targetContent.contains(swipeEl)) {
+            // Remove "暂无笔记" placeholder
+            const emptyPlaceholder = targetContent?.querySelector('.note-group-empty');
+            if (emptyPlaceholder) emptyPlaceholder.remove();
+
+            if (targetContent) {
+                targetContent.appendChild(swipeEl);
+            }
+        }
+
+        // Update source group
+        if (sourceGroupId) {
+            const srcContent = container.querySelector(`.note-group[data-group-id="${sourceGroupId}"] .note-group-content`);
+            if (srcContent && !srcContent.querySelector('.note-swipe')) {
+                srcContent.insertAdjacentHTML('beforeend', '<div class="note-group-empty">暂无笔记</div>');
+            }
+            const srcCount = srcContent?.querySelectorAll('.note-swipe').length || 0;
+            updateGroupCount(sourceGroupId, srcCount);
+        }
+
+        // Update target group count
+        const newCount = targetContent?.querySelectorAll('.note-swipe').length || 0;
+        updateGroupCount(targetGroupIdStr, newCount);
+
+        // Rebind events
+        bindNoteRowEvents(container);
+    }
+
+    /**
+     * togglePinRow — move a note to/from the pinned section.
+     * @param {number} noteId
+     * @param {boolean} isPinned
+     */
+    function togglePinRow(noteId, isPinned) {
+        if (isPinned) {
+            moveNoteRow(noteId, '__pinned');
+        } else {
+            const note = getState().notes.find(n => n.id === noteId);
+            moveNoteRow(noteId, note?.group_id || null);
+        }
+    }
+
+    /**
+     * updateNoteColorRow — update only the color bar on a note item.
+     * @param {number} noteId
+     * @param {string} color — hex color or '' for none
+     */
+    function updateNoteColorRow(noteId, color) {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return;
+
+        const noteItem = container.querySelector(`.note-item[data-note-id="${noteId}"]`);
+        if (!noteItem) return;
+
+        if (color) {
+            noteItem.style.setProperty('--note-color', color);
+        } else {
+            noteItem.style.removeProperty('--note-color');
+        }
+    }
+
+    /**
+     * renameGroupRow — update group name text.
+     * @param {number} groupId
+     * @param {string} newName
+     */
+    function renameGroupRow(groupId, newName) {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return;
+
+        const group = container.querySelector(`.note-group[data-group-id="${groupId}"]`);
+        if (!group) return;
+
+        const nameSpan = group.querySelector('.note-group-name');
+        if (nameSpan) {
+            nameSpan.textContent = newName;
+        }
+    }
+
+    /**
+     * removeGroupRow — remove an entire group section from DOM.
+     * @param {number} groupId
+     */
+    function removeGroupRow(groupId) {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return;
+
+        const group = container.querySelector(`.note-group[data-group-id="${groupId}"]`);
+        if (group) group.remove();
+    }
+
+    /**
+     * Bind click/swipe events to note rows within a container.
+     * Uses event delegation — a single listener on the container.
+     * Call this after any DOM manipulation that adds new rows.
+     */
+    function bindNoteRowEvents(container) {
+        if (!container) return;
+
+        // Remove old delegated listener if any (stored on container)
+        if (container._noteDelegatedHandler) {
+            container.removeEventListener('click', container._noteDelegatedHandler);
+        }
+
+        const handler = async (e) => {
+            const item = e.target.closest('.note-item');
+            if (item && !e.target.closest('.swipe-action')) {
+                const parentSwipe = item.closest('.swipe-item');
+                if (parentSwipe && parentSwipe.classList.contains('swipe-open')) {
+                    if (getUtils().closeAllOpenSwipeItems) {
+                        getUtils().closeAllOpenSwipeItems();
+                    }
+                    return;
+                }
+                const noteId = parseInt(item.dataset.noteId);
+                const state = getState();
+                const note = state.notes.find(n => n.id === noteId);
+                if (note) {
+                    const editor = window.ScheduleAppNoteEditor;
+                    if (editor) {
+                        const currentId = typeof editor.getCurrentInlineNoteId === 'function' ? editor.getCurrentInlineNoteId() : null;
+                        if (currentId !== null && currentId !== noteId && typeof editor.flushAutoSave === 'function') {
+                            const currentNote = state.notes.find(n => n.id === currentId);
+                            if (currentNote) editor.flushAutoSave(currentNote);
+                        }
+                    }
+
+                    state.selectedNote = note;
+                    container.querySelectorAll('.note-item.active').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                    const notesApp = document.getElementById('notesApp');
+                    if (notesApp) notesApp.dataset.active = 'detail';
+                    const subtabs = document.querySelectorAll('.notes-mobile-subtab');
+                    subtabs.forEach(t => t.classList.toggle('active', t.dataset.mobileSubtab === 'detail'));
+
+                    if (editor && typeof editor.renderInlineEditor === 'function') {
+                        editor.renderInlineEditor(note);
+                    }
+                }
+            }
+
+            const btn = e.target.closest('.swipe-action');
+            if (btn) {
+                e.stopPropagation();
+                const action = btn.dataset.action;
+                const noteId = parseInt(btn.dataset.noteId);
+                const editor = window.ScheduleAppNoteEditor;
+                const { updateNote, deleteNote, showToast, showToastWithUndo, showConfirm } = getUtils();
+
+                if (action === 'edit') {
+                    const note = getState().notes.find(n => n.id === noteId);
+                    if (note && editor && typeof editor.renderInlineEditor === 'function') {
+                        editor.renderInlineEditor(note);
+                    } else if (note && editor && typeof editor.showNoteEdit === 'function') {
+                        editor.showNoteEdit(note);
+                    }
+                } else if (action === 'archive') {
+                    const swipeEl = btn.closest('.note-swipe');
+                    if (swipeEl) swipeEl.style.display = 'none';
+
+                    showToastWithUndo('已归档', async () => {
+                        await updateNote(noteId, { is_archived: false });
+                        const note = getState().notes.find(n => n.id === noteId);
+                        if (note) {
+                            note.is_archived = false;
+                            insertNoteRow(note);
+                        }
+                    });
+
+                    try {
+                        await updateNote(noteId, { is_archived: true });
+                        if (editor && typeof editor.clearInlineEditor === 'function') {
+                            const ai = window.ScheduleAppNoteAI;
+                            if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === noteId) {
+                                editor.clearInlineEditor();
+                            }
+                        }
+                        removeNoteRow(noteId);
+                    } catch (e) {
+                        swipeEl.style.display = '';
+                        showToast('归档失败');
+                        await renderNotesList();
+                    }
+                } else if (action === 'restore') {
+                    try {
+                        await updateNote(noteId, { is_archived: false });
+                        showToast('已恢复');
+                        removeNoteRow(noteId);
+                        const updatedNote = getState().notes.find(n => n.id === noteId);
+                        if (updatedNote) insertNoteRow(updatedNote);
+                    } catch (e) {
+                        showToast('恢复失败');
+                    }
+                } else if (action === 'delete') {
+                    const confirmed = await showConfirm('确定永久删除这条笔记吗？');
+                    if (confirmed) {
+                        const swipeEl = btn.closest('.note-swipe');
+                        if (swipeEl) swipeEl.style.display = 'none';
+
+                        showToastWithUndo('已删除', () => {
+                            showToast('无法撤销');
+                        });
+
+                        try {
+                            await deleteNote(noteId);
+                            if (editor && typeof editor.clearInlineEditor === 'function') {
+                                editor.clearInlineEditor();
+                            }
+                            removeNoteRow(noteId);
+                        } catch (e) {
+                            swipeEl.style.display = '';
+                            showToast('删除失败');
+                            await renderNotesList();
+                        }
+                    }
+                }
+            }
+        };
+
+        container._noteDelegatedHandler = handler;
+        container.addEventListener('click', handler);
+    }
+
     window.ScheduleAppNotesList = {
         renderNotesList,
         renderNoteItem,
         showAddGroupPrompt,
         initNoteDragDrop,
+        // Incremental update functions
+        insertNoteRow,
+        removeNoteRow,
+        updateNoteRow,
+        moveNoteRow,
+        togglePinRow,
+        updateNoteColorRow,
+        renameGroupRow,
+        removeGroupRow,
     };
 
 })();
