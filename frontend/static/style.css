@@ -2326,6 +2326,40 @@ body {
 }
 .notes-empty-guide-btn:hover { opacity: 0.85; }
 
+/* Task 3: Notes sort bar */
+.notes-sort-bar {
+    display: flex;
+    gap: 4px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.notes-sort-btn {
+    padding: 3px 8px;
+    border: 1px solid var(--border-medium);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    cursor: pointer;
+}
+.notes-sort-btn.active {
+    background: var(--accent-primary);
+    color: #fff;
+    border-color: var(--accent-primary);
+}
+.notes-sort-btn:hover:not(.active) { opacity: 0.8; }
+
+/* Task 2: Note inline dates */
+.note-inline-dates {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 0 2px 4px;
+}
+.note-date-created { color: var(--text-muted); }
+.note-date-updated { color: var(--accent-primary); opacity: 0.8; }
+
 /* ============================================
    Touch Gestures
    ============================================ */

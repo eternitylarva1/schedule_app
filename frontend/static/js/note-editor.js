@@ -67,6 +67,12 @@
         return window.ScheduleAppNoteAI;
     }
 
+    function formatNoteDate(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
     // ===== Inline editor (Phase 3.2) =====
 
     let _saveTimer = null;
@@ -90,6 +96,10 @@
             <div class="note-inline-editor" data-note-id="${note.id}">
                 <div class="note-inline-toolbar">
                     <input type="text" id="noteInlineTitle" class="note-inline-title" placeholder="标题（可选）" value="${escapeHtml(note.title || '')}">
+                    <div class="note-inline-dates">
+                        <span class="note-date-created">创建: ${formatNoteDate(note.created_at)}</span>
+                        ${note.updated_at && note.updated_at !== note.created_at ? `<span class="note-date-updated">修改: ${formatNoteDate(note.updated_at)}</span>` : ''}
+                    </div>
                     <div class="note-inline-toolbar-right">
                         <button type="button" class="note-inline-pin-btn${note.is_pinned ? ' active' : ''}" id="noteInlinePinBtn" title="${note.is_pinned ? '取消固定' : '固定'}">📌</button>
                         <button type="button" class="note-inline-ai-btn" id="noteInlineAiBtn" title="打开 AI 助手对话">🤖</button>

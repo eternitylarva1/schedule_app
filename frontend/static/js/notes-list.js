@@ -68,6 +68,9 @@
         selectedGroupId: null,
     };
 
+    // Re-entrancy guard for renderNotesList to prevent race conditions on rapid calls
+    let _renderVersion = 0;
+
     const EDGE_THRESHOLD = 80;
     const SCROLL_SPEED = 15;
     let autoScrollInterval = null;
@@ -80,17 +83,25 @@
 
         const container = document.getElementById('notesListScroll') || elements.notepadContainer;
 
-        // Stage 5.2: Show loading skeleton before fetching
-        container.innerHTML = `
-            <div class="notes-skeleton">
-                <div class="skeleton-item"></div>
-                <div class="skeleton-item"></div>
-                <div class="skeleton-item"></div>
-            </div>
-        `;
+        // Re-entrancy guard: increment version, skip if another render started
+        const renderId = ++_renderVersion;
+
+        // Stage 5.2: Show loading skeleton only if container is empty (skip if re-rendering)
+        const isReRender = container.querySelector('.note-group') || container.querySelector('.notes-empty');
+        if (!isReRender) {
+            container.innerHTML = `
+                <div class="notes-skeleton">
+                    <div class="skeleton-item"></div>
+                    <div class="skeleton-item"></div>
+                    <div class="skeleton-item"></div>
+                </div>
+            `;
+        }
 
         const notes = await fetchNotes();
+        if (renderId !== _renderVersion) return; // another render started, skip
         const groups = await fetchNoteGroups() || [];
+        if (renderId !== _renderVersion) return; // another render started, skip
 
         // Phase 3.3: also fetch archived notes for trash group
         let archivedNotes = [];
@@ -129,6 +140,27 @@
             return;
         }
 
+        // Task 3: Sort notes before grouping
+        const sortBy = (getState().notesSortBy || 'updated');
+        if (sortBy === 'updated') {
+            notes.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+        } else if (sortBy === 'created') {
+            notes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        } else if (sortBy === 'title') {
+            notes.sort((a, b) => (a.title || a.content || '').localeCompare(b.title || b.content || ''));
+        }
+
+        let html = '';
+
+        // Task 3: Sort bar
+        html += `
+            <div class="notes-sort-bar" id="notesSortBar">
+                <button class="notes-sort-btn${sortBy === 'updated' ? ' active' : ''}" data-sort="updated">修改时间</button>
+                <button class="notes-sort-btn${sortBy === 'created' ? ' active' : ''}" data-sort="created">创建时间</button>
+                <button class="notes-sort-btn${sortBy === 'title' ? ' active' : ''}" data-sort="title">标题</button>
+            </div>
+        `;
+
         const groupMap = {};
         groups.forEach(g => {
             groupMap[g.id] = { ...g, notes: [] };
@@ -142,8 +174,6 @@
                 ungroupedNotes.push(note);
             }
         });
-
-        let html = '';
 
         // Phase 3.1: pinned notes are shown at the top in a "📌 固定" group
         const pinnedNotes = notes.filter(n => n.is_pinned);
@@ -224,6 +254,16 @@
         container.innerHTML = html;
         container.setAttribute('role', 'listbox');
         container.setAttribute('aria-label', '笔记列表');
+
+        // Task 3: Sort button click handlers
+        document.getElementById('notesSortBar')?.querySelectorAll('.notes-sort-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const sort = btn.dataset.sort;
+                getState().notesSortBy = sort;
+                document.querySelectorAll('.notes-sort-btn').forEach(b => b.classList.toggle('active', b === btn));
+                renderNotesList();
+            });
+        });
 
         // Stage 5: Group inline rename (double-click on group name)
         container.querySelectorAll('.note-group-name').forEach(nameSpan => {
@@ -394,7 +434,7 @@
                         ${hasTitle
                             ? `<div class="note-item-title">${escapeHtml(note.title)}</div>`
                             : `<div class="note-item-preview no-title">${escapeHtml(truncate2Lines(note.content, 80))}</div>`}
-                        <div class="note-item-time">${formatNoteTime(note.created_at)}</div>
+                        <div class="note-item-time">${formatNoteTime(note.updated_at || note.created_at)}</div>
                     </div>
                 </div>
             </div>
