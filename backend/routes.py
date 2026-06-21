@@ -2551,9 +2551,11 @@ async def import_backup(request: web.Request) -> web.Response:
 # ============================================
 
 async def get_notes(request: web.Request) -> web.Response:
-    """GET /api/notes - list all notes."""
+    """GET /api/notes?include_archived=true|false - list all notes."""
     try:
-        notes = await db.get_notes()
+        include_archived_str = request.query.get("include_archived", "false").lower()
+        include_archived = include_archived_str in ("true", "1")
+        notes = await db.get_notes(include_archived=include_archived)
         return json_response([n.to_dict() for n in notes])
     except Exception as e:
         return error_response(f"获取笔记失败: {str(e)}")
@@ -2571,6 +2573,9 @@ async def create_note(request: web.Request) -> web.Response:
             title=data.get("title", ""),
             content=data.get("content", ""),
             group_id=data.get("group_id"),
+            is_pinned=bool(data.get("is_pinned", False)),
+            color=data.get("color", ""),
+            is_archived=bool(data.get("is_archived", False)),
         )
         note = await db.create_note(note)
         return json_response(note.to_dict())
@@ -2597,11 +2602,27 @@ async def update_note(request: web.Request) -> web.Response:
         if sort_order is None:
             sort_order = existing.sort_order
         
+        # Handle new fields - use new value if provided, otherwise keep existing
+        is_pinned = data.get("is_pinned")
+        if is_pinned is None:
+            is_pinned = existing.is_pinned
+        
+        color = data.get("color")
+        if color is None:
+            color = existing.color
+        
+        is_archived = data.get("is_archived")
+        if is_archived is None:
+            is_archived = existing.is_archived
+        
         note = Note(
             title=data.get("title", existing.title) or existing.title,
             content=data.get("content", existing.content) or existing.content,
             group_id=data.get("group_id", existing.group_id),
             sort_order=sort_order,
+            is_pinned=is_pinned,
+            color=color,
+            is_archived=is_archived,
         )
         result = await db.update_note(note_id, note)
         if not result:

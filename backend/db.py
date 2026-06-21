@@ -237,6 +237,11 @@ async def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL DEFAULT '',
                 content TEXT NOT NULL DEFAULT '',
+                group_id INTEGER,
+                sort_order INTEGER DEFAULT 0,
+                is_pinned INTEGER DEFAULT 0,
+                color TEXT DEFAULT '',
+                is_archived INTEGER DEFAULT 0,
                 created_at TEXT,
                 updated_at TEXT
             )
@@ -254,6 +259,19 @@ async def init_db() -> None:
         
         try:
             await db.execute("ALTER TABLE notes ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        
+        try:
+            await db.execute("ALTER TABLE notes ADD COLUMN is_pinned INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE notes ADD COLUMN color TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE notes ADD COLUMN is_archived INTEGER DEFAULT 0")
         except Exception:
             pass
         
@@ -2673,8 +2691,8 @@ async def create_note(note: Note) -> Note:
     async with aiosqlite.connect(DB_PATH) as db:
         now = datetime.now().isoformat()
         cursor = await db.execute(
-            "INSERT INTO notes (title, content, group_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            (note.title, note.content, note.group_id, now, now),
+            "INSERT INTO notes (title, content, group_id, sort_order, is_pinned, color, is_archived, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (note.title, note.content, note.group_id, note.sort_order or 0, 1 if note.is_pinned else 0, note.color or '', 1 if note.is_archived else 0, now, now),
         )
         await db.commit()
         note.id = cursor.lastrowid
@@ -2683,11 +2701,20 @@ async def create_note(note: Note) -> Note:
         return note
 
 
-async def get_notes() -> list[Note]:
+async def get_notes(include_archived: bool = False) -> list[Note]:
     """Get all notes ordered by created_at desc."""
     async with aiosqlite.connect(DB_PATH) as db:
+        conditions = []
+        params = []
+        if not include_archived:
+            conditions.append("is_archived = 0")
+        
+        where_clause = ""
+        if conditions:
+            where_clause = " WHERE " + " AND ".join(conditions)
+        
         async with db.execute(
-            "SELECT id, title, content, group_id, created_at, updated_at FROM notes ORDER BY created_at DESC"
+            f"SELECT id, title, content, group_id, sort_order, is_pinned, color, is_archived, created_at, updated_at FROM notes{where_clause} ORDER BY is_pinned DESC, created_at DESC"
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -2696,8 +2723,12 @@ async def get_notes() -> list[Note]:
                     title=row[1],
                     content=row[2],
                     group_id=row[3],
-                    created_at=datetime.fromisoformat(row[4]) if row[4] else None,
-                    updated_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                    sort_order=row[4] if row[4] is not None else 0,
+                    is_pinned=bool(row[5]) if row[5] is not None else False,
+                    color=row[6] if row[6] is not None else "",
+                    is_archived=bool(row[7]) if row[7] is not None else False,
+                    created_at=datetime.fromisoformat(row[8]) if row[8] else None,
+                    updated_at=datetime.fromisoformat(row[9]) if row[9] else None,
                 )
                 for row in rows
             ]
@@ -2707,7 +2738,7 @@ async def get_note(note_id: int) -> Optional[Note]:
     """Get a single note by ID."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT id, title, content, group_id, sort_order, created_at, updated_at FROM notes WHERE id = ?",
+            "SELECT id, title, content, group_id, sort_order, is_pinned, color, is_archived, created_at, updated_at FROM notes WHERE id = ?",
             (note_id,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -2718,8 +2749,11 @@ async def get_note(note_id: int) -> Optional[Note]:
                     content=row[2],
                     group_id=row[3],
                     sort_order=row[4] if row[4] is not None else 0,
-                    created_at=datetime.fromisoformat(row[5]) if row[5] else None,
-                    updated_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                    is_pinned=bool(row[5]) if row[5] is not None else False,
+                    color=row[6] if row[6] is not None else "",
+                    is_archived=bool(row[7]) if row[7] is not None else False,
+                    created_at=datetime.fromisoformat(row[8]) if row[8] else None,
+                    updated_at=datetime.fromisoformat(row[9]) if row[9] else None,
                 )
             return None
 
@@ -2731,16 +2765,22 @@ async def update_note(note_id: int, note: Note) -> Optional[Note]:
         return None
     
     sort_order_to_use = note.sort_order if note.sort_order is not None else existing.sort_order
+    is_pinned_to_use = note.is_pinned if note.is_pinned is not None else existing.is_pinned
+    color_to_use = note.color if note.color is not None else existing.color
+    is_archived_to_use = note.is_archived if note.is_archived is not None else existing.is_archived
     
     async with aiosqlite.connect(DB_PATH) as db:
         now = datetime.now().isoformat()
         await db.execute(
-            "UPDATE notes SET title = ?, content = ?, group_id = ?, sort_order = ?, updated_at = ? WHERE id = ?",
+            "UPDATE notes SET title = ?, content = ?, group_id = ?, sort_order = ?, is_pinned = ?, color = ?, is_archived = ?, updated_at = ? WHERE id = ?",
             (
                 note.title if note.title else existing.title,
                 note.content if note.content else existing.content,
                 note.group_id if note.group_id is not None else existing.group_id,
                 sort_order_to_use,
+                1 if is_pinned_to_use else 0,
+                color_to_use or '',
+                1 if is_archived_to_use else 0,
                 now,
                 note_id,
             ),

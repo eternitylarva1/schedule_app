@@ -173,6 +173,9 @@ class Note:
     content: str = ""
     group_id: int | None = None
     sort_order: int = 0  # Sort order within group
+    is_pinned: bool = False
+    color: str = ""
+    is_archived: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
