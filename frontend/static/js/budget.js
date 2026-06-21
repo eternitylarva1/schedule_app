@@ -44,7 +44,7 @@
     let isExpenseSaving = false;
 
     async function rerenderExpenseList() {
-        const fn = window.ScheduleAppNotepad?.renderExpenseList;
+        const fn = window.ScheduleAppExpense?.renderExpenseList;
         if (typeof fn === 'function') {
             return await fn();
         }
