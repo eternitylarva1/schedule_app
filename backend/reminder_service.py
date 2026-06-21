@@ -1,4 +1,4 @@
-"""QQ reminder notification service."""
+"""QQ reminder notification service + budget auto-reset."""
 import asyncio
 import aiohttp
 import aiosqlite
@@ -11,6 +11,9 @@ from .models import Event
 # QQ bot configuration
 QQ_API_URL = "http://127.0.0.1:3000/send_private_msg"
 QQ_USER_ID = 2674610176
+
+# Budget reset: only run once per day (store date string "YYYY-MM-DD")
+_last_budget_reset_date: Optional[str] = None
 
 
 class ReminderService:
@@ -59,6 +62,7 @@ class ReminderService:
         while self._running:
             try:
                 await self._check_reminders()
+                await self._check_budget_resets()
             except Exception as e:
                 print(f"Error checking reminders: {e}")
             
@@ -115,6 +119,31 @@ class ReminderService:
                         (row["id"],)
                     )
                     await db_conn.commit()
+
+    async def _check_budget_resets(self):
+        """Check all budgets with auto_reset=True and reset them if period has ended.
+        
+        Runs once per day only (checked via date string)."""
+        global _last_budget_reset_date
+        
+        today = datetime.now().strftime("%Y-%m-%d")
+        if _last_budget_reset_date == today:
+            return  # Already ran today
+        
+        _last_budget_reset_date = today
+        
+        try:
+            budgets = await db.get_budgets()
+            for budget in budgets:
+                # Only process budgets with auto_reset enabled and a reset period
+                if not budget.auto_reset:
+                    continue
+                if not budget.period or budget.period == "none":
+                    continue
+                await db.check_and_reset_budget_period(budget.id)
+        except Exception as e:
+            print(f"Error checking budget resets: {e}")
+            _last_budget_reset_date = None  # Retry tomorrow
 
 
 async def send_notification(title: str, start_time: datetime):
