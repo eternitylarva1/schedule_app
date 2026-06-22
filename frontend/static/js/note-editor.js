@@ -78,12 +78,238 @@
     let _saveTimer = null;
     let _currentInlineNoteId = null;
 
+    // ===== Undo / Redo =====
+    const _UNDO_MAX = 50;
+    let _undoStack = [];
+    let _redoStack = [];
+    let _undoTimer = null;
+
+    function _takeSnapshot() {
+        const title = document.getElementById('noteInlineTitle')?.value || '';
+        const content = document.getElementById('noteInlineContent')?.innerHTML || '';
+        if (_undoStack.length > 0) {
+            const last = _undoStack[_undoStack.length - 1];
+            if (last.title === title && last.content === content) return;
+        }
+        _undoStack.push({ title, content });
+        if (_undoStack.length > _UNDO_MAX) _undoStack.shift();
+        _redoStack = [];
+        _updateUndoButtons();
+    }
+
+    function _scheduleSnapshot() {
+        clearTimeout(_undoTimer);
+        _undoTimer = setTimeout(_takeSnapshot, 300);
+    }
+
+    function _undo() {
+        if (_undoStack.length < 2) return;
+        _redoStack.push(_undoStack.pop());
+        const prev = _undoStack[_undoStack.length - 1];
+        _applySnapshot(prev);
+        _updateUndoButtons();
+        _scheduleAutoSaveAfterUndo();
+    }
+
+    function _redo() {
+        if (_redoStack.length === 0) return;
+        const next = _redoStack.pop();
+        _undoStack.push(next);
+        _applySnapshot(next);
+        _updateUndoButtons();
+        _scheduleAutoSaveAfterUndo();
+    }
+
+    function _applySnapshot(snap) {
+        const titleInput = document.getElementById('noteInlineTitle');
+        const contentEl = document.getElementById('noteInlineContent');
+        if (!titleInput || !contentEl) return;
+        titleInput.value = snap.title;
+        contentEl.innerHTML = snap.content;
+        contentEl.focus();
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(contentEl);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    function _updateUndoButtons() {
+        const undoBtn = document.getElementById('noteUndoBtn');
+        const redoBtn = document.getElementById('noteRedoBtn');
+        if (undoBtn) undoBtn.disabled = _undoStack.length < 2;
+        if (redoBtn) redoBtn.disabled = _redoStack.length === 0;
+    }
+
+    function _scheduleAutoSaveAfterUndo() {
+        clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(() => {
+            const note = window.ScheduleAppCore?.state?.selectedNote;
+            if (note) saveInlineNote(note);
+        }, 800);
+    }
+
+    // ===== /a Command =====
+    let _aiPromptEl = null;
+    let _dismissPromptHandler = null;
+
+    function _showAIPrompt(contentEl, cursorRect) {
+        _hideAIPrompt();
+
+        const prompt = document.createElement('div');
+        prompt.className = 'ai-prompt-float';
+        prompt.innerHTML = `
+            <div class="ai-prompt-float-body">
+                <span class="ai-prompt-float-icon">🤖</span>
+                <input type="text" class="ai-prompt-float-input" id="aiPromptInput"
+                       placeholder="输入指令，按 Enter 发送..." autocomplete="off">
+                <button class="ai-prompt-float-send" id="aiPromptSendBtn" title="发送 (Enter)">➤</button>
+            </div>
+        `;
+        document.body.appendChild(prompt);
+        _aiPromptEl = prompt;
+
+        // Position near cursor rect
+        _positionPrompt(prompt, cursorRect);
+
+        // Focus input
+        const input = document.getElementById('aiPromptInput');
+        if (input) setTimeout(() => input.focus(), 50);
+
+        // Enter = send
+        if (input) {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    _sendAIPrompt(contentEl, input.value.trim());
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _hideAIPrompt();
+                    contentEl.focus();
+                }
+            });
+        }
+
+        const sendBtn = document.getElementById('aiPromptSendBtn');
+        if (sendBtn) {
+            sendBtn.addEventListener('click', () => {
+                _sendAIPrompt(contentEl, input?.value.trim());
+            });
+        }
+
+        // Dismiss on outside click
+        _dismissPromptHandler = (e) => {
+            if (_aiPromptEl && !_aiPromptEl.contains(e.target)) {
+                _hideAIPrompt();
+            }
+        };
+        setTimeout(() => document.addEventListener('click', _dismissPromptHandler), 0);
+    }
+
+    function _positionPrompt(promptEl, cursorRect) {
+        const promptW = 340, promptH = 42;
+        let left, top;
+
+        if (cursorRect) {
+            left = cursorRect.left;
+            top = cursorRect.bottom + 6;
+            // Clamp to viewport
+            const vw = window.innerWidth, vh = window.innerHeight;
+            if (left + promptW > vw - 12) left = vw - promptW - 12;
+            if (left < 12) left = 12;
+            if (top + promptH > vh - 12) top = cursorRect.top - promptH - 6;
+            if (top < 12) top = 12;
+        } else {
+            left = Math.max(12, (window.innerWidth - promptW) / 2);
+            top = Math.max(12, window.innerHeight * 0.35);
+        }
+
+        promptEl.style.left = left + 'px';
+        promptEl.style.top = top + 'px';
+    }
+
+    function _hideAIPrompt() {
+        if (!_aiPromptEl) return;
+        document.removeEventListener('click', _dismissPromptHandler);
+        _aiPromptEl.remove();
+        _aiPromptEl = null;
+    }
+
+    async function _sendAIPrompt(contentEl, message) {
+        if (!message) return;
+
+        const utils = getUtils();
+        const { chatWithNote, showToast } = utils;
+        const note = window.ScheduleAppCore?.state?.selectedNote;
+        if (!note || !note.id) {
+            showToast('请先选择笔记');
+            return;
+        }
+
+        // Snapshot before AI modifies
+        _takeSnapshot();
+
+        // Show loading
+        const sendBtn = document.getElementById('aiPromptSendBtn');
+        const input = document.getElementById('aiPromptInput');
+        if (sendBtn) sendBtn.disabled = true;
+        if (input) input.disabled = true;
+
+        _hideAIPrompt();
+
+        try {
+            const response = await chatWithNote(note.id, '对以下笔记内容执行指令。\n指令：' + message + '\n\n直接输出修改后的完整内容，不要额外解释。');
+
+            if (response && response.content) {
+                let aiText = response.content;
+                // Strip markdown code fences if present
+                const m = aiText.match(/```(?:html|markdown)?\s*([\s\S]+?)(?:\s*```|$)/);
+                if (m) aiText = m[1];
+                aiText = aiText.trim();
+
+                // Replace content with AI output
+                contentEl.innerHTML = aiText.replace(/\n/g, '<br>');
+
+                // Push snapshot after AI modification (skip dedup check)
+                const aiTitle = document.getElementById('noteInlineTitle')?.value || '';
+                const aiContent = contentEl.innerHTML;
+                if (_undoStack.length > 0) {
+                    const last = _undoStack[_undoStack.length - 1];
+                    if (last.content !== aiContent) {
+                        _undoStack.push({ title: aiTitle, content: aiContent });
+                        if (_undoStack.length > _UNDO_MAX) _undoStack.shift();
+                        _redoStack = [];
+                        _updateUndoButtons();
+                    }
+                }
+
+                showToast('AI 处理完成');
+            }
+        } catch (e) {
+            console.error('AI prompt failed:', e);
+            showToast('AI 处理失败');
+        } finally {
+            if (sendBtn) sendBtn.disabled = false;
+            if (input) input.disabled = false;
+            contentEl.focus();
+            // Trigger autosave
+            const noteObj = window.ScheduleAppCore?.state?.selectedNote;
+            if (noteObj) scheduleAutoSave(noteObj);
+        }
+    }
+
     function renderInlineEditor(note) {
         const main = document.getElementById('notesMain');
         if (!main) return;
         const state = getState();
         state.selectedNote = note;
         _currentInlineNoteId = note.id;
+
+        // Init undo stack
+        _undoStack = [{ title: note.title || '', content: (note.content || '').replace(/\n/g, '<br>') }];
+        _redoStack = [];
 
         // Build color options
         const colorOptionsHtml = NOTE_COLORS.map(c => {
@@ -101,6 +327,8 @@
                         ${note.updated_at && note.updated_at !== note.created_at ? `<span class="note-date-updated">修改: ${formatNoteDate(note.updated_at)}</span>` : ''}
                     </div>
                     <div class="note-inline-toolbar-right">
+                        <button type="button" class="note-inline-undo-btn" id="noteUndoBtn" title="撤回 (Ctrl+Z)" disabled>↶</button>
+                        <button type="button" class="note-inline-redo-btn" id="noteRedoBtn" title="重做 (Ctrl+Y)" disabled>↷</button>
                         <button type="button" class="note-inline-pin-btn${note.is_pinned ? ' active' : ''}" id="noteInlinePinBtn" title="${note.is_pinned ? '取消固定' : '固定'}">📌</button>
                         <button type="button" class="note-inline-ai-btn" id="noteInlineAiBtn" title="打开 AI 助手对话">🤖</button>
                         <button type="button" class="note-inline-menu-btn" id="noteInlineMenuBtn" title="更多操作" aria-label="更多操作">⋯</button>
@@ -212,6 +440,64 @@
                     showToast('更新失败');
                 }
             });
+        });
+
+        // Undo/redo buttons
+        const undoBtn = document.getElementById('noteUndoBtn');
+        const redoBtn = document.getElementById('noteRedoBtn');
+        if (undoBtn) undoBtn.addEventListener('click', _undo);
+        if (redoBtn) redoBtn.addEventListener('click', _redo);
+
+        // Keyboard: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y
+        const _undoKeydown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+                e.preventDefault();
+                if (e.shiftKey) _redo();
+                else _undo();
+            }
+            if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+                e.preventDefault();
+                _redo();
+            }
+        };
+        contentEl.addEventListener('keydown', _undoKeydown);
+        titleInput.addEventListener('keydown', _undoKeydown);
+
+        // Snapshot on content changes (debounced)
+        contentEl.addEventListener('input', _scheduleSnapshot);
+        titleInput.addEventListener('input', _scheduleSnapshot);
+
+        // /a command detection
+        let _slashTime = 0;
+        let _waitingForA = false;
+
+        contentEl.addEventListener('keydown', (e) => {
+            // If prompt is showing, handle Esc for it
+            if (_aiPromptEl) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _hideAIPrompt();
+                    contentEl.focus();
+                }
+                return;
+            }
+
+            if (e.key === '/') {
+                _slashTime = Date.now();
+                _waitingForA = true;
+            } else if (e.key === 'a' && _waitingForA && Date.now() - _slashTime < 800) {
+                // /a detected! Prevent the characters from entering content
+                e.preventDefault();
+                _waitingForA = false;
+
+                // Get cursor position
+                const sel = window.getSelection();
+                const cursorRect = sel?.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+
+                _showAIPrompt(contentEl, cursorRect);
+            } else {
+                _waitingForA = false;
+            }
         });
     }
 
