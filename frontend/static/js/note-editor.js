@@ -231,7 +231,7 @@
 
         // Meta row: dates + font size
         html += `<div class="tb-meta">
-    <span class="tb-dates">🕐 创建 ${formatNoteDate(note.created_at)}${note.updated_at && note.updated_at !== note.created_at ? ` · ✏️ 修改 ${formatNoteDate(note.updated_at)}` : ''}</span>
+    <span class="tb-dates">🕐 创建 ${formatNoteDate(note.created_at)}${note.updated_at && note.updated_at !== note.created_at ? ` · ✏️ 修改 ${formatNoteDate(note.updated_at)}` : ''} · <span id="noteWordCount">📝 0 字</span></span>
     <span class="tb-font-size">
         <select class="note-inline-fontsize" id="noteInlineFontSize" title="字号">
             <option value="12px">12</option>
@@ -343,6 +343,17 @@
             const note = window.ScheduleAppCore?.state?.selectedNote;
             if (note) saveInlineNote(note);
         }, 800);
+    }
+
+    // ===== Word Count =====
+    function _updateWordCount() {
+        const el = document.getElementById('noteWordCount');
+        if (!el) return;
+        const title = document.getElementById('noteInlineTitle')?.value || '';
+        const content = document.getElementById('noteInlineContent')?.innerText || '';
+        const text = title + content;
+        const chars = text.replace(/\s/g, '').length;
+        el.textContent = `📝 ${chars} 字`;
     }
 
     // ===== /a Command =====
@@ -528,6 +539,8 @@
         `;
 
         bindInlineEditorEvents(note);
+        // Initial word count
+        _updateWordCount();
     }
 
     function bindInlineEditorEvents(note) {
@@ -542,11 +555,13 @@
         // ── Core: Auto-save on title change ─────────────────────
         titleInput.addEventListener('input', () => {
             scheduleAutoSave(note);
+            _updateWordCount();
         });
 
         // ── Core: Auto-save on content change ────────────────────
         contentEl.addEventListener('input', () => {
             scheduleAutoSave(note);
+            _updateWordCount();
         });
 
         // ── Core: Save on blur ───────────────────────────────────
