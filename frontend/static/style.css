@@ -6712,6 +6712,10 @@ textarea {
     .swipe-action {
         display: flex !important;
     }
+    /* Fix: mobile note-item padding (overrides designer CSS that comes after mobile rule) */
+    .notes-list-scroll .note-item {
+        padding: 10px 14px 10px 36px;
+    }
 }
 
 /* ── Sidebar Footer ─────────────────────────────────────────── */
@@ -6845,6 +6849,11 @@ textarea {
     /* Mobile note item padding */
     .notes-list-scroll .note-item {
         padding: 10px 14px 10px 36px;
+    }
+    /* Hide ⋯ menu button when swipe is open */
+    .note-swipe.swipe-open .note-item-menu-btn {
+        opacity: 0 !important;
+        pointer-events: none;
     }
 }
 
