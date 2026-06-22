@@ -747,6 +747,51 @@
     }
 
     /**
+     * Ensure the trash section exists. Returns the .note-group-content element.
+     */
+    function ensureTrashSection() {
+        const container = document.getElementById('notesListScroll');
+        if (!container) return null;
+
+        let trashSection = container.querySelector('.note-group[data-group-id="trash"]');
+        if (trashSection) {
+            return trashSection.querySelector('.note-group-content');
+        }
+
+        // Create trash section (collapsed by default)
+        const trashHtml = `
+            <details class="note-group note-group-trash" data-group-id="trash">
+                <summary class="note-group-header" data-group-id="trash">
+                    <span class="note-group-toggle">▶</span>
+                    <span class="note-group-name" style="color:var(--text-muted);">🗑 废纸篓</span>
+                    <span class="note-group-count">0</span>
+                </summary>
+                <div class="note-group-content collapsed"></div>
+            </details>
+        `;
+        container.insertAdjacentHTML('beforeend', trashHtml);
+
+        // Bind click on the delete button if any
+        const newTrash = container.querySelector('.note-group[data-group-id="trash"]');
+        if (newTrash) {
+            // Make sure the trash header toggle works
+            newTrash.addEventListener('click', (e) => {
+                const header = e.target.closest('.note-group-header');
+                if (!header || e.target.closest('.note-group-delete')) return;
+                const details = newTrash;
+                details.open = !details.open;
+                const content = newTrash.querySelector('.note-group-content');
+                const toggle = newTrash.querySelector('.note-group-toggle');
+                if (content) content.classList.toggle('collapsed', !details.open);
+                if (toggle) toggle.textContent = details.open ? '▼' : '▶';
+            });
+        }
+
+        trashSection = container.querySelector('.note-group[data-group-id="trash"]');
+        return trashSection ? trashSection.querySelector('.note-group-content') : null;
+    }
+
+    /**
      * insertNoteRow — insert a single note row into the right group section.
      * @param {Object} note — the note object
      * @param {string} position — 'top' or 'bottom'
@@ -760,7 +805,9 @@
 
         let targetContent = null;
 
-        if (note.is_pinned) {
+        if (isTrash) {
+            targetContent = ensureTrashSection();
+        } else if (note.is_pinned) {
             targetContent = ensurePinnedSection();
         } else if (note.group_id) {
             targetContent = container.querySelector(`.note-group[data-group-id="${note.group_id}"] .note-group-content`);
@@ -781,7 +828,10 @@
         }
 
         // Update group count
-        const groupId = note.is_pinned ? '__pinned' : (note.group_id || 'ungrouped');
+        let groupId;
+        if (isTrash) groupId = 'trash';
+        else if (note.is_pinned) groupId = '__pinned';
+        else groupId = note.group_id || 'ungrouped';
         const currentCount = targetContent.querySelectorAll('.note-swipe').length;
         updateGroupCount(groupId, currentCount);
 
@@ -906,6 +956,8 @@
      */
     function togglePinRow(noteId, isPinned) {
         if (isPinned) {
+            // Ensure pinned section exists, then move the row there
+            ensurePinnedSection();
             moveNoteRow(noteId, '__pinned');
         } else {
             const note = getState().notes.find(n => n.id === noteId);
@@ -1059,13 +1111,17 @@
 
                     try {
                         await updateNote(noteId, { is_archived: true });
+                        const noteForTrash = getState().notes.find(n => n.id === noteId);
+                        if (noteForTrash) noteForTrash.is_archived = true;
                         if (editor && typeof editor.clearInlineEditor === 'function') {
                             const ai = window.ScheduleAppNoteAI;
                             if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === noteId) {
                                 editor.clearInlineEditor();
                             }
                         }
+                        // Remove from current group and insert into trash
                         removeNoteRow(noteId);
+                        if (noteForTrash) insertNoteRow(noteForTrash);
                     } catch (e) {
                         swipeEl.style.display = '';
                         showToast('归档失败');
@@ -1380,6 +1436,10 @@
                 }
                 if (typeof removeNoteRow === 'function') {
                     removeNoteRow(note.id);
+                }
+                // Re-insert into trash section
+                if (typeof insertNoteRow === 'function') {
+                    insertNoteRow(note);
                 }
             } catch (e) {
                 if (swipeEl) swipeEl.style.display = '';
