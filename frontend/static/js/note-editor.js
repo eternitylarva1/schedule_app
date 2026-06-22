@@ -78,6 +78,201 @@
     let _saveTimer = null;
     let _currentInlineNoteId = null;
 
+    // ===== Toolbar Registry =====
+    // Each action: { id, group, order, render(note), bind(note) }
+    const _toolbarActions = [
+        // ── Format group ──────────────────────────────────────
+        {
+            id: 'colors',
+            group: 'format',
+            order: 1,
+            render(note) {
+                return NOTE_COLORS.map(c => {
+                    const selected = (note.color || '') === c.value ? ' selected' : '';
+                    const isEmpty = !c.value;
+                    return `<button type="button" class="note-inline-color-option${selected}${isEmpty ? ' no-color' : ''}" data-color="${escapeHtml(c.value)}" title="${escapeHtml(c.label)}"${c.value ? ` style="background:${c.value};"` : ''}>${isEmpty ? '⬜' : ''}</button>`;
+                }).join('');
+            },
+            bind(note) {
+                const colorRow = document.getElementById('noteInlineColorRow');
+                if (!colorRow) return;
+                colorRow.querySelectorAll('.note-inline-color-option').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const newColor = btn.dataset.color || '';
+                        colorRow.querySelectorAll('.note-inline-color-option').forEach(b => b.classList.remove('selected'));
+                        btn.classList.add('selected');
+                        const { updateNote, showToast } = getUtils();
+                        try {
+                            const result = await updateNote(note.id, { color: newColor });
+                            if (result) {
+                                note.color = newColor;
+                                showToast(newColor ? '颜色已更新' : '颜色已清除');
+                                if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.updateNoteColorRow === 'function') {
+                                    window.ScheduleAppNotesList.updateNoteColorRow(note.id, newColor);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Color update failed:', e);
+                            showToast('更新失败');
+                        }
+                    });
+                });
+            },
+        },
+        // ── Edit group ─────────────────────────────────────────
+        {
+            id: 'undo',
+            group: 'edit',
+            order: 1,
+            render() {
+                return `<button type="button" class="tb-btn" id="noteUndoBtn" data-tb-action="undo" title="撤回 (Ctrl+Z)" disabled>↶</button>`;
+            },
+            bind() {
+                const btn = document.getElementById('noteUndoBtn');
+                if (btn) btn.addEventListener('click', _undo);
+            },
+        },
+        {
+            id: 'redo',
+            group: 'edit',
+            order: 2,
+            render() {
+                return `<button type="button" class="tb-btn" id="noteRedoBtn" data-tb-action="redo" title="重做 (Ctrl+Y)" disabled>↷</button>`;
+            },
+            bind() {
+                const btn = document.getElementById('noteRedoBtn');
+                if (btn) btn.addEventListener('click', _redo);
+            },
+        },
+        // ── Note group ──────────────────────────────────────────
+        {
+            id: 'pin',
+            group: 'note',
+            order: 1,
+            render(note) {
+                return `<button type="button" class="tb-btn${note.is_pinned ? ' tb-active' : ''}" id="noteInlinePinBtn" data-tb-action="pin" title="${note.is_pinned ? '取消固定' : '固定'}">📌</button>`;
+            },
+            bind(note) {
+                const btn = document.getElementById('noteInlinePinBtn');
+                if (!btn) return;
+                btn.addEventListener('click', async () => {
+                    const { updateNote, showToast } = getUtils();
+                    const newPinned = !note.is_pinned;
+                    try {
+                        const result = await updateNote(note.id, { is_pinned: newPinned });
+                        if (result) {
+                            note.is_pinned = newPinned;
+                            btn.classList.toggle('tb-active', newPinned);
+                            btn.title = newPinned ? '取消固定' : '固定';
+                            showToast(newPinned ? '已固定到顶部 📌' : '已取消固定');
+                            if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.togglePinRow === 'function') {
+                                window.ScheduleAppNotesList.togglePinRow(note.id, newPinned);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Pin toggle failed:', e);
+                        showToast('操作失败');
+                    }
+                });
+            },
+        },
+        {
+            id: 'ai',
+            group: 'note',
+            order: 2,
+            render() {
+                return `<button type="button" class="tb-btn" id="noteInlineAiBtn" data-tb-action="ai" title="打开 AI 助手对话">🤖</button>`;
+            },
+            bind(note) {
+                const btn = document.getElementById('noteInlineAiBtn');
+                if (btn) {
+                    btn.addEventListener('click', () => {
+                        const ai = getAIWindow();
+                        if (ai && typeof ai.showAIFloatingWindow === 'function') {
+                            ai.showAIFloatingWindow(note);
+                        }
+                    });
+                }
+            },
+        },
+        {
+            id: 'menu',
+            group: 'note',
+            order: 3,
+            render() {
+                return `<button type="button" class="tb-btn" id="noteInlineMenuBtn" data-tb-action="menu" title="更多操作" aria-label="更多操作">⋯</button>`;
+            },
+            bind(note) {
+                const btn = document.getElementById('noteInlineMenuBtn');
+                if (btn) {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const rect = btn.getBoundingClientRect();
+                        if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.showNoteContextMenu === 'function') {
+                            window.ScheduleAppNotesList.showNoteContextMenu(note, rect.left, rect.bottom + 4);
+                        }
+                    });
+                }
+            },
+        },
+    ];
+
+    // Build toolbar HTML from registry
+    function _renderToolbarHTML(note) {
+        // Group items by group name
+        const groups = {};
+        for (const item of _toolbarActions) {
+            if (!groups[item.group]) groups[item.group] = [];
+            groups[item.group].push(item);
+        }
+
+        // Title row
+        let html = `<input type="text" id="noteInlineTitle" class="note-inline-title" placeholder="标题（可选）" value="${escapeHtml(note.title || '')}">`;
+
+        // Meta row: dates + font size
+        html += `<div class="tb-meta">
+    <span class="tb-dates">🕐 创建 ${formatNoteDate(note.created_at)}${note.updated_at && note.updated_at !== note.created_at ? ` · ✏️ 修改 ${formatNoteDate(note.updated_at)}` : ''}</span>
+    <span class="tb-font-size">
+        <select class="note-inline-fontsize" id="noteInlineFontSize" title="字号">
+            <option value="12px">12</option>
+            <option value="14px" selected>14</option>
+            <option value="16px">16</option>
+            <option value="18px">18</option>
+            <option value="22px">22</option>
+        </select>
+    </span>
+</div>`;
+
+        // Action rows: for each group in order, render items
+        const groupOrder = ['format', 'edit', 'note'];
+        const groupLabels = { format: '🎨', edit: '', note: '' };
+        html += `<div class="tb-actions">`;
+        for (const gName of groupOrder) {
+            const items = groups[gName];
+            if (!items || items.length === 0) continue;
+            items.sort((a, b) => a.order - b.order);
+            if (gName === 'format') {
+                // Colors: render with label
+                html += `<div class="tb-group tb-group-${gName}">`;
+                html += `<span class="tb-group-label">${groupLabels[gName]}</span>`;
+                for (const item of items) {
+                    html += item.render(note);
+                }
+                html += `</div>`;
+            } else {
+                // Other groups: just buttons, no label
+                html += `<div class="tb-group tb-group-${gName}">`;
+                for (const item of items) {
+                    html += item.render(note);
+                }
+                html += `</div>`;
+            }
+        }
+        html += `</div>`;
+
+        return html;
+    }
+
     // ===== Undo / Redo =====
     const _UNDO_MAX = 50;
     let _undoStack = [];
@@ -319,39 +514,10 @@
         _undoStack = [{ title: note.title || '', content: (note.content || '').replace(/\n/g, '<br>') }];
         _redoStack = [];
 
-        // Build color options
-        const colorOptionsHtml = NOTE_COLORS.map(c => {
-            const selected = (note.color || '') === c.value ? ' selected' : '';
-            const isEmpty = !c.value;
-            return `<button type="button" class="note-inline-color-option${selected}${isEmpty ? ' no-color' : ''}" data-color="${escapeHtml(c.value)}" title="${escapeHtml(c.label)}"${c.value ? ` style="background:${c.value};"` : ''}>${isEmpty ? '无' : ''}</button>`;
-        }).join('');
-
         main.innerHTML = `
             <div class="note-inline-editor" data-note-id="${note.id}">
                 <div class="note-inline-toolbar">
-                    <input type="text" id="noteInlineTitle" class="note-inline-title" placeholder="标题（可选）" value="${escapeHtml(note.title || '')}">
-                    <div class="note-inline-dates">
-                        <span class="note-date-created">创建: ${formatNoteDate(note.created_at)}</span>
-                        ${note.updated_at && note.updated_at !== note.created_at ? `<span class="note-date-updated">修改: ${formatNoteDate(note.updated_at)}</span>` : ''}
-                        <span class="note-inline-sep">·</span>
-                        <select class="note-inline-fontsize" id="noteInlineFontSize" title="字号">
-                            <option value="12px">12</option>
-                            <option value="14px"${(state.noteFontSize || '14px') === '14px' ? ' selected' : ''}>14</option>
-                            <option value="16px"${(state.noteFontSize || '14px') === '16px' ? ' selected' : ''}>16</option>
-                            <option value="18px"${(state.noteFontSize || '14px') === '18px' ? ' selected' : ''}>18</option>
-                            <option value="22px"${(state.noteFontSize || '14px') === '22px' ? ' selected' : ''}>22</option>
-                        </select>
-                    </div>
-                    <div class="note-inline-toolbar-right">
-                        <button type="button" class="note-inline-undo-btn" id="noteUndoBtn" title="撤回 (Ctrl+Z)" disabled>↶</button>
-                        <button type="button" class="note-inline-redo-btn" id="noteRedoBtn" title="重做 (Ctrl+Y)" disabled>↷</button>
-                        <button type="button" class="note-inline-pin-btn${note.is_pinned ? ' active' : ''}" id="noteInlinePinBtn" title="${note.is_pinned ? '取消固定' : '固定'}">📌</button>
-                        <button type="button" class="note-inline-ai-btn" id="noteInlineAiBtn" title="打开 AI 助手对话">🤖</button>
-                        <button type="button" class="note-inline-menu-btn" id="noteInlineMenuBtn" title="更多操作" aria-label="更多操作">⋯</button>
-                    </div>
-                </div>
-                <div class="note-inline-color-row" id="noteInlineColorRow">
-                    ${colorOptionsHtml}
+                    ${_renderToolbarHTML(note)}
                 </div>
                 <div class="note-inline-content" id="noteInlineContent" contenteditable="true" data-placeholder="开始写..." spellcheck="false">${escapeHtml(note.content || '')}</div>
                 <div class="note-inline-footer">
@@ -367,23 +533,23 @@
     function bindInlineEditorEvents(note) {
         const titleInput = document.getElementById('noteInlineTitle');
         const contentEl = document.getElementById('noteInlineContent');
-        const pinBtn = document.getElementById('noteInlinePinBtn');
-        const aiBtn = document.getElementById('noteInlineAiBtn');
-        const menuBtn = document.getElementById('noteInlineMenuBtn');
-        const colorRow = document.getElementById('noteInlineColorRow');
-        const saveStatus = document.getElementById('noteInlineSaveStatus');
 
-        // Auto-save (debounced) on title change
+        // ── Bind toolbar actions from registry ──────────────────
+        for (const item of _toolbarActions) {
+            item.bind(note);
+        }
+
+        // ── Core: Auto-save on title change ─────────────────────
         titleInput.addEventListener('input', () => {
             scheduleAutoSave(note);
         });
 
-        // Auto-save (debounced) on content change
+        // ── Core: Auto-save on content change ────────────────────
         contentEl.addEventListener('input', () => {
             scheduleAutoSave(note);
         });
 
-        // Save on blur (any field)
+        // ── Core: Save on blur ───────────────────────────────────
         titleInput.addEventListener('blur', () => {
             flushAutoSave(note);
         });
@@ -391,80 +557,7 @@
             flushAutoSave(note);
         });
 
-        // Pin toggle
-        pinBtn.addEventListener('click', async () => {
-            const { updateNote, showToast } = getUtils();
-            const newPinned = !note.is_pinned;
-            try {
-                const result = await updateNote(note.id, { is_pinned: newPinned });
-                if (result) {
-                    note.is_pinned = newPinned;
-                    pinBtn.classList.toggle('active', newPinned);
-                    pinBtn.title = newPinned ? '取消固定' : '固定';
-                    showToast(newPinned ? '已固定到顶部 📌' : '已取消固定');
-                    // Incremental DOM update — move note row to/from pinned section
-                    if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.togglePinRow === 'function') {
-                        window.ScheduleAppNotesList.togglePinRow(note.id, newPinned);
-                    }
-                }
-            } catch (e) {
-                console.error('Pin toggle failed:', e);
-                showToast('操作失败');
-            }
-        });
-
-        // AI button
-        aiBtn.addEventListener('click', () => {
-            const ai = getAIWindow();
-            if (ai && typeof ai.showAIFloatingWindow === 'function') {
-                ai.showAIFloatingWindow(note);
-            }
-        });
-
-        // ⋯ menu button — entry point #3 (inline editor toolbar)
-        if (menuBtn) {
-            menuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const rect = menuBtn.getBoundingClientRect();
-                if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.showNoteContextMenu === 'function') {
-                    window.ScheduleAppNotesList.showNoteContextMenu(note, rect.left, rect.bottom + 4);
-                }
-            });
-        }
-
-        // Color picker
-        colorRow.querySelectorAll('.note-inline-color-option').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const newColor = btn.dataset.color || '';
-                // Update visual selection
-                colorRow.querySelectorAll('.note-inline-color-option').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-                // Save
-                const { updateNote, showToast } = getUtils();
-                try {
-                    const result = await updateNote(note.id, { color: newColor });
-                    if (result) {
-                        note.color = newColor;
-                        showToast(newColor ? '颜色已更新' : '颜色已清除');
-                        // Incremental DOM update — only update the color bar
-                        if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.updateNoteColorRow === 'function') {
-                            window.ScheduleAppNotesList.updateNoteColorRow(note.id, newColor);
-                        }
-                    }
-                } catch (e) {
-                    console.error('Color update failed:', e);
-                    showToast('更新失败');
-                }
-            });
-        });
-
-        // Undo/redo buttons
-        const undoBtn = document.getElementById('noteUndoBtn');
-        const redoBtn = document.getElementById('noteRedoBtn');
-        if (undoBtn) undoBtn.addEventListener('click', _undo);
-        if (redoBtn) redoBtn.addEventListener('click', _redo);
-
-        // Keyboard: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y
+        // ── Core: Keyboard undo/redo ─────────────────────────────
         const _undoKeydown = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
                 e.preventDefault();
@@ -479,11 +572,11 @@
         contentEl.addEventListener('keydown', _undoKeydown);
         titleInput.addEventListener('keydown', _undoKeydown);
 
-        // Snapshot on content changes (debounced)
+        // ── Core: Snapshot on content changes (debounced) ───────
         contentEl.addEventListener('input', _scheduleSnapshot);
         titleInput.addEventListener('input', _scheduleSnapshot);
 
-        // /a command detection
+        // ── Core: /a command detection ────────────────────────────
         let _slashTime = 0;
         let _waitingForA = false;
 
@@ -516,7 +609,7 @@
             }
         });
 
-        // Paste as plain text (strip formatting)
+        // ── Core: Paste as plain text ───────────────────────────
         contentEl.addEventListener('paste', (e) => {
             e.preventDefault();
             const text = (e.clipboardData || window.clipboardData).getData('text/plain');
@@ -526,10 +619,9 @@
             }
         });
 
-        // Font size selector
+        // ── Core: Font size selector ────────────────────────────
         const fontSizeEl = document.getElementById('noteInlineFontSize');
         if (fontSizeEl) {
-            // Restore saved font size
             if (getState().noteFontSize) {
                 contentEl.style.fontSize = getState().noteFontSize;
             }
