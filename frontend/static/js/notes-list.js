@@ -464,7 +464,7 @@
             if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
             const items = Array.from(container.querySelectorAll('.note-item'));
             if (!items.length) return;
-            const current = sidebar.querySelector('.note-item.active');
+            const current = container.querySelector('.note-item.active');
             const idx = current ? items.indexOf(current) : -1;
             const nextIdx = e.key === 'ArrowDown'
                 ? Math.min(idx + 1, items.length - 1)
