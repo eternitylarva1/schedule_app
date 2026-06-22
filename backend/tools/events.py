@@ -18,7 +18,7 @@ async def get_today_events(*, db_instance=None, **kwargs):
             return "今天没有日程事件。"
         result = []
         for e in events:
-            time_str = e.start_time or "未设置时间"
+            time_str = e.start_time.isoformat() if hasattr(e.start_time, 'isoformat') else (e.start_time or "未设置时间")
             result.append({
                 "time": time_str,
                 "title": e.title,
@@ -43,14 +43,15 @@ async def get_upcoming_events(*, db_instance=None, **kwargs):
             return "未来 7 天没有日程。"
         grouped = {}
         for e in events:
-            if e.start_time:
-                day = e.start_time[:10]
+            time_str = e.start_time.isoformat() if hasattr(e.start_time, 'isoformat') else (e.start_time or "")
+            if time_str:
+                day = time_str[:10]
             else:
                 day = "未设置日期"
             if day not in grouped:
                 grouped[day] = []
             grouped[day].append({
-                "time": e.start_time or "未设置时间",
+                "time": time_str or "未设置时间",
                 "title": e.title,
                 "status": e.status,
             })

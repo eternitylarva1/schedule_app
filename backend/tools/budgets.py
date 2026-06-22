@@ -44,11 +44,16 @@ async def get_recent_expenses(*, db_instance=None, **kwargs):
             return "本月暂无支出。"
         result = []
         for e in expenses:
+            date_str = e.expense_date if isinstance(e.expense_date, str) else \
+                       (e.expense_date.isoformat()[:10] if hasattr(e.expense_date, 'isoformat') else "")
+            if not date_str:
+                date_str = e.created_at.isoformat()[:10] if hasattr(e.created_at, 'isoformat') else \
+                           (str(e.created_at)[:10] if e.created_at else "")
             result.append({
                 "amount": e.amount,
                 "category": e.category,
                 "note": e.note,
-                "date": e.expense_date or e.created_at[:10] if e.created_at else "",
+                "date": date_str,
                 "budget_id": e.budget_id,
             })
         return result

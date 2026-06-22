@@ -22,10 +22,15 @@ async def get_goals(*, db_instance=None, **kwargs):
         
         def format_goal(g, depth=0):
             prefix = "  " * depth
+            status_map = {"active": "进行中", "done": "已完成", "cancelled": "已取消"}
+            deadline = g.end_date.isoformat()[:10] if hasattr(g.end_date, 'isoformat') and g.end_date else \
+                       (str(g.end_date)[:10] if g.end_date else "无截止日")
             items = {
                 "name": f"{prefix}{g.title}",
-                "progress": f"{g.progress or 0}%" if hasattr(g, "progress") and g.progress is not None else "未开始",
-                "deadline": g.deadline if hasattr(g, "deadline") and g.deadline else "无截止日",
+                "status": status_map.get(g.status, g.status),
+                "horizon": g.horizon,
+                "deadline": deadline,
+                "color": g.color or "",
             }
             children = parent_map.get(g.id, [])
             if children:
