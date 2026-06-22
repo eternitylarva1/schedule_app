@@ -2359,6 +2359,25 @@ body {
 }
 .note-date-created { color: var(--text-muted); }
 .note-date-updated { color: var(--accent-primary); opacity: 0.8; }
+.note-inline-sep { color: var(--border-medium); }
+.note-inline-fontsize {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    outline: none;
+}
+.note-inline-fontsize:hover {
+    border-color: var(--border-medium);
+    color: var(--text-secondary);
+}
+.note-inline-fontsize option {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
 
 /* ===== Note context menu (3 entry points) ===== */
 .note-context-menu {

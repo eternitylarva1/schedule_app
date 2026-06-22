@@ -333,6 +333,14 @@
                     <div class="note-inline-dates">
                         <span class="note-date-created">创建: ${formatNoteDate(note.created_at)}</span>
                         ${note.updated_at && note.updated_at !== note.created_at ? `<span class="note-date-updated">修改: ${formatNoteDate(note.updated_at)}</span>` : ''}
+                        <span class="note-inline-sep">·</span>
+                        <select class="note-inline-fontsize" id="noteInlineFontSize" title="字号">
+                            <option value="12px">12</option>
+                            <option value="14px"${(state.noteFontSize || '14px') === '14px' ? ' selected' : ''}>14</option>
+                            <option value="16px"${(state.noteFontSize || '14px') === '16px' ? ' selected' : ''}>16</option>
+                            <option value="18px"${(state.noteFontSize || '14px') === '18px' ? ' selected' : ''}>18</option>
+                            <option value="22px"${(state.noteFontSize || '14px') === '22px' ? ' selected' : ''}>22</option>
+                        </select>
                     </div>
                     <div class="note-inline-toolbar-right">
                         <button type="button" class="note-inline-undo-btn" id="noteUndoBtn" title="撤回 (Ctrl+Z)" disabled>↶</button>
@@ -507,6 +515,31 @@
                 _waitingForA = false;
             }
         });
+
+        // Paste as plain text (strip formatting)
+        contentEl.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+            if (text) {
+                document.execCommand('insertText', false, text);
+                scheduleAutoSave(note);
+            }
+        });
+
+        // Font size selector
+        const fontSizeEl = document.getElementById('noteInlineFontSize');
+        if (fontSizeEl) {
+            // Restore saved font size
+            if (getState().noteFontSize) {
+                contentEl.style.fontSize = getState().noteFontSize;
+            }
+            fontSizeEl.addEventListener('change', () => {
+                const size = fontSizeEl.value;
+                getState().noteFontSize = size;
+                contentEl.style.fontSize = size;
+                contentEl.focus();
+            });
+        }
     }
 
     function scheduleAutoSave(note) {
