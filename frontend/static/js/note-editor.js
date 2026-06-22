@@ -87,11 +87,11 @@
             group: 'format',
             order: 1,
             render(note) {
-                return NOTE_COLORS.map(c => {
+                return `<span id="noteInlineColorRow">${NOTE_COLORS.map(c => {
                     const selected = (note.color || '') === c.value ? ' selected' : '';
                     const isEmpty = !c.value;
                     return `<button type="button" class="note-inline-color-option${selected}${isEmpty ? ' no-color' : ''}" data-color="${escapeHtml(c.value)}" title="${escapeHtml(c.label)}"${c.value ? ` style="background:${c.value};"` : ''}>${isEmpty ? '⬜' : ''}</button>`;
-                }).join('');
+                }).join('')}</span>`;
             },
             bind(note) {
                 const colorRow = document.getElementById('noteInlineColorRow');
