@@ -273,6 +273,55 @@
         return html;
     }
 
+    // ===== Scroll & Cursor Position Persistence =====
+    const _notePositions = {};  // noteId → { scrollTop, caretOffset }
+
+    function _saveNotePosition() {
+        const contentEl = document.getElementById('noteInlineContent');
+        if (!contentEl || _currentInlineNoteId === null) return;
+        const scrollTop = contentEl.scrollTop;
+        let caretOffset = 0;
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const preRange = range.cloneRange();
+            preRange.selectNodeContents(contentEl);
+            preRange.setEnd(range.endContainer, range.endOffset);
+            caretOffset = preRange.toString().length;
+        }
+        _notePositions[_currentInlineNoteId] = { scrollTop, caretOffset };
+    }
+
+    function _restoreNotePosition(noteId) {
+        const pos = _notePositions[noteId];
+        if (!pos) return;
+        const contentEl = document.getElementById('noteInlineContent');
+        if (!contentEl) return;
+        try {
+            // Restore scroll
+            contentEl.scrollTop = pos.scrollTop;
+            // Restore caret by character offset
+            if (pos.caretOffset > 0) {
+                let currentOffset = 0;
+                const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+                while (walker.nextNode()) {
+                    const node = walker.currentNode;
+                    const nodeLength = node.textContent.length;
+                    if (currentOffset + nodeLength >= pos.caretOffset) {
+                        const range = document.createRange();
+                        range.setStart(node, pos.caretOffset - currentOffset);
+                        range.collapse(true);
+                        const sel = window.getSelection();
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                        break;
+                    }
+                    currentOffset += nodeLength;
+                }
+            }
+        } catch (e) { /* ignore */ }
+    }
+
     // ===== Undo / Redo =====
     const _UNDO_MAX = 50;
     let _undoStack = [];
@@ -518,6 +567,10 @@
         const main = document.getElementById('notesMain');
         if (!main) return;
         const state = getState();
+
+        // Save scroll/cursor of the current note before destroying it
+        _saveNotePosition();
+
         state.selectedNote = note;
         _currentInlineNoteId = note.id;
 
@@ -541,6 +594,8 @@
         bindInlineEditorEvents(note);
         // Initial word count
         _updateWordCount();
+        // Restore scroll/cursor position for this note
+        setTimeout(() => _restoreNotePosition(note.id), 50);
     }
 
     function bindInlineEditorEvents(note) {
