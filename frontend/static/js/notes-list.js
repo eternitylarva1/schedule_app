@@ -220,7 +220,7 @@
                         <span class="note-group-count">${noteCount}</span>
                         <button class="note-group-delete" data-group-id="${group.id}" title="删除分组">×</button>
                     </summary>
-                    <div class="note-group-content ${isExpanded ? '' : 'collapsed'}">
+                    <div class="note-group-content">
                         ${unpinnedNotes.length > 0 ? unpinnedNotes.map(note => renderNoteItem(note)).join('') : '<div class="note-group-empty">暂无笔记</div>'}
                     </div>
                 </details>
@@ -237,7 +237,7 @@
                         <span class="note-group-name">未分组</span>
                         <span class="note-group-count">${ungroupedUnpinned.length}</span>
                     </summary>
-                    <div class="note-group-content ${ungroupedExpanded ? '' : 'collapsed'}">
+                    <div class="note-group-content">
                         ${ungroupedUnpinned.map(note => renderNoteItem(note)).join('')}
                     </div>
                 </details>
