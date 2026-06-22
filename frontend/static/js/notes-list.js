@@ -435,6 +435,7 @@
                             ? `<div class="note-item-title">${escapeHtml(note.title)}</div>`
                             : `<div class="note-item-preview no-title">${escapeHtml(truncate2Lines(note.content, 80))}</div>`}
                         <div class="note-item-time">${formatNoteTime(note.updated_at || note.created_at)}</div>
+                        <button type="button" class="note-item-menu-btn" data-note-id="${note.id}" title="更多操作" aria-label="更多操作">⋯</button>
                     </div>
                 </div>
             </div>
@@ -969,14 +970,31 @@
     function bindNoteRowEvents(container) {
         if (!container) return;
 
-        // Remove old delegated listener if any (stored on container)
+        // Remove old delegated listeners
         if (container._noteDelegatedHandler) {
             container.removeEventListener('click', container._noteDelegatedHandler);
         }
+        if (container._noteContextMenuHandler) {
+            container.removeEventListener('contextmenu', container._noteContextMenuHandler);
+        }
 
         const handler = async (e) => {
+            // ⋯ menu button on note card — entry point #2
+            const menuBtn = e.target.closest('.note-item-menu-btn');
+            if (menuBtn) {
+                e.stopPropagation();
+                e.preventDefault();
+                const noteId = parseInt(menuBtn.dataset.noteId);
+                const note = getState().notes.find(n => n.id === noteId);
+                if (note) {
+                    const rect = menuBtn.getBoundingClientRect();
+                    showNoteContextMenu(note, rect.left, rect.bottom + 4);
+                }
+                return;
+            }
+
             const item = e.target.closest('.note-item');
-            if (item && !e.target.closest('.swipe-action')) {
+            if (item && !e.target.closest('.swipe-action') && !e.target.closest('.note-item-menu-btn')) {
                 const parentSwipe = item.closest('.swipe-item');
                 if (parentSwipe && parentSwipe.classList.contains('swipe-open')) {
                     if (getUtils().closeAllOpenSwipeItems) {
@@ -1089,8 +1107,21 @@
             }
         };
 
+        // Entry point #1: right-click context menu
+        const contextMenuHandler = (e) => {
+            const item = e.target.closest('.note-item');
+            if (!item) return;
+            const noteId = parseInt(item.dataset.noteId);
+            const note = getState().notes.find(n => n.id === noteId);
+            if (!note) return;
+            e.preventDefault();
+            showNoteContextMenu(note, e.clientX, e.clientY);
+        };
+
         container._noteDelegatedHandler = handler;
+        container._noteContextMenuHandler = contextMenuHandler;
         container.addEventListener('click', handler);
+        container.addEventListener('contextmenu', contextMenuHandler);
     }
 
     window.ScheduleAppNotesList = {
@@ -1107,6 +1138,291 @@
         updateNoteColorRow,
         renameGroupRow,
         removeGroupRow,
+        showNoteContextMenu,
     };
+
+    // ============================================================
+    // Context Menu Component (3 entry points: right-click, ⋯ card, ⋯ editor)
+    // ============================================================
+
+    let _activeContextMenu = null;
+    let _dismissContextMenuHandler = null;
+    let _dismissEscapeHandler = null;
+
+    function hideNoteContextMenu() {
+        if (_activeContextMenu) {
+            _activeContextMenu.remove();
+            _activeContextMenu = null;
+        }
+        if (_dismissContextMenuHandler) {
+            document.removeEventListener('click', _dismissContextMenuHandler);
+            _dismissContextMenuHandler = null;
+        }
+        if (_dismissEscapeHandler) {
+            document.removeEventListener('keydown', _dismissEscapeHandler);
+            _dismissEscapeHandler = null;
+        }
+    }
+
+    function _onContextMenuClick(e) {
+        if (_activeContextMenu && !_activeContextMenu.contains(e.target)) {
+            hideNoteContextMenu();
+        }
+    }
+
+    function _onContextMenuEscape(e) {
+        if (e.key === 'Escape') hideNoteContextMenu();
+    }
+
+    const NOTE_MENU_COLORS = [
+        { value: '', label: '无' },
+        { value: '#4CAF50', label: '绿' },
+        { value: '#FF5722', label: '橙' },
+        { value: '#9C27B0', label: '紫' },
+        { value: '#00BCD4', label: '青' },
+        { value: '#FF9800', label: '黄' },
+        { value: '#E91E63', label: '粉' },
+        { value: '#3F51B5', label: '蓝' },
+    ];
+
+    function showNoteContextMenu(note, x, y) {
+        hideNoteContextMenu();
+
+        const state = getState();
+        const groups = state.noteGroups || [];
+        const isTrash = !!note.is_archived;
+        const isPinned = !!note.is_pinned;
+
+        const colorSwatchesHtml = NOTE_MENU_COLORS.map(c => `
+            <button class="note-menu-color-swatch${(note.color || '') === c.value ? ' active' : ''}${!c.value ? ' no-color' : ''}"
+                    data-color="${c.value}"
+                    title="${c.label}"
+                    style="${c.value ? 'background:' + c.value + ';' : ''}">
+                ${c.value ? '' : '✕'}
+            </button>
+        `).join('');
+
+        const moveOptionsHtml = groups.map(g => `
+            <button class="note-menu-item note-menu-move-item" data-move-to="${g.id}">
+                <span class="note-menu-icon">📁</span>
+                <span class="note-menu-label">${escapeHtml(g.name)}</span>
+                ${note.group_id === g.id ? '<span class="note-menu-check">✓</span>' : ''}
+            </button>
+        `).join('');
+
+        const menu = document.createElement('div');
+        menu.className = 'note-context-menu';
+        if (isTrash) menu.dataset.mode = 'trash';
+        menu.innerHTML = `
+            ${!isTrash ? `
+            <button class="note-menu-item" data-action="pin">
+                <span class="note-menu-icon">${isPinned ? '📍' : '📌'}</span>
+                <span class="note-menu-label">${isPinned ? '取消固定' : '固定到顶部'}</span>
+            </button>
+            <div class="note-menu-section">
+                <div class="note-menu-section-title">颜色</div>
+                <div class="note-menu-colors">${colorSwatchesHtml}</div>
+            </div>
+            ${groups.length > 0 ? `
+            <div class="note-menu-section">
+                <div class="note-menu-section-title">移动到</div>
+                <div class="note-menu-move-list">${moveOptionsHtml}</div>
+            </div>
+            ` : ''}
+            <div class="note-menu-divider"></div>
+            ${isTrash ? `
+                <button class="note-menu-item" data-action="restore">
+                    <span class="note-menu-icon">↩️</span>
+                    <span class="note-menu-label">恢复</span>
+                </button>
+                <button class="note-menu-item note-menu-danger" data-action="delete-permanent">
+                    <span class="note-menu-icon">🗑</span>
+                    <span class="note-menu-label">永久删除</span>
+                </button>
+            ` : `
+                <button class="note-menu-item" data-action="archive">
+                    <span class="note-menu-icon">🗑</span>
+                    <span class="note-menu-label">归档</span>
+                </button>
+            `}
+            ` : `
+            <button class="note-menu-item" data-action="restore">
+                <span class="note-menu-icon">↩️</span>
+                <span class="note-menu-label">恢复</span>
+            </button>
+            <button class="note-menu-item note-menu-danger" data-action="delete-permanent">
+                <span class="note-menu-icon">🗑</span>
+                <span class="note-menu-label">永久删除</span>
+            </button>
+            `}
+        `;
+
+        document.body.appendChild(menu);
+
+        // Viewport clamping
+        const rect = menu.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        let px = x;
+        let py = y;
+        if (px + rect.width > vw - 8) px = vw - rect.width - 8;
+        if (py + rect.height > vh - 8) py = vh - rect.height - 8;
+        if (px < 8) px = 8;
+        if (py < 8) py = 8;
+        menu.style.left = px + 'px';
+        menu.style.top = py + 'px';
+
+        _activeContextMenu = menu;
+
+        _dismissContextMenuHandler = _onContextMenuClick;
+        _dismissEscapeHandler = _onContextMenuEscape;
+        setTimeout(() => {
+            document.addEventListener('click', _dismissContextMenuHandler);
+            document.addEventListener('keydown', _dismissEscapeHandler);
+        }, 0);
+
+        // Action handling via event delegation
+        menu.addEventListener('click', async (e) => {
+            const colorSwatch = e.target.closest('.note-menu-color-swatch');
+            const moveItem = e.target.closest('.note-menu-move-item');
+            const actionItem = e.target.closest('[data-action]');
+
+            if (colorSwatch) {
+                e.stopPropagation();
+                const newColor = colorSwatch.dataset.color;
+                const { updateNote } = getUtils();
+                try {
+                    await updateNote(note.id, { color: newColor });
+                    note.color = newColor;
+                    if (typeof updateNoteColorRow === 'function') {
+                        updateNoteColorRow(note.id, newColor);
+                    }
+                    getUtils().showToast(newColor ? '颜色已更新' : '颜色已清除');
+                } catch (err) {
+                    getUtils().showToast('更新失败');
+                }
+                hideNoteContextMenu();
+                return;
+            }
+
+            if (moveItem) {
+                e.stopPropagation();
+                const targetGroupId = parseInt(moveItem.dataset.moveTo);
+                if (targetGroupId === note.group_id) {
+                    hideNoteContextMenu();
+                    return;
+                }
+                const { updateNote } = getUtils();
+                try {
+                    await updateNote(note.id, { group_id: targetGroupId });
+                    note.group_id = targetGroupId;
+                    if (typeof moveNoteRow === 'function') {
+                        moveNoteRow(note.id, targetGroupId);
+                    }
+                    getUtils().showToast('已移动');
+                } catch (err) {
+                    getUtils().showToast('移动失败');
+                }
+                hideNoteContextMenu();
+                return;
+            }
+
+            if (actionItem) {
+                e.stopPropagation();
+                const action = actionItem.dataset.action;
+                await _handleContextMenuAction(note, action);
+                hideNoteContextMenu();
+            }
+        });
+    }
+
+    async function _handleContextMenuAction(note, action) {
+        const { updateNote, deleteNote, showToast, showToastWithUndo, showConfirm } = getUtils();
+        const editor = window.ScheduleAppNoteEditor;
+
+        if (action === 'pin') {
+            const newPinned = !note.is_pinned;
+            try {
+                await updateNote(note.id, { is_pinned: newPinned });
+                note.is_pinned = newPinned;
+                if (typeof togglePinRow === 'function') {
+                    togglePinRow(note.id, newPinned);
+                }
+                const pinBtn = document.getElementById('noteInlinePinBtn');
+                if (pinBtn) {
+                    pinBtn.classList.toggle('active', newPinned);
+                    pinBtn.title = newPinned ? '取消固定' : '固定';
+                }
+                showToast(newPinned ? '已固定到顶部 📌' : '已取消固定');
+            } catch (e) {
+                showToast('操作失败');
+            }
+        } else if (action === 'archive') {
+            const swipeEl = document.querySelector(`.note-swipe[data-note-id="${note.id}"]`);
+            if (swipeEl) swipeEl.style.display = 'none';
+
+            showToastWithUndo('已归档', async () => {
+                await updateNote(note.id, { is_archived: false });
+                note.is_archived = false;
+                if (typeof insertNoteRow === 'function') {
+                    insertNoteRow(note);
+                }
+            });
+
+            try {
+                await updateNote(note.id, { is_archived: true });
+                note.is_archived = true;
+                if (editor && typeof editor.clearInlineEditor === 'function') {
+                    const ai = window.ScheduleAppNoteAI;
+                    if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === note.id) {
+                        editor.clearInlineEditor();
+                    }
+                }
+                if (typeof removeNoteRow === 'function') {
+                    removeNoteRow(note.id);
+                }
+            } catch (e) {
+                if (swipeEl) swipeEl.style.display = '';
+                showToast('归档失败');
+            }
+        } else if (action === 'restore') {
+            try {
+                await updateNote(note.id, { is_archived: false });
+                note.is_archived = false;
+                if (typeof removeNoteRow === 'function') {
+                    removeNoteRow(note.id);
+                }
+                if (typeof insertNoteRow === 'function') {
+                    insertNoteRow(note);
+                }
+                showToast('已恢复');
+            } catch (e) {
+                showToast('恢复失败');
+            }
+        } else if (action === 'delete-permanent') {
+            const confirmed = await showConfirm('确定永久删除这条笔记吗？\n此操作不可撤销');
+            if (!confirmed) return;
+
+            const swipeEl = document.querySelector(`.note-swipe[data-note-id="${note.id}"]`);
+            if (swipeEl) swipeEl.style.display = 'none';
+
+            showToastWithUndo('已删除', () => {
+                showToast('无法撤销');
+            });
+
+            try {
+                await deleteNote(note.id);
+                if (editor && typeof editor.clearInlineEditor === 'function') {
+                    editor.clearInlineEditor();
+                }
+                if (typeof removeNoteRow === 'function') {
+                    removeNoteRow(note.id);
+                }
+            } catch (e) {
+                if (swipeEl) swipeEl.style.display = '';
+                showToast('删除失败');
+            }
+        }
+    }
 
 })();

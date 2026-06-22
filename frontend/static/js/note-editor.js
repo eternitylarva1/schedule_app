@@ -103,6 +103,7 @@
                     <div class="note-inline-toolbar-right">
                         <button type="button" class="note-inline-pin-btn${note.is_pinned ? ' active' : ''}" id="noteInlinePinBtn" title="${note.is_pinned ? '取消固定' : '固定'}">📌</button>
                         <button type="button" class="note-inline-ai-btn" id="noteInlineAiBtn" title="打开 AI 助手对话">🤖</button>
+                        <button type="button" class="note-inline-menu-btn" id="noteInlineMenuBtn" title="更多操作" aria-label="更多操作">⋯</button>
                     </div>
                 </div>
                 <div class="note-inline-color-row" id="noteInlineColorRow">
@@ -124,6 +125,7 @@
         const contentEl = document.getElementById('noteInlineContent');
         const pinBtn = document.getElementById('noteInlinePinBtn');
         const aiBtn = document.getElementById('noteInlineAiBtn');
+        const menuBtn = document.getElementById('noteInlineMenuBtn');
         const colorRow = document.getElementById('noteInlineColorRow');
         const saveStatus = document.getElementById('noteInlineSaveStatus');
 
@@ -174,6 +176,17 @@
                 ai.showAIFloatingWindow(note);
             }
         });
+
+        // ⋯ menu button — entry point #3 (inline editor toolbar)
+        if (menuBtn) {
+            menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const rect = menuBtn.getBoundingClientRect();
+                if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.showNoteContextMenu === 'function') {
+                    window.ScheduleAppNotesList.showNoteContextMenu(note, rect.left, rect.bottom + 4);
+                }
+            });
+        }
 
         // Color picker
         colorRow.querySelectorAll('.note-inline-color-option').forEach(btn => {
