@@ -244,7 +244,7 @@
                         <span class="note-group-name" style="color:var(--text-muted);">🗑 废纸篓</span>
                         <span class="note-group-count">${archivedNotes.length}</span>
                     </summary>
-                    <div class="note-group-content ${trashExpanded ? '' : 'collapsed'}">
+                    <div class="note-group-content">
                         ${archivedNotes.map(note => renderNoteItem(note, true)).join('')}
                     </div>
                 </details>
