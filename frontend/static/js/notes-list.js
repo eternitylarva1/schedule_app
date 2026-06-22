@@ -488,13 +488,16 @@
         container.addEventListener('keydown', arrowHandler);
 
         // Auto-select last edited note (non-trash, non-archived only) — first load only
-        if (!getState().selectedNote && !getState().notes?.find(n => n.id == getState().selectedNote?.id)) {
+        if (!getState().selectedNote) {
             const lastNoteId = (function() { try { return localStorage.getItem(_LAST_NOTE_KEY); } catch { return null; } })();
-            if (lastNoteId && getState().notes && !getState().notes.find(n => n.id == lastNoteId)?.is_archived) {
-
-            const targetItem = container.querySelector(`.note-item[data-note-id="${lastNoteId}"]`);
-            if (targetItem && !targetItem.closest('.note-group[data-group-id="trash"]')) {
-                setTimeout(() => targetItem.click(), 100);
+            if (lastNoteId && getState().notes) {
+                const note = getState().notes.find(n => n.id == lastNoteId);
+                if (note && !note.is_archived) {
+                    const targetItem = container.querySelector(`.note-item[data-note-id="${lastNoteId}"]`);
+                    if (targetItem && !targetItem.closest('.note-group[data-group-id="trash"]')) {
+                        setTimeout(() => targetItem.click(), 100);
+                    }
+                }
             }
         }
     }
