@@ -348,6 +348,17 @@
         // Use event delegation for note items and swipe actions
         bindNoteRowEvents(container);
 
+        // Sync toggle arrows on all <details> groups
+        container.querySelectorAll('.note-group').forEach(group => {
+            // Remove old listener to avoid duplicates
+            if (group._toggleHandler) group.removeEventListener('toggle', group._toggleHandler);
+            group._toggleHandler = () => {
+                const toggle = group.querySelector('.note-group-toggle');
+                if (toggle) toggle.textContent = group.open ? '▼' : '▶';
+            };
+            group.addEventListener('toggle', group._toggleHandler);
+        });
+
         container.querySelectorAll('.note-group-header').forEach(header => {
             header.addEventListener('click', (e) => {
                 if (noteDragState.draggedNoteId && !e.target.closest('.note-group-delete')) {
