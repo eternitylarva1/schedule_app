@@ -428,8 +428,54 @@
         if (container._notesKeydownHandler) {
             document.removeEventListener('keydown', container._notesKeydownHandler);
         }
-        container._notesKeydownHandler = handleNotesKeydown;
-        document.addEventListener('keydown', handleNotesKeydown);
+        // Global shortcuts: Cmd+N and Esc (need to be on document)
+        const globalHandler = (e) => {
+            const sidebar = document.getElementById('notesListScroll');
+            if (!sidebar) return;
+
+            // Cmd+N / Ctrl+N → create new note
+            if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+                e.preventDefault();
+                const input = document.getElementById('notepadInput');
+                if (input) input.focus();
+                return;
+            }
+
+            // Esc → clear search
+            if (e.key === 'Escape') {
+                const searchInput = document.getElementById('notesSearchInput');
+                if (searchInput && searchInput.value) {
+                    searchInput.value = '';
+                    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    searchInput.blur();
+                }
+                return;
+            }
+        };
+        container._notesKeydownHandler = globalHandler;
+        document.addEventListener('keydown', globalHandler);
+
+        // ↑/↓ navigation: listen only on the sidebar container, not on document
+        // This way, ↑/↓ in editor (contenteditable) won't trigger note switching
+        if (container._notesArrowHandler) {
+            sidebar.removeEventListener('keydown', container._notesArrowHandler);
+        }
+        const arrowHandler = (e) => {
+            if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+            const items = Array.from(sidebar.querySelectorAll('.note-item'));
+            if (!items.length) return;
+            const current = sidebar.querySelector('.note-item.active');
+            const idx = current ? items.indexOf(current) : -1;
+            const nextIdx = e.key === 'ArrowDown'
+                ? Math.min(idx + 1, items.length - 1)
+                : Math.max(idx - 1, 0);
+            if (nextIdx !== idx) {
+                e.preventDefault();
+                items[nextIdx].click();
+            }
+        };
+        container._notesArrowHandler = arrowHandler;
+        sidebar.addEventListener('keydown', arrowHandler);
     }
 
     function renderNoteItem(note, isTrash = false) {
