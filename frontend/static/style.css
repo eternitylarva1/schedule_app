@@ -4614,6 +4614,7 @@ textarea {
 .swipe-content {
     position: relative;
     z-index: 2;
+    background: var(--bg-card);
     transition: transform 160ms ease;
     will-change: transform;
     touch-action: pan-y;
