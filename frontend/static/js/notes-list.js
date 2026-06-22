@@ -403,7 +403,12 @@
             }
 
             // ↑/↓ → navigate between note items
+            // BUT: skip if user is editing text (input, textarea, contenteditable)
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                const tag = document.activeElement?.tagName?.toLowerCase();
+                const isEditing = tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable;
+                if (isEditing) return;  // let browser handle cursor movement normally
+                
                 const items = Array.from(sidebar.querySelectorAll('.note-item'));
                 if (!items.length) return;
                 const current = sidebar.querySelector('.note-item.active');
