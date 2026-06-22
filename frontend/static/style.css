@@ -6084,8 +6084,8 @@ textarea {
 .note-inline-toolbar {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px 8px;
+    gap: 2px;
+    padding: 6px 12px;
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md) var(--radius-md) 0 0;
@@ -6117,8 +6117,7 @@ textarea {
     justify-content: space-between;
     font-size: 11px;
     color: var(--text-muted);
-    padding: 2px 2px;
-    gap: 12px;
+    padding: 0 2px;
 }
 .tb-dates { display: flex; gap: 10px; align-items: center; }
 .tb-font-size select {
@@ -6139,8 +6138,8 @@ textarea {
     display: flex;
     align-items: center;
     gap: 0;
-    padding: 2px 0;
-    flex-wrap: wrap;
+    padding: 0;
+    flex-wrap: nowrap;
 }
 
 /* Group container */
@@ -6190,10 +6189,15 @@ textarea {
 .tb-btn:active { transform: scale(0.93); }
 
 /* Color swatches inside format group */
-.tb-group-format { gap: 3px; }
+.tb-group-format { gap: 4px; }
+#noteInlineColorRow {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
 .note-inline-color-option {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     border: 2px solid transparent;
     cursor: pointer;
