@@ -758,7 +758,7 @@
             return trashSection.querySelector('.note-group-content');
         }
 
-        // Create trash section (collapsed by default)
+        // Create trash section (collapsed by default — native <details> handles hiding)
         const trashHtml = `
             <details class="note-group note-group-trash" data-group-id="trash">
                 <summary class="note-group-header" data-group-id="trash">
@@ -766,28 +766,19 @@
                     <span class="note-group-name" style="color:var(--text-muted);">🗑 废纸篓</span>
                     <span class="note-group-count">0</span>
                 </summary>
-                <div class="note-group-content collapsed"></div>
+                <div class="note-group-content"></div>
             </details>
         `;
         container.insertAdjacentHTML('beforeend', trashHtml);
 
-        // Bind click on the delete button if any
-        const newTrash = container.querySelector('.note-group[data-group-id="trash"]');
-        if (newTrash) {
-            // Make sure the trash header toggle works
-            newTrash.addEventListener('click', (e) => {
-                const header = e.target.closest('.note-group-header');
-                if (!header || e.target.closest('.note-group-delete')) return;
-                const details = newTrash;
-                details.open = !details.open;
-                const content = newTrash.querySelector('.note-group-content');
-                const toggle = newTrash.querySelector('.note-group-toggle');
-                if (content) content.classList.toggle('collapsed', !details.open);
-                if (toggle) toggle.textContent = details.open ? '▼' : '▶';
+        trashSection = container.querySelector('.note-group[data-group-id="trash"]');
+        if (trashSection) {
+            // Sync toggle arrow with native details open/close
+            trashSection.addEventListener('toggle', () => {
+                const toggle = trashSection.querySelector('.note-group-toggle');
+                if (toggle) toggle.textContent = trashSection.open ? '▼' : '▶';
             });
         }
-
-        trashSection = container.querySelector('.note-group[data-group-id="trash"]');
         return trashSection ? trashSection.querySelector('.note-group-content') : null;
     }
 
