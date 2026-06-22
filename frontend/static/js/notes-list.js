@@ -73,6 +73,16 @@
 
     const EDGE_THRESHOLD = 80;
     const SCROLL_SPEED = 15;
+    function getCurrentUser() {
+        try { return JSON.parse(localStorage.getItem('schedule_user') || '{}').id || 'default'; } catch { return 'default'; }
+    }
+    const _USER = getCurrentUser();
+    const _LAST_NOTE_KEY = 'schedule_last_note_' + _USER;
+
+    function _saveLastNoteId(noteId) {
+        try { localStorage.setItem(_LAST_NOTE_KEY, String(noteId)); } catch {}
+    }
+
     let autoScrollInterval = null;
     let lastDragY = null;
 
@@ -476,6 +486,17 @@
         };
         container._notesArrowHandler = arrowHandler;
         container.addEventListener('keydown', arrowHandler);
+
+        // Auto-select last edited note (non-trash, non-archived only) — first load only
+        if (!getState().selectedNote && !getState().notes?.find(n => n.id == getState().selectedNote?.id)) {
+            const lastNoteId = (function() { try { return localStorage.getItem(_LAST_NOTE_KEY); } catch { return null; } })();
+            if (lastNoteId && getState().notes && !getState().notes.find(n => n.id == lastNoteId)?.is_archived) {
+
+            const targetItem = container.querySelector(`.note-item[data-note-id="${lastNoteId}"]`);
+            if (targetItem && !targetItem.closest('.note-group[data-group-id="trash"]')) {
+                setTimeout(() => targetItem.click(), 100);
+            }
+        }
     }
 
     function renderNoteItem(note, isTrash = false) {
@@ -1122,6 +1143,7 @@
                     }
 
                     state.selectedNote = note;
+                    _saveLastNoteId(note.id);
                     container.querySelectorAll('.note-item.active').forEach(el => el.classList.remove('active'));
                     item.classList.add('active');
                     const notesApp = document.getElementById('notesApp');
