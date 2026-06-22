@@ -487,15 +487,17 @@
         container._notesArrowHandler = arrowHandler;
         container.addEventListener('keydown', arrowHandler);
 
-        // Auto-select last edited note (non-trash, non-archived only) — first load only
-        if (!getState().selectedNote) {
+        // Auto-select last edited note (skip if already viewing or no saved note)
+        const activeId = container.querySelector('.note-item.active')?.dataset.noteId;
+        if (activeId) { /* already viewing a note */ }
+        else {
             const lastNoteId = (function() { try { return localStorage.getItem(_LAST_NOTE_KEY); } catch { return null; } })();
             if (lastNoteId && getState().notes) {
                 const note = getState().notes.find(n => n.id == lastNoteId);
                 if (note && !note.is_archived) {
                     const targetItem = container.querySelector(`.note-item[data-note-id="${lastNoteId}"]`);
                     if (targetItem && !targetItem.closest('.note-group[data-group-id="trash"]')) {
-                        setTimeout(() => targetItem.click(), 100);
+                        setTimeout(() => targetItem.click(), 300);
                     }
                 }
             }
