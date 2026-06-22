@@ -180,7 +180,7 @@
     async function sendAIChatMessage() {
         if (!aiState.currentNote || aiState.isLoading) return;
 
-        const { chatWithNote, showToast } = getUtils();
+        const { showToast } = getUtils();
         const input = document.getElementById('aiDrawerInput');
         const message = input?.value.trim();
         if (!message) return;
@@ -202,7 +202,16 @@
         }
 
         try {
-            const response = await chatWithNote(aiState.currentNote.id, message);
+            const utils = getUtils();
+            const response = await utils.apiCall('llm/chat-agent', {
+                method: 'POST',
+                body: JSON.stringify({
+                    message: message,
+                    note_id: aiState.currentNote.id,
+                    selected_text: '',
+                    tools: null,  // 全部工具可用
+                })
+            });
 
             if (response) {
                 const thinkingEl = container?.querySelector('.ai-drawer-message.assistant:last-child');

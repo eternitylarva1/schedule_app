@@ -3,6 +3,7 @@ import aiohttp
 import asyncio
 import json
 import os
+import re
 from typing import Optional, Dict, Any, List
 
 
@@ -1011,6 +1012,150 @@ class LLMService:
             pass
 
         return None
+
+
+    # ══════════════════════════════════════════════════════════════
+    # AI Agent — 两步工具调用
+    # ══════════════════════════════════════════════════════════════
+
+    async def chat_with_agent(
+        self,
+        message: str,
+        note_id: Optional[int] = None,
+        selected_text: str = "",
+        tools: Optional[list[str]] = None,
+        db_instance = None,
+    ) -> Optional[str]:
+        """两步：AI 选择工具 → 执行 → AI 回答"""
+        from .tools import get_tools, execute_tool
+
+        # 1. 获取可用工具定义列表
+        available_tools = get_tools(tool_names=tools) if tools else get_tools()
+
+        # 2. Pass 1: LLM 选择需要哪些工具
+        chosen = await self._determine_tools(message, available_tools)
+        if chosen is None:
+            return None  # LLM call failed
+
+        # 3. 执行选中的工具
+        context = {}
+        for name in chosen:
+            try:
+                result = await execute_tool(name, db_instance=db_instance, note_id=note_id)
+                context[name] = result
+            except Exception as e:
+                context[name] = f"工具执行错误: {e}"
+
+        # 如果选择了 note_content 但没有传 note_id，报错
+        if "get_note_content" in chosen and not note_id:
+            context["get_note_content"] = "未指定笔记 ID"
+        # 如果没选 note_content 但传了 note_id，默认加上
+        if note_id and "get_note_content" not in chosen:
+            try:
+                note_data = await execute_tool("get_note_content", db_instance=db_instance, note_id=note_id)
+                context["get_note_content"] = note_data
+            except Exception:
+                pass
+
+        # 4. Pass 2: 结合数据回答
+        answer = await self._answer_with_context(message, context, selected_text)
+        return answer
+
+
+    async def _determine_tools(self, message: str, tools: list[dict]) -> Optional[list[str]]:
+        """Pass 1: LLM 决定需要哪些工具"""
+        tools_desc = "\n".join(
+            f"- {t['name']}: {t['description']}" for t in tools
+        )
+        prompt = f"""你是一个智能助手，需要判断回答用户问题需要哪些工具。
+
+可用工具：
+{tools_desc if tools else "（当前没有可用工具）"}
+
+用户问题：{message}
+
+请分析用户问题，返回一个 JSON 数组，列出你需要调用的工具名称。
+规则：
+- 只选择必要的工具，不要多选
+- 如果无需任何工具（比如打招呼、闲聊），返回空数组 []
+- 如果涉及笔记内容操作（润色/扩写/改写/翻译），必须包含 get_note_content
+- 如果同时涉及多个领域（如预算+目标），可以选多个
+- 只返回 JSON，不要额外文字"""
+        
+        response = await self.chat([
+            {"role": "system", "content": "你是一个工具选择器，返回 JSON 数组。"},
+            {"role": "user", "content": prompt},
+        ], temperature=0.1)
+        
+        if not response:
+            return []
+        
+        # 提取 JSON 数组
+        try:
+            # 尝试直接解析
+            return json.loads(response)
+        except json.JSONDecodeError:
+            # 尝试从代码块或文本中提取
+            m = re.search(r'\[.*?\]', response, re.DOTALL)
+            if m:
+                try:
+                    return json.loads(m.group())
+                except json.JSONDecodeError:
+                    pass
+            # 最后 fallback：如果响应包含 "no" 或 "不需要"，返回空
+            if any(w in response for w in ["不需要", "没有", "no need", "nothing"]):
+                return []
+            return []  # fallback safe
+
+
+    async def _answer_with_context(
+        self,
+        message: str,
+        context: dict,
+        selected_text: str = "",
+    ) -> Optional[str]:
+        """Pass 2: 结合已有数据回答用户"""
+        # 格式化 context
+        def _json_default(obj):
+            """处理 datetime 等非 JSON 可序列化对象"""
+            if hasattr(obj, 'isoformat'):
+                return obj.isoformat()
+            return str(obj)
+
+        parts = []
+        for name, data in context.items():
+            try:
+                formatted = json.dumps(data, ensure_ascii=False, indent=2, default=_json_default)
+                parts.append(f"## {name}\n{formatted}")
+            except Exception:
+                # fallback: str repr
+                parts.append(f"## {name}\n{str(data)}")
+
+        context_str = "\n\n".join(parts)
+        
+        intro = "你是一个日程管理 AI 助手。用户提供了以下数据，请基于这些真实数据回答用户的问题。\n"
+        if selected_text:
+            intro += f"\n用户选中了以下文本：\n{selected_text}\n"
+
+        prompt = f"""{intro}
+
+{context_str}
+
+用户的问题：{message}
+
+回答要求：
+- 基于数据回答，不要编造
+- 如果数据不足以完全回答，如实告知并提供已有信息
+- 涉及数字时简要说明来源
+- 简洁有条理，可以用 Markdown
+- 如果用户要求修改笔记内容（润色/扩写/改写），在数据中找到笔记内容并直接输出修改后的版本"""
+
+        response = await self.chat([
+            {"role": "system", "content": "你是一个日程管理助手，回答简洁准确。"},
+            {"role": "user", "content": prompt},
+        ], temperature=0.7)
+        
+        return response
 
 
 # Global instance

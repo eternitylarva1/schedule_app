@@ -1304,6 +1304,46 @@ async def _handle_goal_operation(op, action, user_text, dry_run):
     return None
 
 
+async def llm_agent_chat(request: web.Request) -> web.Response:
+    """POST /api/llm/chat-agent — 两步 AI Agent 工具调用
+    
+    Body:
+    {
+        "message": "我今天有什么安排？",
+        "note_id": 123,          // 可选
+        "selected_text": "",     // 可选
+        "tools": null            // null=全部，["get_note_content"]=仅这些
+    }
+    """
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception:
+        return error_response("无效的JSON数据")
+
+    message = (data.get("message", "") or "").strip()
+    if not message:
+        return error_response("消息内容不能为空")
+
+    from .llm_service import llm_service
+    response = await llm_service.chat_with_agent(
+        message=message,
+        note_id=data.get("note_id"),
+        selected_text=data.get("selected_text", ""),
+        tools=data.get("tools"),  # None = 全部可用
+        db_instance=db,
+    )
+
+    if not response:
+        return error_response(llm_service.last_error_message or "AI 响应失败")
+
+    return json_response({"content": response})
+
+
 async def llm_breakdown(request: web.Request) -> web.Response:
     """POST /api/llm/breakdown - break down a task into subtasks."""
     try:
@@ -3105,6 +3145,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/llm/command", llm_command)
     app.router.add_post("/api/llm/breakdown", llm_breakdown)
     app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
+    app.router.add_post("/api/llm/chat-agent", llm_agent_chat)
     
     # AI Learning endpoints
     app.router.add_post("/api/ai/learn", ai_learn_from_history)

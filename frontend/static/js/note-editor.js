@@ -241,7 +241,7 @@
         if (!message) return;
 
         const utils = getUtils();
-        const { chatWithNote, showToast } = utils;
+        const { apiCall, showToast } = utils;
         const note = window.ScheduleAppCore?.state?.selectedNote;
         if (!note || !note.id) {
             showToast('请先选择笔记');
@@ -260,7 +260,15 @@
         _hideAIPrompt();
 
         try {
-            const response = await chatWithNote(note.id, '对以下笔记内容执行指令。\n指令：' + message + '\n\n直接输出修改后的完整内容，不要额外解释。');
+            const response = await apiCall('llm/chat-agent', {
+                method: 'POST',
+                body: JSON.stringify({
+                    message: '对以下笔记内容执行指令。\n指令：' + message + '\n\n直接输出修改后的完整内容，不要额外解释。',
+                    note_id: note.id,
+                    selected_text: '',
+                    tools: ['get_note_content'],  // /a 只允许笔记工具
+                })
+            });
 
             if (response && response.content) {
                 let aiText = response.content;
