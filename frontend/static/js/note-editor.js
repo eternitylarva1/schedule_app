@@ -844,37 +844,49 @@
         contentEl.addEventListener('input', _scheduleSnapshot);
         titleInput.addEventListener('input', _scheduleSnapshot);
 
-        // ── Core: /a command detection ────────────────────────────
-        let _slashTime = 0;
-        let _waitingForA = false;
-
+        // ── Core: /a command detection (input-based, works with any IME) ──
         contentEl.addEventListener('keydown', (e) => {
-            // If prompt is showing, handle Esc for it
-            if (_aiPromptEl) {
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    _hideAIPrompt();
-                    contentEl.focus();
-                }
-                return;
-            }
-
-            if (e.key === '/') {
-                _slashTime = Date.now();
-                _waitingForA = true;
-            } else if (e.key === 'a' && _waitingForA && Date.now() - _slashTime < 800) {
-                // /a detected! Prevent the characters from entering content
+            // Esc while prompt is showing: dismiss
+            if (_aiPromptEl && e.key === 'Escape') {
                 e.preventDefault();
-                _waitingForA = false;
+                _hideAIPrompt();
+                contentEl.focus();
+            }
+        });
 
-                // Get cursor position
-                const sel = window.getSelection();
-                _savedRange = sel?.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
-                const cursorRect = _savedRange?.getBoundingClientRect() || null;
+        contentEl.addEventListener('input', () => {
+            if (_aiPromptEl) return; // prompt already showing
 
-                _showAIPrompt(contentEl, cursorRect);
-            } else {
-                _waitingForA = false;
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return;
+            const range = sel.getRangeAt(0);
+            const node = range.startContainer;
+            const offset = range.startOffset;
+
+            // Check if text before cursor ends with "/a"
+            if (node.nodeType === Node.TEXT_NODE && offset >= 2) {
+                const text = node.textContent;
+                if (text.substring(offset - 2, offset) === '/a') {
+                    // Remove /a from content
+                    node.textContent = text.substring(0, offset - 2) + text.substring(offset);
+                    // Save the range (position where /a was)
+                    _savedRange = document.createRange();
+                    _savedRange.setStart(node, offset - 2);
+                    _savedRange.collapse(true);
+
+                    // Get cursor rect for floating prompt positioning
+                    const tempRange = document.createRange();
+                    tempRange.setStart(node, offset - 2);
+                    tempRange.collapse(true);
+                    const cursorRect = tempRange.getBoundingClientRect();
+
+                    // Restore cursor position
+                    sel.removeAllRanges();
+                    sel.addRange(_savedRange);
+
+                    _showAIPrompt(contentEl, cursorRect);
+                    return;
+                }
             }
         });
 
