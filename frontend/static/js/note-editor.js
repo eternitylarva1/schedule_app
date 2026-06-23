@@ -424,7 +424,7 @@
     let _lastAIMessage = '';  // for retry
     let _lastAINoteId = null; // for retry
 
-    function _showAIPrompt(contentEl, cursorRect) {
+    function _showAIPrompt(contentEl, cursorRect, initialValue) {
         _hideAIPrompt();
 
         const prompt = document.createElement('div');
@@ -439,6 +439,12 @@
         `;
         document.body.appendChild(prompt);
         _aiPromptEl = prompt;
+
+        // Pre-fill value for retry/edit
+        if (initialValue) {
+            const inp = prompt.querySelector('#aiPromptInput');
+            if (inp) inp.value = initialValue;
+        }
 
         // Position near cursor rect
         _positionPrompt(prompt, cursorRect);
@@ -652,18 +658,15 @@
                     showToast('已取消修改');
                 });
 
-                // ↗️ retry — re-send the same message
+                // ↗️ retry — edit & re-send
                 aiBlock.querySelector('[data-action="retry"]').addEventListener('click', () => {
-                    // Put block back to loading state
-                    aiBlock.dataset.state = '';
-                    aiBlock.innerHTML = `
-                        <div class="ai-inline-status">
-                            <span class="ai-inline-icon">🤖</span>
-                            <span class="ai-inline-text">重新生成中</span>
-                            <span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span>
-                        </div>`;
-                    // Re-call AI with same message
-                    _retryAIPrompt(contentEl);
+                    const savedMsg = _lastAIMessage;
+                    aiBlock.remove();
+                    contentEl.focus();
+                    // Prompt a pre-filled input so user can edit
+                    const sel = window.getSelection();
+                    const rect = sel?.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+                    _showAIPrompt(contentEl, rect, savedMsg);
                 });
 
                 // Push snapshot after AI
@@ -682,9 +685,12 @@
                         <button class="ai-btn ai-btn-retry" style="margin-left:8px;">↻ 重试</button>
                     </div>`;
                 aiBlock.querySelector('.ai-btn-retry').addEventListener('click', () => {
-                    aiBlock.dataset.state = '';
-                    aiBlock.innerHTML = '<div class="ai-inline-status"><span class="ai-inline-icon">🤖</span><span class="ai-inline-text">重新生成中</span><span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span></div>';
-                    _retryAIPrompt(contentEl);
+                    const savedMsg = _lastAIMessage;
+                    aiBlock.remove();
+                    contentEl.focus();
+                    const sel = window.getSelection();
+                    const rect = sel?.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+                    _showAIPrompt(contentEl, rect, savedMsg);
                 });
             }
         } catch (e) {
@@ -697,9 +703,12 @@
                         <button class="ai-btn ai-btn-retry" style="margin-left:8px;">↻ 重试</button>
                     </div>`;
                 aiBlock.querySelector('.ai-btn-retry').addEventListener('click', () => {
-                    aiBlock.dataset.state = '';
-                    aiBlock.innerHTML = '<div class="ai-inline-status"><span class="ai-inline-icon">🤖</span><span class="ai-inline-text">重新生成中</span><span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span></div>';
-                    _retryAIPrompt(contentEl);
+                    const savedMsg = _lastAIMessage;
+                    aiBlock.remove();
+                    contentEl.focus();
+                    const sel = window.getSelection();
+                    const rect = sel?.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+                    _showAIPrompt(contentEl, rect, savedMsg);
                 });
             } else {
                 showToast('AI 处理失败');
@@ -778,7 +787,13 @@
                             <span class="ai-inline-text">重新生成中</span>
                             <span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span>
                         </div>`;
-                    _retryAIPrompt(contentEl);
+                    // Show pre-filled prompt for editing
+                    const savedMsg = _lastAIMessage;
+                    aiBlock.remove();
+                    contentEl.focus();
+                    const sel = window.getSelection();
+                    const rect = sel?.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+                    _showAIPrompt(contentEl, rect, savedMsg);
                 });
             } else {
                 // API returned null — show error and keep block for retry
@@ -789,20 +804,23 @@
                         <button class="ai-btn ai-btn-retry" style="margin-left:8px;">↻ 重试</button>
                     </div>`;
                 aiBlock.querySelector('.ai-btn-retry').addEventListener('click', () => {
-                    aiBlock.dataset.state = '';
-                    aiBlock.innerHTML = '<div class="ai-inline-status"><span class="ai-inline-icon">🤖</span><span class="ai-inline-text">重新生成中</span><span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span></div>';
-                    _retryAIPrompt(contentEl);
+                    const savedMsg = _lastAIMessage;
+                    aiBlock.remove();
+                    contentEl.focus();
+                    const s = window.getSelection();
+                    const r = s?.rangeCount ? s.getRangeAt(0).getBoundingClientRect() : null;
+                    _showAIPrompt(contentEl, r, savedMsg);
                 });
             }
         } catch (e) {
             console.error('AI retry failed:', e);
             if (aiBlock.parentNode) {
-                aiBlock.innerHTML = '<div class="ai-inline-result" style="padding:8px 0;color:var(--text-muted);font-size:13px;">AI 请求失败 <button class="ai-btn ai-btn-retry" style="margin-left:8px;">↻ 重试</button></div>';
-                aiBlock.querySelector('.ai-btn-retry').addEventListener('click', () => {
-                    aiBlock.dataset.state = '';
-                    aiBlock.innerHTML = '<div class="ai-inline-status"><span class="ai-inline-icon">🤖</span><span class="ai-inline-text">重新生成中</span><span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span></div>';
-                    _retryAIPrompt(contentEl);
-                });
+                const savedMsg = _lastAIMessage;
+                aiBlock.remove();
+                contentEl.focus();
+                const s = window.getSelection();
+                const r = s?.rangeCount ? s.getRangeAt(0).getBoundingClientRect() : null;
+                _showAIPrompt(contentEl, r, savedMsg);
             }
         }
     }
