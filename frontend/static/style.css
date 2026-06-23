@@ -7418,198 +7418,200 @@ textarea {
     letter-spacing: 0.5px;
 }
 
-/* ========== Bars Row ========== */
-.timeline-bars-row {
+/* ========== Timeline Rows Container (Plan A) ========== */
+.timeline-rows-container {
+    padding: var(--space-sm) var(--space-md);
+}
+
+/* ========== Timeline Header Row with Months ========== */
+.timeline-header-row {
     position: relative;
+    margin-bottom: var(--space-xs);
+    padding-bottom: var(--space-xs);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.timeline-months-row {
     display: flex;
-    flex-direction: column;
-    padding: var(--space-sm) 0;
 }
 
-/* ========== Individual Goal Bar ========== */
-.timeline-bar {
-    position: absolute;
-    min-width: 60px;
-    height: 36px; /* Default for parent bars */
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    overflow: visible;
-    display: flex;
-    align-items: center;
+.tl-month-cell {
+    flex: 1;
+    text-align: center;
+    min-width: 0;
 }
 
-.timeline-bar:hover {
-    transform: translateY(-2px);
-    z-index: 10;
-    filter: brightness(1.1);
-}
-
-.timeline-bar:active {
-    transform: scale(0.98);
-}
-
-/* Parent bar inner - prominent styling */
-.timeline-bar:not(.subtask) .timeline-bar-inner {
-    background: linear-gradient(135deg,
-        var(--bar-color, var(--accent-primary)) 0%,
-        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 85%, black) 100%
-    );
-    box-shadow: 0 2px 12px color-mix(in srgb, var(--bar-color, var(--accent-primary)) 40%, transparent),
-                0 2px 8px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255,255,255,0.3);
-}
-
-.timeline-bar:not(.subtask):hover .timeline-bar-inner {
-    box-shadow: 0 4px 20px color-mix(in srgb, var(--bar-color, var(--accent-primary)) 50%, transparent),
-                0 4px 16px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255,255,255,0.3);
-}
-
-.timeline-bar:not(.subtask) .timeline-bar-title {
-    font-size: 12px;
-    font-weight: 600;
-}
-
-/* Subtask bar - subordinate styling */
-.timeline-bar.subtask {
-    height: 26px;
-    padding-left: 20px;
-    overflow: visible;
-}
-
-/* Tree connector for subtasks - vertical line */
-.timeline-bar.subtask::before {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: -4px;
-    bottom: 50%;
-    width: 2px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 1px;
-}
-
-/* Tree connector for subtasks - horizontal line to bar */
-.timeline-bar.subtask::after {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    width: 10px;
-    height: 2px;
-    background: rgba(255,255,255,0.15);
-    border-radius: 1px;
-    transform: translateY(-50%);
-}
-
-.timeline-bar.subtask .timeline-bar-inner {
-    opacity: 0.65;
-    background: linear-gradient(135deg,
-        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 55%, var(--bg-card)) 0%,
-        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 40%, var(--bg-card)) 100%
-    ) !important;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25),
-                inset 0 1px 0 rgba(255,255,255,0.15);
-}
-
-.timeline-bar.subtask:hover .timeline-bar-inner {
-    opacity: 0.8;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255,255,255,0.2);
-}
-
-.timeline-bar.subtask .timeline-bar-title {
-    font-size: 11px;
+.tl-month-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
     font-weight: 500;
 }
 
-.timeline-bar-inner {
+/* Today marker in header */
+.tl-today-marker {
     position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 0 8px;
+    top: 0;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #8b5cf6;
+    transform: translateX(-50%);
+}
+
+.tl-today-label {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: #8b5cf6;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ========== Timeline Rows Body ========== */
+.timeline-rows-body {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ========== Individual Goal Row ========== */
+.tl-row {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-subtle);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.tl-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.tl-row:active {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tl-row.done {
+    opacity: 0.55;
+}
+
+.tl-row.cancelled {
+    opacity: 0.45;
+}
+
+/* Subtask row - indented */
+.tl-row-sub {
+    padding-left: 24px;
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.tl-row-sub::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border-subtle);
+}
+
+/* Row head - title and badge */
+.tl-row-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    overflow: hidden;
+    gap: var(--space-sm);
+    margin-bottom: 6px;
 }
 
-.timeline-bar:hover .timeline-bar-inner {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.25);
-}
-
-.timeline-bar-title {
-    font-size: 11px;
-    color: white;
+.tl-row-title {
+    font-size: 13px;
+    color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-weight: 500;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
     flex: 1;
     min-width: 0;
 }
 
-/* Date text inside bar */
-.timeline-bar-dates-inline {
-    font-size: 9px;
-    color: rgba(255,255,255,0.85);
+.tl-row.done .tl-row-title {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+}
+
+/* Status badge */
+.tl-status-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: var(--radius-full);
     white-space: nowrap;
     flex-shrink: 0;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
-/* Date text outside bar (for narrow bars) */
-.timeline-bar-dates {
-    position: absolute;
-    left: calc(100% + 6px);
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 9px;
+.tl-status-badge.done {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.tl-status-badge.cancelled {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+}
+
+/* Row body - dates and bar */
+.tl-row-body {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.tl-row-dates {
+    font-size: 11px;
     color: var(--text-muted);
-    background: var(--bg-secondary);
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
     white-space: nowrap;
-    border: 1px solid var(--border-color);
-    white-space: nowrap;
-    z-index: 5;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    min-width: 85px;
+    flex-shrink: 0;
 }
 
-.timeline-bar.dates-outside {
-    overflow: visible;
+/* Gantt bar wrapper */
+.tl-row-bar-wrap {
+    flex: 1;
+    height: 10px;
+    background: var(--bg-elevated);
+    border-radius: 5px;
+    position: relative;
+    overflow: hidden;
+    min-width: 40px;
 }
 
-.timeline-bar.done {
-    opacity: 0.55;
-}
-
-.timeline-bar.done .timeline-bar-inner {
-    background: linear-gradient(135deg, 
-        var(--bar-color, var(--accent-primary)) 0%, 
+/* Gantt bar */
+.tl-row-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 5px;
+    min-width: 12px;
+    background: linear-gradient(135deg,
+        var(--bar-color, var(--accent-primary)) 0%,
         color-mix(in srgb, var(--bar-color, var(--accent-primary)) 70%, black) 100%
-    ) !important;
+    );
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-.timeline-bar.done .timeline-bar-title {
-    text-decoration: line-through;
+.tl-row-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent);
+    border-radius: inherit;
 }
 
-.timeline-bar.cancelled {
-    opacity: 0.4;
-}
-
-.timeline-bar.cancelled .timeline-bar-inner {
-    background: repeating-linear-gradient(
-        45deg,
-        var(--bar-color, var(--accent-primary)),
-        var(--bar-color, var(--accent-primary)) 5px,
-        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 80%, black) 5px,
-        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 80%, black) 10px
-    ) !important;
+.tl-row-sub .tl-row-bar {
+    opacity: 0.7;
+    height: 8px;
 }
 
 /* ========== Empty State ========== */

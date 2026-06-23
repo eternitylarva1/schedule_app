@@ -1121,28 +1121,30 @@ async function openGoalDiscussModal(goalId = null) {
         return 80;
     }
 
-    function calculateGoalBarPosition(goal, minDate, monthWidth, horizon) {
-        const startDate = parseDate(goal.start_date);
-        const endDate = parseDate(goal.end_date);
-        
-        if (!startDate && !endDate) {
-            return null; // Goals without dates are filtered out upstream
-        }
+    /**
+     * Calculate bar position using percentage-based positioning
+     * @param {Date} startDate - Goal start date
+     * @param {Date} endDate - Goal end date
+     * @param {Date} rangeStart - Timeline range start
+     * @param {Date} rangeEnd - Timeline range end
+     * @returns {{left: string, width: string}} - Percentages for left and width
+     */
+    function calcBarPercent(startDate, endDate, rangeStart, rangeEnd) {
+        const msPerDay = 86400000;
+        const totalDays = (rangeEnd - rangeStart) / msPerDay;
         
         const effectiveStart = startDate || endDate;
         const effectiveEnd = endDate || startDate;
         
-        // Use day-level precision for accurate bar width
-        const msPerDay = 86400000;
-        const daysPerMonth = 30.44; // average days per month
+        const leftDays = (effectiveStart - rangeStart) / msPerDay;
+        const widthDays = (effectiveEnd - effectiveStart) / msPerDay + 1; // inclusive
         
-        const startDayOffset = (effectiveStart - minDate) / msPerDay;
-        const endDayOffset = (effectiveEnd - minDate) / msPerDay;
-        const barSpanDays = endDayOffset - startDayOffset + 1; // inclusive span
+        const leftPct = (leftDays / totalDays * 100).toFixed(1);
+        const widthPct = Math.max(widthDays / totalDays * 100, 3).toFixed(1);
         
         return {
-            left: (startDayOffset / daysPerMonth) * monthWidth,
-            width: Math.max((barSpanDays / daysPerMonth) * monthWidth, monthWidth * 0.25)
+            left: leftPct + '%',
+            width: widthPct + '%'
         };
     }
 
@@ -1313,118 +1315,121 @@ async function openGoalDiscussModal(goalId = null) {
                         </div>
                     `;
                 } else {
-                    // Render timeline with today line inside scrollable content
+                    // Render row-based timeline (Plan A: Label First + Abbreviated Gantt)
                     html += `
-                        <div class="timeline-scroll-container">
-                            <div class="timeline-inner" style="width: ${totalWidth}px; min-width: 100%;">
-                                <div class="timeline-header-row">
-                                    <div class="timeline-months-row">
-                                        ${months.map(m => `
-                                            <div class="timeline-month-cell" style="width: ${monthWidth}px;">
-                                                <span class="timeline-month-label">${m.getFullYear()}/${m.getMonth() + 1}</span>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                                <div class="timeline-body-row">
-                                    <div class="timeline-grid-row" style="width: ${totalWidth}px;">
-                                        ${months.map((m, i) => `
-                                            <div class="timeline-grid-cell" style="width: ${monthWidth}px; left: ${i * monthWidth}px;"></div>
-                                        `).join('')}
-                                    </div>
-                                    ${showTodayLine ? `
-                                        <div class="timeline-today-vline" style="left: ${todayLineLeft}px;">
-                                            <span class="timeline-today-tag">今天</span>
+                        <div class="timeline-rows-container">
+                            <div class="timeline-header-row">
+                                <div class="timeline-months-row">
+                                    ${months.map(m => `
+                                        <div class="tl-month-cell">
+                                            <span class="tl-month-label">${m.getFullYear()}/${m.getMonth() + 1}</span>
                                         </div>
-                                    ` : ''}
-                                    <div class="timeline-bars-row">
+                                    `).join('')}
+                                </div>
+                                ${showTodayLine ? `
+                                    <div class="tl-today-marker" style="left: ${((todayOffset + 0.5) / months.length * 100).toFixed(1)}%">
+                                        <span class="tl-today-label">今天</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="timeline-rows-body">
                     `;
                     
-                    // Calculate bar positions with vertical stacking
-                    let barY = 0;
-                    const barHeight = 36;
-                    const subtaskBarHeight = 26;
-                    const barGap = 6;
-                    
-                    // Group goals by parent to handle subtasks properly
+                    // Process goals with subtasks
                     const processedIds = new Set();
-                    const barsHtml = [];
                     
                     goalsWithDates.forEach((goal, index) => {
                         if (processedIds.has(goal.id)) return;
                         processedIds.add(goal.id);
                         
-                        const pos = calculateGoalBarPosition(goal, horizonMinDate, monthWidth, horizon);
-                        if (!pos) return;
-                        
                         const isDone = goal.status === 'done';
                         const isCancelled = goal.status === 'cancelled';
                         const barColor = goal.color || GOAL_COLORS[index % GOAL_COLORS.length];
                         const isSubtask = !!goal.parentTitle;
-                        const currentBarHeight = isSubtask ? subtaskBarHeight : barHeight;
-                        
-                        const dateRangeText = formatGoalDate(goal.start_date, goal.end_date);
-                        const showTitle = pos.width >= 35;
-                        const showDatesOutside = pos.width < 60;
                         
                         // Find subtasks of this goal
                         const subtasks = goalsWithDates.filter(g => g.parentTitle === goal.title && !processedIds.has(g.id));
                         subtasks.forEach(st => processedIds.add(st.id));
                         
-                        barsHtml.push(`
-                            <div class="timeline-bar ${isDone ? 'done' : ''} ${isCancelled ? 'cancelled' : ''} ${isSubtask ? 'subtask' : ''} ${showDatesOutside ? 'dates-outside' : ''}"
-                                 style="left: ${pos.left}px; width: ${pos.width}px; top: ${barY}px; height: ${currentBarHeight}px; --bar-color: ${barColor};"
-                                 data-goal-id="${goal.id}">
-                                <div class="timeline-bar-inner">
-                                    ${showTitle ? `<span class="timeline-bar-title">${isSubtask ? '└ ' : ''}${escapeHtml(goal.title)}</span>` : ''}
-                                    ${!showDatesOutside && dateRangeText ? `<span class="timeline-bar-dates-inline">${dateRangeText}</span>` : ''}
-                                </div>
-                                ${showDatesOutside ? `<div class="timeline-bar-dates">${dateRangeText}</div>` : ''}
-                            </div>
-                        `);
+                        // Calculate bar percentages
+                        const barPos = calcBarPercent(
+                            parseDate(goal.start_date),
+                            parseDate(goal.end_date),
+                            horizonMinDate,
+                            horizonMaxDate
+                        );
                         
-                        // Add subtask bars
-                        let subtaskY = barY + currentBarHeight + barGap;
-                        subtasks.forEach((st, stIndex) => {
-                            const stPos = calculateGoalBarPosition(st, horizonMinDate, monthWidth, horizon);
-                            if (!stPos) return;
-                            
+                        // Format date range for display
+                        const startDt = parseDate(goal.start_date);
+                        const endDt = parseDate(goal.end_date);
+                        const dateDisplay = startDt && endDt
+                            ? `${String(startDt.getMonth() + 1).padStart(2, '0')}/${String(startDt.getDate()).padStart(2, '0')} — ${String(endDt.getMonth() + 1).padStart(2, '0')}/${String(endDt.getDate()).padStart(2, '0')}`
+                            : startDt
+                                ? `${String(startDt.getMonth() + 1).padStart(2, '0')}/${String(startDt.getDate()).padStart(2, '0')}`
+                                : '未设日期';
+                        
+                        // Status badge
+                        const statusBadge = isDone ? '<span class="tl-status-badge done">已完成</span>' :
+                                           isCancelled ? '<span class="tl-status-badge cancelled">已取消</span>' : '';
+                        
+                        // Render parent goal row
+                        html += `
+                            <div class="tl-row ${isSubtask ? 'tl-row-sub' : ''} ${isDone ? 'done' : ''} ${isCancelled ? 'cancelled' : ''}"
+                                 data-goal-id="${goal.id}">
+                                <div class="tl-row-head">
+                                    <span class="tl-row-title">${escapeHtml(goal.title)}</span>
+                                    ${statusBadge}
+                                </div>
+                                <div class="tl-row-body">
+                                    <span class="tl-row-dates">${dateDisplay}</span>
+                                    <div class="tl-row-bar-wrap">
+                                        <div class="tl-row-bar" style="left: ${barPos.left}; width: ${barPos.width}; --bar-color: ${barColor};"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Render subtask rows
+                        subtasks.forEach(st => {
                             const stIsDone = st.status === 'done';
                             const stIsCancelled = st.status === 'cancelled';
-                            const stBarColor = st.color || barColor; // Inherit parent color
-                            const stDateRangeText = formatGoalDate(st.start_date, st.end_date);
-                            const stShowTitle = stPos.width >= 35;
-                            const stShowDatesOutside = stPos.width < 60;
+                            const stBarColor = st.color || barColor;
                             
-                            barsHtml.push(`
-                                <div class="timeline-bar subtask ${stIsDone ? 'done' : ''} ${stIsCancelled ? 'cancelled' : ''} ${stShowDatesOutside ? 'dates-outside' : ''}"
-                                     style="left: ${stPos.left}px; width: ${stPos.width}px; top: ${subtaskY}px; height: ${subtaskBarHeight}px; --bar-color: ${stBarColor};"
+                            const stBarPos = calcBarPercent(
+                                parseDate(st.start_date),
+                                parseDate(st.end_date),
+                                horizonMinDate,
+                                horizonMaxDate
+                            );
+                            
+                            const stStartDt = parseDate(st.start_date);
+                            const stEndDt = parseDate(st.end_date);
+                            const stDateDisplay = stStartDt && stEndDt
+                                ? `${String(stStartDt.getMonth() + 1).padStart(2, '0')}/${String(stStartDt.getDate()).padStart(2, '0')} — ${String(stEndDt.getMonth() + 1).padStart(2, '0')}/${String(stEndDt.getDate()).padStart(2, '0')}`
+                                : stStartDt
+                                    ? `${String(stStartDt.getMonth() + 1).padStart(2, '0')}/${String(stStartDt.getDate()).padStart(2, '0')}`
+                                    : '未设日期';
+                            
+                            html += `
+                                <div class="tl-row tl-row-sub ${stIsDone ? 'done' : ''} ${stIsCancelled ? 'cancelled' : ''}"
                                      data-goal-id="${st.id}">
-                                    <div class="timeline-bar-inner">
-                                        ${stShowTitle ? `<span class="timeline-bar-title">└ ${escapeHtml(st.title)}</span>` : ''}
-                                        ${!stShowDatesOutside && stDateRangeText ? `<span class="timeline-bar-dates-inline">${stDateRangeText}</span>` : ''}
+                                    <div class="tl-row-head">
+                                        <span class="tl-row-title">└ ${escapeHtml(st.title)}</span>
                                     </div>
-                                    ${stShowDatesOutside ? `<div class="timeline-bar-dates">${stDateRangeText}</div>` : ''}
+                                    <div class="tl-row-body">
+                                        <span class="tl-row-dates">${stDateDisplay}</span>
+                                        <div class="tl-row-bar-wrap">
+                                            <div class="tl-row-bar" style="left: ${stBarPos.left}; width: ${stBarPos.width}; --bar-color: ${stBarColor};"></div>
+                                        </div>
+                                    </div>
                                 </div>
-                            `);
-                            
-                            subtaskY += subtaskBarHeight + barGap;
+                            `;
                         });
-                        
-                        // Next bar starts after subtasks or one bar height
-                        barY = subtasks.length > 0 ? subtaskY : barY + currentBarHeight + barGap;
                     });
                     
-                    // Calculate total bars row height
-                    const barsRowHeight = Math.max(barY + 20, 80); // At least 80px
-                    
                     html += `
-                                    <div class="timeline-bars-row" style="min-height: ${barsRowHeight}px;">
-                                        ${barsHtml.join('')}
-                                    </div><!-- end timeline-bars-row -->
-                                </div><!-- end timeline-body-row -->
-                            </div><!-- end timeline-inner -->
-                        </div><!-- end timeline-scroll-container -->
+                            </div><!-- end timeline-rows-body -->
+                        </div><!-- end timeline-rows-container -->
                     `;
                 }
                 
@@ -1436,10 +1441,10 @@ async function openGoalDiscussModal(goalId = null) {
             
             listEl.innerHTML = html;
             
-            // Add click handlers for goal bars
-            listEl.querySelectorAll('.timeline-bar').forEach(bar => {
-                bar.addEventListener('click', (e) => {
-                    const goalId = parseInt(bar.dataset.goalId);
+            // Add click handlers for goal rows
+            listEl.querySelectorAll('.tl-row').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    const goalId = parseInt(row.dataset.goalId);
                     if (isNaN(goalId)) return;
                     
                     let goal = null;
@@ -1495,37 +1500,19 @@ async function openGoalDiscussModal(goalId = null) {
                 });
             });
             
-            // Add "Back to Today" button handler
+            // Add "Back to Today" button handler - scroll header row to show today marker
             listEl.querySelectorAll('.timeline-today-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    const horizon = btn.dataset.horizon;
-                    const scrollTo = parseInt(btn.dataset.scrollTo);
-                    const container = listEl.querySelector(`#timeline-content-${horizon}`);
-                    const scrollWrapper = container?.closest('.timeline-scroll-container');
-                    if (scrollWrapper && !isNaN(scrollTo)) {
-                        // Scroll to center the today line
-                        const containerWidth = scrollWrapper.clientWidth;
-                        const scrollLeft = Math.max(0, scrollTo - containerWidth / 2);
-                        scrollWrapper.scrollTo({
-                            left: scrollLeft,
+                    const container = listEl.querySelector('.timeline-rows-container');
+                    const todayMarker = container?.querySelector('.tl-today-marker');
+                    if (todayMarker) {
+                        const markerLeft = parseFloat(todayMarker.style.left);
+                        container.scrollTo({
+                            left: (markerLeft / 100) * container.scrollWidth - container.clientWidth / 2,
                             behavior: 'smooth'
                         });
                     }
                 });
-            });
-            
-            // Add scroll hint visibility toggle
-            listEl.querySelectorAll('.timeline-scroll-container').forEach(container => {
-                const updateScrollHint = () => {
-                    const hasOverflow = container.scrollWidth > container.clientWidth + 10;
-                    container.classList.toggle('can-scroll', hasOverflow);
-                };
-                updateScrollHint();
-                container.addEventListener('scroll', updateScrollHint, { passive: true });
-                // Also check on resize
-                if (window.ResizeObserver) {
-                    new ResizeObserver(updateScrollHint).observe(container);
-                }
             });
             
         } catch (error) {
