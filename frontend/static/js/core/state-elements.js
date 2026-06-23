@@ -47,6 +47,7 @@
     breakdownHorizon: 'short',
     goals: [],
     goalsHorizon: 'short',
+    goalsViewMode: 'list',  // 'list' | 'timeline'
     expandedGoalIds: new Set(),
     enableDragResize: false,
     qqReminderEnabled: false,

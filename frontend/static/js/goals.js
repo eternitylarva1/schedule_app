@@ -215,6 +215,9 @@
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'long' ? 'active' : ''}" data-horizon="long">长期</button>
                 </div>
                 <div class="goals-toolbar-right">
+                    <button class="goals-view-toggle-btn ${state.goalsViewMode === 'timeline' ? 'active' : ''}" id="goalsViewToggleBtn">
+                        ${state.goalsViewMode === 'timeline' ? '📋 列表' : '📊 总览'}
+                    </button>
                     <button class="goals-add-btn" id="goalsAddBtn">+ 添加目标</button>
                     <button class="goals-discuss-btn" id="goalsDiscussBtn">💬 AI规划</button>
                 </div>
@@ -229,7 +232,11 @@
                 state.goalsHorizon = horizon;
                 state.expandedGoalIds.clear();
                 renderGoalsViewSkeleton();
-                await renderGoalsList();
+                if (state.goalsViewMode === 'list') {
+                    await renderGoalsList();
+                } else {
+                    await renderTimelineView();
+                }
             });
         });
         
@@ -239,6 +246,16 @@
         
         container.querySelector('#goalsDiscussBtn').addEventListener('click', () => {
             openGoalDiscussModal();
+        });
+        
+        container.querySelector('#goalsViewToggleBtn').addEventListener('click', async () => {
+            state.goalsViewMode = state.goalsViewMode === 'list' ? 'timeline' : 'list';
+            renderGoalsViewSkeleton();
+            if (state.goalsViewMode === 'list') {
+                await renderGoalsList();
+            } else {
+                await renderTimelineView();
+            }
         });
     }
     
@@ -818,8 +835,13 @@
     }
     
     async function renderGoalsView() {
+        const state = getState();
         renderGoalsViewSkeleton();
-        await renderGoalsList();
+        if (state.goalsViewMode === 'timeline') {
+            await renderTimelineView();
+        } else {
+            await renderGoalsList();
+        }
     }
 
     function renderSelectionBar(type) {
@@ -1014,11 +1036,395 @@ async function openGoalDiscussModal(goalId = null) {
         });
     }
 
+    // ============ Timeline View (Gantt-style) ============
+
+    function parseDate(d) {
+        if (!d) return null;
+        const date = new Date(d);
+        return isNaN(date.getTime()) ? null : date;
+    }
+
+    function formatGoalDate(start, end) {
+        const fmt = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            if (isNaN(dt.getTime())) return '';
+            return `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`;
+        };
+        const s = fmt(start), e = fmt(end);
+        if (s && e) return s + '-' + e;
+        if (s) return s;
+        if (e) return '~' + e;
+        return '';
+    }
+
+    function horizonGroupLabel(horizon) {
+        const labels = { short: '📅 短期目标', semester: '📆 学期目标', long: '🎯 长期目标' };
+        return labels[horizon] || '目标';
+    }
+
+    function getTimelineRange(goals) {
+        let minDate = null;
+        let maxDate = null;
+        
+        function processGoal(g) {
+            if (g.start_date) {
+                const d = parseDate(g.start_date);
+                if (d && (!minDate || d < minDate)) minDate = d;
+                if (d && (!maxDate || d > maxDate)) maxDate = d;
+            }
+            if (g.end_date) {
+                const d = parseDate(g.end_date);
+                if (d && (!minDate || d < minDate)) minDate = d;
+                if (d && (!maxDate || d > maxDate)) maxDate = d;
+            }
+            if (g.subtasks) {
+                g.subtasks.forEach(st => processGoal(st));
+            }
+        }
+        
+        goals.forEach(g => processGoal(g));
+        
+        // Default range if no dates
+        if (!minDate || !maxDate) {
+            const today = new Date();
+            minDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            maxDate = new Date(today.getFullYear(), today.getMonth() + 6, 0);
+        }
+        
+        return { minDate, maxDate };
+    }
+
+    function generateTimelineMonths(minDate, maxDate, horizon) {
+        const months = [];
+        const cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+        const end = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 1);
+        
+        while (cur < end) {
+            months.push(new Date(cur));
+            cur.setMonth(cur.getMonth() + 1);
+        }
+        
+        return months;
+    }
+
+    function getMonthWidth() {
+        // Mobile-first: ~80px per month for short/semester, ~60px for long
+        return 80;
+    }
+
+    function calculateGoalBarPosition(goal, minDate, monthWidth, horizon) {
+        const startDate = parseDate(goal.start_date);
+        const endDate = parseDate(goal.end_date);
+        
+        if (!startDate && !endDate) {
+            return null; // No date, will be shown in "no date" section
+        }
+        
+        const effectiveStart = startDate || endDate;
+        const effectiveEnd = endDate || startDate;
+        
+        const totalMonths = getMonthDiff(minDate, effectiveEnd) + 1;
+        const startOffset = getMonthDiff(minDate, effectiveStart);
+        
+        return {
+            left: startOffset * monthWidth,
+            width: Math.max(totalMonths * monthWidth, monthWidth * 0.5) // Min width 0.5 month
+        };
+    }
+
+    function getMonthDiff(d1, d2) {
+        let months = (d2.getFullYear() - d1.getFullYear()) * 12;
+        months += d2.getMonth() - d1.getMonth();
+        return Math.max(0, months);
+    }
+
+    function isGoalInMonth(goal, monthDate) {
+        const startDate = parseDate(goal.start_date);
+        const endDate = parseDate(goal.end_date);
+        
+        if (!startDate && !endDate) return false;
+        
+        const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+        
+        const goalStart = startDate || endDate;
+        const goalEnd = endDate || startDate;
+        
+        return goalStart <= monthEnd && goalEnd >= monthStart;
+    }
+
+    function flattenGoalsWithSubtasks(goals, parentTitle = '') {
+        const result = [];
+        
+        function process(g, pTitle = '') {
+            const item = { ...g, parentTitle: pTitle };
+            result.push(item);
+            if (g.subtasks && g.subtasks.length > 0) {
+                g.subtasks.forEach(st => process(st, g.title));
+            }
+        }
+        
+        goals.forEach(g => process(g));
+        return result;
+    }
+
+    async function renderTimelineView() {
+        const state = getState();
+        const elements = getElements();
+        const utils = getUtils();
+        const { fetchGoals, showToast } = utils;
+        
+        let listEl = elements.goalsContainer.querySelector('.goals-list');
+        if (!listEl) return;
+        
+        // Clone+replace to drop accumulated event listeners
+        const listParent = listEl.parentNode;
+        const freshListEl = listEl.cloneNode(false);
+        listParent.replaceChild(freshListEl, listEl);
+        listEl = freshListEl;
+        
+        listEl.innerHTML = '<div class="goals-timeline-loading">加载中...</div>';
+        
+        try {
+            // Fetch all goals from all horizons
+            const [shortGoals, semesterGoals, longGoals] = await Promise.all([
+                fetchGoals('short'),
+                fetchGoals('semester'),
+                fetchGoals('long')
+            ]);
+            
+            const allGoalsByHorizon = {
+                short: shortGoals || [],
+                semester: semesterGoals || [],
+                long: longGoals || []
+            };
+            
+            // Get today's date for "today" indicator
+            const today = new Date();
+            
+            // Determine timeline range across all goals with dates
+            let globalMinDate = null;
+            let globalMaxDate = null;
+            
+            Object.values(allGoalsByHorizon).forEach(goals => {
+                goals.forEach(g => {
+                    if (g.start_date) {
+                        const d = parseDate(g.start_date);
+                        if (d && (!globalMinDate || d < globalMinDate)) globalMinDate = d;
+                        if (d && (!globalMaxDate || d > globalMaxDate)) globalMaxDate = d;
+                    }
+                    if (g.end_date) {
+                        const d = parseDate(g.end_date);
+                        if (d && (!globalMinDate || d < globalMinDate)) globalMinDate = d;
+                        if (d && (!globalMaxDate || d > globalMaxDate)) globalMaxDate = d;
+                    }
+                });
+            });
+            
+            // Default range
+            if (!globalMinDate || !globalMaxDate) {
+                globalMinDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                globalMaxDate = new Date(today.getFullYear(), today.getMonth() + 6, 0);
+            }
+            
+            // Add padding to range
+            globalMinDate = new Date(globalMinDate.getFullYear(), globalMinDate.getMonth() - 1, 1);
+            globalMaxDate = new Date(globalMaxDate.getFullYear(), globalMaxDate.getMonth() + 2, 0);
+            
+            // Render each horizon group
+            let html = '';
+            
+            ['short', 'semester', 'long'].forEach(horizon => {
+                const goals = allGoalsByHorizon[horizon];
+                const flatGoals = flattenGoalsWithSubtasks(goals);
+                
+                // Separate goals with dates and without dates
+                const goalsWithDates = flatGoals.filter(g => g.start_date || g.end_date);
+                const goalsWithoutDates = flatGoals.filter(g => !g.start_date && !g.end_date);
+                
+                // Calculate horizon-specific timeline range
+                const { minDate, maxDate } = getTimelineRange(goalsWithDates.length > 0 ? goalsWithDates : [{}]);
+                const horizonMinDate = goalsWithDates.length > 0 ? minDate : globalMinDate;
+                const horizonMaxDate = goalsWithDates.length > 0 ? maxDate : globalMaxDate;
+                
+                const monthWidth = horizon === 'long' ? 60 : 80;
+                const months = generateTimelineMonths(horizonMinDate, horizonMaxDate, horizon);
+                
+                // Calculate total width
+                const totalWidth = months.length * monthWidth;
+                
+                // Calculate today line position
+                const todayOffset = getMonthDiff(horizonMinDate, today);
+                const todayLineLeft = todayOffset * monthWidth + monthWidth / 2;
+                const showTodayLine = today >= horizonMinDate && today <= horizonMaxDate;
+                
+                html += `
+                    <div class="timeline-group" data-horizon="${horizon}">
+                        <div class="timeline-group-header">
+                            <span class="timeline-group-title">${horizonGroupLabel(horizon)}</span>
+                            <button class="timeline-group-toggle active" data-horizon="${horizon}">▼</button>
+                        </div>
+                        <div class="timeline-group-content" id="timeline-content-${horizon}">
+                `;
+                
+                if (goals.length === 0) {
+                    html += `<div class="timeline-empty">暂无${horizon === 'short' ? '短期' : horizon === 'semester' ? '学期' : '长期'}目标</div>`;
+                } else {
+                    // Render timeline header (months)
+                    html += `
+                        <div class="timeline-header" style="width: ${totalWidth}px; min-width: 100%;">
+                            <div class="timeline-months">
+                                ${months.map(m => `
+                                    <div class="timeline-month" style="width: ${monthWidth}px;">
+                                        <span class="timeline-month-label">${m.getFullYear()}/${m.getMonth() + 1}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="timeline-grid" style="width: ${totalWidth}px; min-width: 100%;">
+                                ${months.map((m, i) => `
+                                    <div class="timeline-grid-cell" style="width: ${monthWidth}px; left: ${i * monthWidth}px;"></div>
+                                `).join('')}
+                            </div>
+                    `;
+                    
+                    // Today indicator line
+                    if (showTodayLine) {
+                        html += `
+                            <div class="timeline-today-line" style="left: ${todayLineLeft}px;">
+                                <span class="timeline-today-label">今天</span>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `</div>`; // End timeline-header
+                    
+                    // Render goal bars
+                    html += `<div class="timeline-bars" style="width: ${totalWidth}px; min-width: 100%;">`;
+                    
+                    goalsWithDates.forEach((goal, index) => {
+                        const pos = calculateGoalBarPosition(goal, horizonMinDate, monthWidth, horizon);
+                        if (!pos) return;
+                        
+                        const isDone = goal.status === 'done';
+                        const isCancelled = goal.status === 'cancelled';
+                        const barColor = goal.color || GOAL_COLORS[index % GOAL_COLORS.length];
+                        
+                        const titleText = goal.parentTitle ? `${goal.parentTitle} → ${goal.title}` : goal.title;
+                        
+                        html += `
+                            <div class="timeline-bar ${isDone ? 'done' : ''} ${isCancelled ? 'cancelled' : ''}"
+                                 style="left: ${pos.left}px; width: ${pos.width}px; background-color: ${barColor};"
+                                 data-goal-id="${goal.id}"
+                                 title="${escapeHtml(titleText)}">
+                                <span class="timeline-bar-title">${escapeHtml(goal.title)}</span>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `</div>`; // End timeline-bars
+                    
+                    // Goals without dates section
+                    if (goalsWithoutDates.length > 0) {
+                        html += `
+                            <div class="timeline-no-date-section">
+                                <div class="timeline-no-date-label">📋 无日期目标</div>
+                                <div class="timeline-no-date-list">
+                                    ${goalsWithoutDates.map(g => `
+                                        <div class="timeline-no-date-item" data-goal-id="${g.id}">
+                                            <span class="timeline-no-date-color" style="background: ${g.color || GOAL_COLORS[0]}"></span>
+                                            <span class="timeline-no-date-title">${escapeHtml(g.parentTitle ? g.parentTitle + ' → ' : '')}${escapeHtml(g.title)}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                html += `
+                        </div><!-- end timeline-group-content -->
+                    </div><!-- end timeline-group -->
+                `;
+            });
+            
+            listEl.innerHTML = html;
+            
+            // Add click handlers for goal bars
+            listEl.querySelectorAll('.timeline-bar').forEach(bar => {
+                bar.addEventListener('click', (e) => {
+                    const goalId = parseInt(bar.dataset.goalId);
+                    if (isNaN(goalId)) return;
+                    
+                    // Find the goal in our data
+                    let goal = null;
+                    Object.values(allGoalsByHorizon).forEach(horizonGoals => {
+                        if (goal) return;
+                        function findGoal(goals) {
+                            for (const g of goals) {
+                                if (g.id === goalId) { goal = g; return; }
+                                if (g.subtasks) findGoal(g.subtasks);
+                            }
+                        }
+                        findGoal(horizonGoals);
+                    });
+                    
+                    if (goal) {
+                        openGoalEditModal(goal);
+                    }
+                });
+            });
+            
+            // Add click handlers for no-date items
+            listEl.querySelectorAll('.timeline-no-date-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const goalId = parseInt(item.dataset.goalId);
+                    if (isNaN(goalId)) return;
+                    
+                    let goal = null;
+                    Object.values(allGoalsByHorizon).forEach(horizonGoals => {
+                        if (goal) return;
+                        function findGoal(goals) {
+                            for (const g of goals) {
+                                if (g.id === goalId) { goal = g; return; }
+                                if (g.subtasks) findGoal(g.subtasks);
+                            }
+                        }
+                        findGoal(horizonGoals);
+                    });
+                    
+                    if (goal) {
+                        openGoalEditModal(goal);
+                    }
+                });
+            });
+            
+            // Add toggle handlers for group collapse/expand
+            listEl.querySelectorAll('.timeline-group-toggle').forEach(toggle => {
+                toggle.addEventListener('click', (e) => {
+                    const horizon = toggle.dataset.horizon;
+                    const content = document.getElementById(`timeline-content-${horizon}`);
+                    if (!content) return;
+                    
+                    const isExpanded = toggle.classList.toggle('active');
+                    toggle.textContent = isExpanded ? '▼' : '▶';
+                    content.classList.toggle('collapsed', !isExpanded);
+                });
+            });
+            
+        } catch (error) {
+            console.error('Error rendering timeline view:', error);
+            listEl.innerHTML = '<div class="goals-timeline-error">加载失败</div>';
+            showToast?.('加载失败');
+        }
+    }
+
 window.ScheduleAppGoals = {
         renderGoalsViewSkeleton,
         renderGoalsReference,
         renderGoalsList,
         renderGoalsView,
+        renderTimelineView,
         renderSelectionBar,
         enterSelectionMode,
         toggleSelection,
