@@ -421,6 +421,8 @@
     let _aiPromptEl = null;
     let _dismissPromptHandler = null;
     let _savedRange = null; // save cursor range when /a is detected
+    let _lastAIMessage = '';  // for retry
+    let _lastAINoteId = null; // for retry
 
     function _showAIPrompt(contentEl, cursorRect) {
         _hideAIPrompt();
@@ -531,6 +533,10 @@
             return;
         }
 
+        // Save for retry
+        _lastAIMessage = message;
+        _lastAINoteId = note.id;
+
         // Save the cursor range before hiding the prompt (which clears it)
         const insertRange = _savedRange;
 
@@ -612,6 +618,7 @@
                     <div class="ai-inline-actions">
                         <button class="ai-btn ai-btn-accept" data-action="accept">✓ 接受</button>
                         <button class="ai-btn ai-btn-reject" data-action="reject">✗ 拒绝</button>
+                        <button class="ai-btn ai-btn-retry" data-action="retry">↻ 换一个</button>
                     </div>`;
 
                 // Typing effect
@@ -644,6 +651,20 @@
                     showToast('已取消修改');
                 });
 
+                // ↗️ retry — re-send the same message
+                aiBlock.querySelector('[data-action="retry"]').addEventListener('click', () => {
+                    // Put block back to loading state
+                    aiBlock.dataset.state = '';
+                    aiBlock.innerHTML = `
+                        <div class="ai-inline-status">
+                            <span class="ai-inline-icon">🤖</span>
+                            <span class="ai-inline-text">重新生成中</span>
+                            <span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span>
+                        </div>`;
+                    // Re-call AI with same message
+                    _retryAIPrompt(contentEl);
+                });
+
                 // Push snapshot after AI
                 const aiTitle = document.getElementById('noteInlineTitle')?.value || '';
                 _undoStack.push({ title: aiTitle, content: contentEl.innerHTML });
@@ -653,6 +674,87 @@
             }
         } catch (e) {
             console.error('AI prompt failed:', e);
+            showToast('AI 处理失败');
+            aiBlock.remove();
+            contentEl.focus();
+        }
+    }
+
+    async function _retryAIPrompt(contentEl) {
+        const { apiCall, showToast } = getUtils();
+        if (!_lastAIMessage || !_lastAINoteId) return;
+
+        const aiBlock = document.querySelector('.ai-inline-edit');
+        if (!aiBlock) return;
+
+        try {
+            const response = await apiCall('llm/chat-agent', {
+                method: 'POST',
+                body: JSON.stringify({
+                    message: '对以下笔记内容执行指令。\n指令：' + _lastAIMessage + '\n\n直接输出修改后的完整内容，不要额外解释。',
+                    note_id: _lastAINoteId,
+                    selected_text: '',
+                    tools: ['get_note_content'],
+                })
+            });
+
+            if (response && response.content) {
+                let aiText = response.content;
+                const m = aiText.match(/```(?:html|markdown)?\s*([\s\S]+?)(?:\s*```|$)/);
+                if (m) aiText = m[1];
+                aiText = aiText.trim();
+
+                if (!aiBlock.parentNode) return;
+
+                aiBlock.dataset.state = 'done';
+                aiBlock.innerHTML = `
+                    <div class="ai-inline-thinking">💭 已完成「${escapeHtml(_lastAIMessage)}」</div>
+                    <div class="ai-inline-result">
+                        <div class="ai-inline-result-text"></div>
+                    </div>
+                    <div class="ai-inline-actions">
+                        <button class="ai-btn ai-btn-accept" data-action="accept">✓ 接受</button>
+                        <button class="ai-btn ai-btn-reject" data-action="reject">✗ 拒绝</button>
+                        <button class="ai-btn ai-btn-retry" data-action="retry">↻ 换一个</button>
+                    </div>`;
+
+                const resultTextEl = aiBlock.querySelector('.ai-inline-result-text');
+                await _typeText(resultTextEl, aiText, 15);
+                aiBlock.scrollIntoView({ block: 'nearest' });
+
+                // Re-bind accept/reject/retry (same as above)
+                aiBlock.querySelector('[data-action="accept"]').addEventListener('click', () => {
+                    const textNode = document.createTextNode(aiText);
+                    aiBlock.parentNode.replaceChild(textNode, aiBlock);
+                    const newRange = document.createRange();
+                    newRange.setStartAfter(textNode);
+                    newRange.collapse(true);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                    contentEl.focus();
+                    scheduleAutoSave(window.ScheduleAppCore?.state?.selectedNote);
+                    showToast('已应用修改');
+                });
+
+                aiBlock.querySelector('[data-action="reject"]').addEventListener('click', () => {
+                    aiBlock.remove();
+                    contentEl.focus();
+                    showToast('已取消修改');
+                });
+
+                aiBlock.querySelector('[data-action="retry"]').addEventListener('click', () => {
+                    aiBlock.dataset.state = '';
+                    aiBlock.innerHTML = `
+                        <div class="ai-inline-status">
+                            <span class="ai-inline-icon">🤖</span>
+                            <span class="ai-inline-text">重新生成中</span>
+                            <span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span>
+                        </div>`;
+                    _retryAIPrompt(contentEl);
+                });
+            }
+        } catch (e) {
             showToast('AI 处理失败');
             aiBlock.remove();
             contentEl.focus();
@@ -1205,6 +1307,65 @@
         document.querySelectorAll('#noteEditModal').forEach(m => m.remove());
     }
 
+    // ── Public: Insert AI result as inline block at cursor ────
+    async function insertAIBlock(aiText) {
+        const contentEl = document.getElementById('noteInlineContent');
+        if (!contentEl) { showToast('请先打开笔记'); return false; }
+
+        const sel = window.getSelection();
+        let range;
+        if (sel && sel.rangeCount > 0) {
+            range = sel.getRangeAt(0);
+        } else {
+            range = document.createRange();
+            range.selectNodeContents(contentEl);
+            range.collapse(false);
+        }
+
+        // Save undo state
+        _takeSnapshot();
+
+        // Create block
+        const block = document.createElement('div');
+        block.className = 'ai-inline-edit';
+        block.contentEditable = 'false';
+        block.dataset.state = 'done';
+        const msg = 'AI 回答';
+        block.innerHTML = `
+            <div class="ai-inline-thinking">💭 来自 AI 的回复</div>
+            <div class="ai-inline-result">
+                <div class="ai-inline-result-text">${escapeHtml(aiText)}</div>
+            </div>
+            <div class="ai-inline-actions">
+                <button class="ai-btn ai-btn-accept" data-action="accept">✓ 接受</button>
+                <button class="ai-btn ai-btn-reject" data-action="reject">✗ 拒绝</button>
+            </div>`;
+        range.insertNode(block);
+        block.scrollIntoView({ block: 'nearest' });
+
+        // Bind accept/reject
+        block.querySelector('[data-action="accept"]').addEventListener('click', () => {
+            const tn = document.createTextNode(aiText);
+            block.parentNode.replaceChild(tn, block);
+            const r2 = document.createRange(); r2.setStartAfter(tn); r2.collapse(true);
+            const s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r2);
+            contentEl.focus();
+            const note = window.ScheduleAppCore?.state?.selectedNote;
+            if (note) scheduleAutoSave(note);
+            showToast('已应用');
+        });
+        block.querySelector('[data-action="reject"]').addEventListener('click', () => {
+            block.remove(); contentEl.focus(); showToast('已取消');
+        });
+
+        // Push undo
+        const t = document.getElementById('noteInlineTitle')?.value || '';
+        _undoStack.push({ title: t, content: contentEl.innerHTML });
+        if (_undoStack.length > _UNDO_MAX) _undoStack.shift();
+        _redoStack = []; _updateUndoButtons();
+        return true;
+    }
+
     window.ScheduleAppNoteEditor = {
         renderInlineEditor,
         clearInlineEditor,
@@ -1214,6 +1375,7 @@
         showNoteEdit,
         closeAllModals,
         NOTE_COLORS,
+        insertAIBlock,
     };
 
 })();

@@ -234,10 +234,19 @@
     }
 
     async function insertAIResponseToNote(content) {
+        // Use inline AI block with accept/reject if editor is open
+        const editor = window.ScheduleAppNoteEditor;
+        if (editor && typeof editor.insertAIBlock === 'function') {
+            const result = editor.insertAIBlock(content);
+            if (result !== false) {
+                showToast('AI 回答已插入，请确认或拒绝');
+                return;
+            }
+        }
+        // Fallback: old behavior (append to content)
         if (!aiState.currentNote) return;
 
         const { updateNote, showToast } = getUtils();
-
         const currentContent = aiState.currentNote.content || '';
         const newContent = currentContent
             ? currentContent + '\n\n---\nAI 回答：\n' + content
@@ -246,13 +255,10 @@
         try {
             await updateNote(aiState.currentNote.id, { content: newContent });
             aiState.currentNote.content = newContent;
-
-            // Update inline editor if open
             const inlineContent = document.getElementById('noteInlineContent');
             if (inlineContent) {
                 inlineContent.innerText = newContent;
             }
-
             showToast('已插入到笔记');
         } catch (error) {
             console.error('Failed to insert to note:', error);
