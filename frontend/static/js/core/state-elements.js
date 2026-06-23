@@ -48,6 +48,7 @@
     goals: [],
     goalsHorizon: 'short',
     goalsViewMode: 'list',  // 'list' | 'timeline'
+    timelineZoom: 1,  // zoom factor for timeline view (0.25 to 4.0)
     expandedGoalIds: new Set(),
     enableDragResize: false,
     qqReminderEnabled: false,

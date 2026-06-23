@@ -207,6 +207,15 @@
         const elements = getElements();
         const container = elements.goalsContainer;
         
+        const zoomControlsHtml = state.goalsViewMode === 'timeline' ? `
+            <div class="timeline-zoom-controls">
+                <button class="timeline-zoom-btn" data-zoom="out" title="缩小">🔍-</button>
+                <span class="timeline-zoom-label">${Math.round(state.timelineZoom * 100)}%</span>
+                <button class="timeline-zoom-btn" data-zoom="in" title="放大">🔍+</button>
+                <button class="timeline-zoom-btn timeline-zoom-reset" data-zoom="reset" title="重置">重置</button>
+            </div>
+        ` : '';
+        
         container.innerHTML = `
             <div class="goals-toolbar">
                 <div class="goals-horizon-tabs">
@@ -215,6 +224,7 @@
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'long' ? 'active' : ''}" data-horizon="long">长期</button>
                 </div>
                 <div class="goals-toolbar-right">
+                    ${zoomControlsHtml}
                     <button class="goals-view-toggle-btn ${state.goalsViewMode === 'timeline' ? 'active' : ''}" id="goalsViewToggleBtn">
                         ${state.goalsViewMode === 'timeline' ? '📋 列表' : '📊 总览'}
                     </button>
@@ -256,6 +266,24 @@
             } else {
                 await renderTimelineView();
             }
+        });
+        
+        // Zoom controls event handlers
+        container.querySelectorAll('.timeline-zoom-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const action = btn.dataset.zoom;
+                if (action === 'in') {
+                    state.timelineZoom = Math.min(4.0, state.timelineZoom + 0.25);
+                } else if (action === 'out') {
+                    state.timelineZoom = Math.max(0.25, state.timelineZoom - 0.25);
+                } else if (action === 'reset') {
+                    state.timelineZoom = 1;
+                }
+                renderGoalsViewSkeleton();
+                if (state.goalsViewMode === 'timeline') {
+                    renderTimelineView();
+                }
+            });
         });
     }
     
@@ -1122,7 +1150,7 @@ async function openGoalDiscussModal(goalId = null) {
         const endDate = parseDate(goal.end_date);
         
         if (!startDate && !endDate) {
-            return null; // No date, will be shown in "no date" section
+            return null; // Goals without dates are filtered out upstream
         }
         
         const effectiveStart = startDate || endDate;
@@ -1141,21 +1169,6 @@ async function openGoalDiscussModal(goalId = null) {
         let months = (d2.getFullYear() - d1.getFullYear()) * 12;
         months += d2.getMonth() - d1.getMonth();
         return Math.max(0, months);
-    }
-
-    function isGoalInMonth(goal, monthDate) {
-        const startDate = parseDate(goal.start_date);
-        const endDate = parseDate(goal.end_date);
-        
-        if (!startDate && !endDate) return false;
-        
-        const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-        const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-        
-        const goalStart = startDate || endDate;
-        const goalEnd = endDate || startDate;
-        
-        return goalStart <= monthEnd && goalEnd >= monthStart;
     }
 
     function flattenGoalsWithSubtasks(goals, parentTitle = '') {
@@ -1207,34 +1220,15 @@ async function openGoalDiscussModal(goalId = null) {
             // Get today's date for "today" indicator
             const today = new Date();
             
-            // Determine timeline range across all goals with dates
-            let globalMinDate = null;
-            let globalMaxDate = null;
+            // Get zoom factor
+            const zoom = state.timelineZoom || 1;
             
-            Object.values(allGoalsByHorizon).forEach(goals => {
-                goals.forEach(g => {
-                    if (g.start_date) {
-                        const d = parseDate(g.start_date);
-                        if (d && (!globalMinDate || d < globalMinDate)) globalMinDate = d;
-                        if (d && (!globalMaxDate || d > globalMaxDate)) globalMaxDate = d;
-                    }
-                    if (g.end_date) {
-                        const d = parseDate(g.end_date);
-                        if (d && (!globalMinDate || d < globalMinDate)) globalMinDate = d;
-                        if (d && (!globalMaxDate || d > globalMaxDate)) globalMaxDate = d;
-                    }
-                });
-            });
-            
-            // Default range
-            if (!globalMinDate || !globalMaxDate) {
-                globalMinDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-                globalMaxDate = new Date(today.getFullYear(), today.getMonth() + 6, 0);
-            }
-            
-            // Add padding to range
-            globalMinDate = new Date(globalMinDate.getFullYear(), globalMinDate.getMonth() - 1, 1);
-            globalMaxDate = new Date(globalMaxDate.getFullYear(), globalMaxDate.getMonth() + 2, 0);
+            // Horizon-specific default ranges
+            const horizonDefaults = {
+                short: { backMonths: 1, forwardMonths: 3 },     // ~4 months total
+                semester: { backMonths: 2, forwardMonths: 10 }, // ~12 months total
+                long: { backMonths: 6, forwardMonths: 30 }      // ~3 years total
+            };
             
             // Render each horizon group
             let html = '';
@@ -1243,16 +1237,31 @@ async function openGoalDiscussModal(goalId = null) {
                 const goals = allGoalsByHorizon[horizon];
                 const flatGoals = flattenGoalsWithSubtasks(goals);
                 
-                // Separate goals with dates and without dates
+                // Only goals with dates are shown in timeline
                 const goalsWithDates = flatGoals.filter(g => g.start_date || g.end_date);
-                const goalsWithoutDates = flatGoals.filter(g => !g.start_date && !g.end_date);
                 
                 // Calculate horizon-specific timeline range
-                const { minDate, maxDate } = getTimelineRange(goalsWithDates.length > 0 ? goalsWithDates : [{}]);
-                const horizonMinDate = goalsWithDates.length > 0 ? minDate : globalMinDate;
-                const horizonMaxDate = goalsWithDates.length > 0 ? maxDate : globalMaxDate;
+                let horizonMinDate, horizonMaxDate;
                 
-                const monthWidth = horizon === 'long' ? 60 : 80;
+                if (goalsWithDates.length > 0) {
+                    const { minDate, maxDate } = getTimelineRange(goalsWithDates);
+                    horizonMinDate = minDate;
+                    horizonMaxDate = maxDate;
+                } else {
+                    // Use defaults if no goals with dates
+                    const defaults = horizonDefaults[horizon];
+                    horizonMinDate = new Date(today.getFullYear(), today.getMonth() - defaults.backMonths, 1);
+                    horizonMaxDate = new Date(today.getFullYear(), today.getMonth() + defaults.forwardMonths + 1, 0);
+                }
+                
+                // Add padding
+                const paddingBack = horizon === 'short' ? 1 : horizon === 'semester' ? 2 : 6;
+                const paddingForward = horizon === 'short' ? 2 : horizon === 'semester' ? 3 : 6;
+                horizonMinDate = new Date(horizonMinDate.getFullYear(), horizonMinDate.getMonth() - paddingBack, 1);
+                horizonMaxDate = new Date(horizonMaxDate.getFullYear(), horizonMaxDate.getMonth() + paddingForward + 1, 0);
+                
+                const baseWidth = horizon === 'long' ? 60 : 80;
+                const monthWidth = baseWidth * zoom;
                 const months = generateTimelineMonths(horizonMinDate, horizonMaxDate, horizon);
                 
                 // Calculate total width
@@ -1274,6 +1283,8 @@ async function openGoalDiscussModal(goalId = null) {
                 
                 if (goals.length === 0) {
                     html += `<div class="timeline-empty">暂无${horizon === 'short' ? '短期' : horizon === 'semester' ? '学期' : '长期'}目标</div>`;
+                } else if (goalsWithDates.length === 0) {
+                    html += `<div class="timeline-empty">${horizon === 'short' ? '短期' : horizon === 'semester' ? '学期' : '长期'}目标（暂无日期）</div>`;
                 } else {
                     // Render timeline header (months)
                     html += `
@@ -1327,23 +1338,6 @@ async function openGoalDiscussModal(goalId = null) {
                     });
                     
                     html += `</div>`; // End timeline-bars
-                    
-                    // Goals without dates section
-                    if (goalsWithoutDates.length > 0) {
-                        html += `
-                            <div class="timeline-no-date-section">
-                                <div class="timeline-no-date-label">📋 无日期目标</div>
-                                <div class="timeline-no-date-list">
-                                    ${goalsWithoutDates.map(g => `
-                                        <div class="timeline-no-date-item" data-goal-id="${g.id}">
-                                            <span class="timeline-no-date-color" style="background: ${g.color || GOAL_COLORS[0]}"></span>
-                                            <span class="timeline-no-date-title">${escapeHtml(g.parentTitle ? g.parentTitle + ' → ' : '')}${escapeHtml(g.title)}</span>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        `;
-                    }
                 }
                 
                 html += `
@@ -1361,30 +1355,6 @@ async function openGoalDiscussModal(goalId = null) {
                     if (isNaN(goalId)) return;
                     
                     // Find the goal in our data
-                    let goal = null;
-                    Object.values(allGoalsByHorizon).forEach(horizonGoals => {
-                        if (goal) return;
-                        function findGoal(goals) {
-                            for (const g of goals) {
-                                if (g.id === goalId) { goal = g; return; }
-                                if (g.subtasks) findGoal(g.subtasks);
-                            }
-                        }
-                        findGoal(horizonGoals);
-                    });
-                    
-                    if (goal) {
-                        openGoalEditModal(goal);
-                    }
-                });
-            });
-            
-            // Add click handlers for no-date items
-            listEl.querySelectorAll('.timeline-no-date-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const goalId = parseInt(item.dataset.goalId);
-                    if (isNaN(goalId)) return;
-                    
                     let goal = null;
                     Object.values(allGoalsByHorizon).forEach(horizonGoals => {
                         if (goal) return;
