@@ -456,6 +456,7 @@
                 }
                 if (e.key === 'Escape') {
                     e.preventDefault();
+                    _savedRange = null;
                     _hideAIPrompt();
                     contentEl.focus();
                 }
@@ -472,6 +473,7 @@
         // Dismiss on outside click
         _dismissPromptHandler = (e) => {
             if (_aiPromptEl && !_aiPromptEl.contains(e.target)) {
+                _savedRange = null;
                 _hideAIPrompt();
             }
         };
@@ -501,7 +503,6 @@
     }
 
     function _hideAIPrompt() {
-        _savedRange = null;
         if (!_aiPromptEl) return;
         document.removeEventListener('click', _dismissPromptHandler);
         _aiPromptEl.remove();
@@ -849,6 +850,7 @@
             // Esc while prompt is showing: dismiss
             if (_aiPromptEl && e.key === 'Escape') {
                 e.preventDefault();
+                _savedRange = null;
                 _hideAIPrompt();
                 contentEl.focus();
             }
