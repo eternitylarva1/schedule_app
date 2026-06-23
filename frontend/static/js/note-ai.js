@@ -89,12 +89,6 @@
             });
         }
 
-        // Close on backdrop click
-        const backdrop = document.getElementById('aiDrawerBackdrop');
-        if (backdrop) {
-            backdrop.addEventListener('click', hideAIFloatingWindow);
-        }
-
         // Close on Esc
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && aiState.isOpen) {
