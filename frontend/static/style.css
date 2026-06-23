@@ -3483,6 +3483,18 @@ textarea {
     padding: var(--space-md);
 }
 
+/* Full-width timeline mode */
+.goals-view.timeline-mode {
+    padding: 0;
+}
+.goals-view.timeline-mode .goals-toolbar {
+    padding: var(--space-md);
+}
+.goals-view.timeline-mode .timeline-group {
+    border-radius: 0;
+    margin-bottom: var(--space-xs);
+}
+
 .goals-container {
     display: flex;
     flex-direction: column;
@@ -7219,7 +7231,7 @@ textarea {
     overflow-x: auto;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
     padding-bottom: var(--space-lg);
 }
 

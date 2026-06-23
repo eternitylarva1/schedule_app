@@ -250,6 +250,7 @@
         
         container.querySelector('#goalsViewToggleBtn').addEventListener('click', async () => {
             state.goalsViewMode = state.goalsViewMode === 'list' ? 'timeline' : 'list';
+            elements.goalsView.classList.toggle('timeline-mode', state.goalsViewMode === 'timeline');
             renderGoalsViewSkeleton();
             if (state.goalsViewMode === 'list') {
                 await renderGoalsList();
@@ -836,7 +837,10 @@
     
     async function renderGoalsView() {
         const state = getState();
+        const elements = getElements();
         renderGoalsViewSkeleton();
+        // Toggle full-width mode for timeline view
+        elements.goalsView.classList.toggle('timeline-mode', state.goalsViewMode === 'timeline');
         if (state.goalsViewMode === 'timeline') {
             await renderTimelineView();
         } else {
