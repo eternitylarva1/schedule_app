@@ -531,6 +531,9 @@
             return;
         }
 
+        // Save the cursor range before hiding the prompt (which clears it)
+        const insertRange = _savedRange;
+
         // Snapshot before AI modifies
         _takeSnapshot();
 
@@ -538,7 +541,7 @@
         _hideAIPrompt();
 
         // Insert inline AI block at saved cursor position
-        const range = _savedRange || window.getSelection().getRangeAt(0);
+        const range = insertRange || window.getSelection().getRangeAt(0);
         const aiBlock = document.createElement('div');
         aiBlock.className = 'ai-inline-edit';
         aiBlock.contentEditable = 'false';
