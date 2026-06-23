@@ -1367,6 +1367,11 @@
             </div>
             ` : ''}
             <div class="note-menu-divider"></div>
+            <button class="note-menu-item" data-action="duplicate">
+                <span class="note-menu-icon">📋</span>
+                <span class="note-menu-label">复制笔记</span>
+            </button>
+            <div class="note-menu-divider"></div>
             ${isTrash ? `
                 <button class="note-menu-item" data-action="restore">
                     <span class="note-menu-icon">↩️</span>
@@ -1493,6 +1498,31 @@
                 showToast(newPinned ? '已固定到顶部 📌' : '已取消固定');
             } catch (e) {
                 showToast('操作失败');
+            }
+        } else if (action === 'duplicate') {
+            const { apiCall, showToast } = getUtils();
+            try {
+                const result = await apiCall('notes', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        title: note.title || '',
+                        content: note.content || '',
+                        group_id: note.group_id,
+                        color: note.color || '',
+                        is_pinned: !!note.is_pinned,
+                    })
+                });
+                if (result) {
+                    // Add to state and insert into list
+                    const state = getState();
+                    if (state.notes) state.notes.unshift(result);
+                    if (typeof insertNoteRow === 'function') {
+                        insertNoteRow(result);
+                    }
+                    showToast('笔记已复制');
+                }
+            } catch (e) {
+                showToast('复制失败');
             }
         } else if (action === 'archive') {
             const swipeEl = document.querySelector(`.note-swipe[data-note-id="${note.id}"]`);
