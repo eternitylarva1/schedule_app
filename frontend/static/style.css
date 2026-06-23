@@ -7430,6 +7430,7 @@ textarea {
 .timeline-bar {
     position: absolute;
     min-width: 60px;
+    height: 36px; /* Default for parent bars */
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition-fast);
@@ -7448,32 +7449,85 @@ textarea {
     transform: scale(0.98);
 }
 
-.timeline-bar.subtask {
-    border-left: 2px dashed rgba(255,255,255,0.3);
+/* Parent bar inner - prominent styling */
+.timeline-bar:not(.subtask) .timeline-bar-inner {
+    background: linear-gradient(135deg,
+        var(--bar-color, var(--accent-primary)) 0%,
+        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 85%, black) 100%
+    );
+    box-shadow: 0 2px 12px color-mix(in srgb, var(--bar-color, var(--accent-primary)) 40%, transparent),
+                0 2px 8px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255,255,255,0.3);
 }
 
+.timeline-bar:not(.subtask):hover .timeline-bar-inner {
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--bar-color, var(--accent-primary)) 50%, transparent),
+                0 4px 16px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
+.timeline-bar:not(.subtask) .timeline-bar-title {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Subtask bar - subordinate styling */
+.timeline-bar.subtask {
+    height: 26px;
+    padding-left: 20px;
+    overflow: visible;
+}
+
+/* Tree connector for subtasks - vertical line */
 .timeline-bar.subtask::before {
     content: '';
     position: absolute;
-    left: -6px;
+    left: 8px;
+    top: -4px;
+    bottom: 50%;
+    width: 2px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 1px;
+}
+
+/* Tree connector for subtasks - horizontal line to bar */
+.timeline-bar.subtask::after {
+    content: '';
+    position: absolute;
+    left: 8px;
     top: 50%;
+    width: 10px;
+    height: 2px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 1px;
     transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-top: 4px solid transparent;
-    border-bottom: 4px solid transparent;
-    border-right: 4px solid rgba(255,255,255,0.4);
+}
+
+.timeline-bar.subtask .timeline-bar-inner {
+    opacity: 0.65;
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 55%, var(--bg-card)) 0%,
+        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 40%, var(--bg-card)) 100%
+    ) !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25),
+                inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+.timeline-bar.subtask:hover .timeline-bar-inner {
+    opacity: 0.8;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.timeline-bar.subtask .timeline-bar-title {
+    font-size: 11px;
+    font-weight: 500;
 }
 
 .timeline-bar-inner {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(135deg, 
-        var(--bar-color, var(--accent-primary)) 0%, 
-        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 85%, black) 100%
-    );
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.25);
     padding: 0 8px;
     display: flex;
     align-items: center;
