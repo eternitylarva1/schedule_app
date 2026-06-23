@@ -58,6 +58,7 @@
         currentNote: null,
         conversations: [],
         isLoading: false,
+        selectedText: '',
     };
 
     function initAIChatPanel() {
@@ -111,18 +112,22 @@
 
         aiState.isOpen = true;
         aiState.currentNote = note;
+        aiState.selectedText = '';
 
         if (noteTitleEl) {
             noteTitleEl.textContent = (note.title || '').trim() || '(无标题)';
         }
         if (contextEl) {
-            contextEl.textContent = note.content || '（空笔记）';
+            contextEl.innerHTML = `<div class="ai-drawer-note-preview">${escapeHtml(note.content || '（空笔记）')}</div>`;
         }
 
         if (backdrop) backdrop.classList.add('visible');
         drawer.classList.add('open');
 
         loadAIChatHistory();
+
+        // Start tracking selection in note content
+        _startSelectionTracking();
 
         setTimeout(() => {
             const input = document.getElementById('aiDrawerInput');
@@ -138,9 +143,55 @@
         aiState.isOpen = false;
         aiState.currentNote = null;
         aiState.conversations = [];
+        aiState.selectedText = '';
+
+        _stopSelectionTracking();
 
         drawer.classList.remove('open');
         if (backdrop) backdrop.classList.remove('visible');
+    }
+
+    // ── Selection tracking ────────────────────────────────────
+    let _selectionTimer = null;
+
+    function _startSelectionTracking() {
+        document.addEventListener('selectionchange', _onSelectionChange);
+    }
+
+    function _stopSelectionTracking() {
+        document.removeEventListener('selectionchange', _onSelectionChange);
+        clearTimeout(_selectionTimer);
+        aiState.selectedText = '';
+    }
+
+    function _onSelectionChange() {
+        if (!aiState.isOpen) return;
+        clearTimeout(_selectionTimer);
+        _selectionTimer = setTimeout(() => {
+            const sel = window.getSelection();
+            if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+                aiState.selectedText = '';
+                _updateQuoteDisplay();
+                return;
+            }
+            // Only capture selection if it's inside the note content
+            const contentEl = document.getElementById('noteInlineContent');
+            if (contentEl && contentEl.contains(sel.anchorNode)) {
+                aiState.selectedText = sel.toString().trim();
+                _updateQuoteDisplay();
+            }
+        }, 200);
+    }
+
+    function _updateQuoteDisplay() {
+        const contextEl = document.getElementById('aiDrawerContext');
+        if (!contextEl) return;
+        const note = aiState.currentNote;
+        let html = `<div class="ai-drawer-note-preview">${escapeHtml(note?.content || '（空笔记）')}</div>`;
+        if (aiState.selectedText) {
+            html += `<div class="ai-drawer-quote">📎 引用：${escapeHtml(aiState.selectedText.substring(0, 120))}</div>`;
+        }
+        contextEl.innerHTML = html;
     }
 
     async function loadAIChatHistory() {
@@ -208,7 +259,7 @@
                 body: JSON.stringify({
                     message: message,
                     note_id: aiState.currentNote.id,
-                    selected_text: '',
+                    selected_text: aiState.selectedText || '',
                     tools: null,  // 全部工具可用
                 })
             });
