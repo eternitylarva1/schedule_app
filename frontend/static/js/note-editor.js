@@ -276,6 +276,17 @@
     // ===== Scroll & Cursor Position Persistence =====
     const _notePositions = {};  // noteId → { scrollTop, caretOffset }
 
+    // Restore saved positions from sessionStorage on load
+    try {
+        const saved = sessionStorage.getItem('_noteScrollPositions');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            for (const [k, v] of Object.entries(parsed)) {
+                _notePositions[k] = v;
+            }
+        }
+    } catch { /* ignore */ }
+
     function _saveNotePosition() {
         const contentEl = document.getElementById('noteInlineContent');
         if (!contentEl || _currentInlineNoteId === null) return;
@@ -290,6 +301,7 @@
             caretOffset = preRange.toString().length;
         }
         _notePositions[_currentInlineNoteId] = { scrollTop, caretOffset };
+        try { sessionStorage.setItem('_noteScrollPositions', JSON.stringify(_notePositions)); } catch {}
     }
 
     function _restoreNotePosition(noteId) {
@@ -594,8 +606,8 @@
         bindInlineEditorEvents(note);
         // Initial word count
         _updateWordCount();
-        // Restore scroll/cursor position for this note
-        setTimeout(() => _restoreNotePosition(note.id), 50);
+        // Restore scroll/cursor position for this note (after layout/paint)
+        requestAnimationFrame(() => _restoreNotePosition(note.id));
     }
 
     function bindInlineEditorEvents(note) {
