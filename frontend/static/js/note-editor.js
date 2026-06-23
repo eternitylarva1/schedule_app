@@ -541,7 +541,19 @@
         _hideAIPrompt();
 
         // Insert inline AI block at saved cursor position
-        const range = insertRange || window.getSelection().getRangeAt(0);
+        let range = null;
+        if (insertRange) {
+            range = insertRange;
+        } else {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+                range = sel.getRangeAt(0);
+            }
+        }
+        if (!range) {
+            showToast('无法获取光标位置，请重新尝试');
+            return;
+        }
         const aiBlock = document.createElement('div');
         aiBlock.className = 'ai-inline-edit';
         aiBlock.contentEditable = 'false';
