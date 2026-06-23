@@ -679,13 +679,45 @@
             }
         });
 
-        // ── Core: Paste as plain text ───────────────────────────
+        // ── Core: Paste — images as base64, else plain text ─────
         contentEl.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-            if (text) {
-                document.execCommand('insertText', false, text);
-                scheduleAutoSave(note);
+            const items = e.clipboardData?.items;
+            const hasImage = items && Array.from(items).some(item => item.type.startsWith('image/'));
+            
+            if (hasImage) {
+                e.preventDefault();
+                Array.from(items).forEach(item => {
+                    if (!item.type.startsWith('image/')) return;
+                    const file = item.getAsFile();
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const img = document.createElement('img');
+                        img.src = ev.target.result;
+                        img.style.maxWidth = '100%';
+                        img.style.borderRadius = 'var(--radius-md)';
+                        img.style.margin = '8px 0';
+                        const sel = window.getSelection();
+                        if (sel.rangeCount) {
+                            const range = sel.getRangeAt(0);
+                            range.deleteContents();
+                            range.insertNode(img);
+                            range.setStartAfter(img);
+                            range.collapse(true);
+                            sel.removeAllRanges();
+                            sel.addRange(range);
+                        }
+                        scheduleAutoSave(note);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+                if (text) {
+                    document.execCommand('insertText', false, text);
+                    scheduleAutoSave(note);
+                }
             }
         });
 
