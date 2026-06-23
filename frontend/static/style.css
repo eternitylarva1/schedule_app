@@ -6285,6 +6285,99 @@ textarea {
     opacity: 0.9;
 }
 
+/* ===== Inline AI Edit Block ===== */
+.ai-inline-edit {
+    position: relative;
+    margin: 8px 0;
+    padding: 10px 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-md);
+    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.15);
+    user-select: none;
+}
+
+/* Loading state - animated dots */
+.ai-inline-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+.ai-inline-icon { font-size: 16px; }
+.ai-inline-dots span {
+    animation: aiDotPulse 1.4s infinite;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--accent-primary);
+}
+.ai-inline-dots span:nth-child(2) { animation-delay: 0.2s; }
+.ai-inline-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes aiDotPulse {
+    0%, 80%, 100% { opacity: 0.2; }
+    40% { opacity: 1; }
+}
+
+/* Done state */
+.ai-inline-edit[data-state="done"] {
+    border-color: var(--border-medium);
+    background: var(--bg-card);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+.ai-inline-thinking {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    font-style: italic;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed var(--border-subtle);
+}
+.ai-inline-result {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+.ai-inline-result-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Action buttons */
+.ai-inline-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+}
+.ai-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-secondary);
+    transition: all 0.1s;
+}
+.ai-btn:hover { opacity: 0.85; }
+.ai-btn-accept {
+    background: var(--accent-primary);
+    color: #fff;
+    border-color: var(--accent-primary);
+}
+.ai-btn-reject {
+    color: var(--text-secondary);
+    border-color: var(--border-medium);
+}
+.ai-btn-reject:hover {
+    background: rgba(244,67,54,0.08);
+    color: #f44336;
+    border-color: #f44336;
+}
+
 /* ── Content Area ───────────────────────────────────────────── */
 .note-inline-content {
     flex: 1;

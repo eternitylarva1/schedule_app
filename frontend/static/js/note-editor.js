@@ -504,11 +504,25 @@
         _aiPromptEl = null;
     }
 
+    // ===== Inline AI typing effect =====
+    async function _typeText(element, text, speed = 25) {
+        let i = 0;
+        return new Promise(resolve => {
+            function tick() {
+                if (i >= text.length) { resolve(); return; }
+                const chunkSize = Math.min(1 + Math.floor(Math.random() * 2), text.length - i);
+                element.textContent += text.substring(i, i + chunkSize);
+                i += chunkSize;
+                setTimeout(tick, speed);
+            }
+            tick();
+        });
+    }
+
     async function _sendAIPrompt(contentEl, message) {
         if (!message) return;
 
-        const utils = getUtils();
-        const { apiCall, showToast } = utils;
+        const { apiCall, showToast } = getUtils();
         const note = window.ScheduleAppCore?.state?.selectedNote;
         if (!note || !note.id) {
             showToast('请先选择笔记');
@@ -518,13 +532,38 @@
         // Snapshot before AI modifies
         _takeSnapshot();
 
-        // Show loading
-        const sendBtn = document.getElementById('aiPromptSendBtn');
-        const input = document.getElementById('aiPromptInput');
-        if (sendBtn) sendBtn.disabled = true;
-        if (input) input.disabled = true;
-
+        // Hide floating prompt
         _hideAIPrompt();
+
+        // Insert inline AI block at cursor position
+        const range = window.getSelection().getRangeAt(0);
+        const aiBlock = document.createElement('div');
+        aiBlock.className = 'ai-inline-edit';
+        aiBlock.contentEditable = 'false';
+        aiBlock.innerHTML = `
+            <div class="ai-inline-status">
+                <span class="ai-inline-icon">🤖</span>
+                <span class="ai-inline-text">正在分析笔记内容</span>
+                <span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span>
+            </div>`;
+        range.insertNode(aiBlock);
+
+        // Helper to update status text
+        function _setStatus(text) {
+            const statusEl = aiBlock.querySelector('.ai-inline-text');
+            if (statusEl) statusEl.textContent = text;
+        }
+
+        // Progress stages
+        _setStatus('正在分析笔记内容');
+        setTimeout(() => {
+            if (!aiBlock.parentNode) return;
+            _setStatus('思考处理方式');
+        }, 800);
+        setTimeout(() => {
+            if (!aiBlock.parentNode) return;
+            _setStatus('正在生成结果');
+        }, 1600);
 
         try {
             const response = await apiCall('llm/chat-agent', {
@@ -533,45 +572,73 @@
                     message: '对以下笔记内容执行指令。\n指令：' + message + '\n\n直接输出修改后的完整内容，不要额外解释。',
                     note_id: note.id,
                     selected_text: '',
-                    tools: ['get_note_content'],  // /a 只允许笔记工具
+                    tools: ['get_note_content'],
                 })
             });
 
             if (response && response.content) {
                 let aiText = response.content;
-                // Strip markdown code fences if present
                 const m = aiText.match(/```(?:html|markdown)?\s*([\s\S]+?)(?:\s*```|$)/);
                 if (m) aiText = m[1];
                 aiText = aiText.trim();
 
-                // Replace content with AI output
-                contentEl.innerHTML = aiText.replace(/\n/g, '<br>');
+                // Check if block still exists
+                if (!aiBlock.parentNode) return;
 
-                // Push snapshot after AI modification (skip dedup check)
+                // Update block with result + accept/reject
+                aiBlock.dataset.state = 'done';
+                aiBlock.innerHTML = `
+                    <div class="ai-inline-thinking">💭 已完成「${escapeHtml(message)}」</div>
+                    <div class="ai-inline-result">
+                        <div class="ai-inline-result-text"></div>
+                    </div>
+                    <div class="ai-inline-actions">
+                        <button class="ai-btn ai-btn-accept" data-action="accept">✓ 接受</button>
+                        <button class="ai-btn ai-btn-reject" data-action="reject">✗ 拒绝</button>
+                    </div>`;
+
+                // Typing effect
+                const resultTextEl = aiBlock.querySelector('.ai-inline-result-text');
+                await _typeText(resultTextEl, aiText, 15);
+
+                // Scroll into view
+                aiBlock.scrollIntoView({ block: 'nearest' });
+
+                // Bind accept/reject
+                aiBlock.querySelector('[data-action="accept"]').addEventListener('click', () => {
+                    // Replace block with just the result text
+                    const textNode = document.createTextNode(aiText);
+                    aiBlock.parentNode.replaceChild(textNode, aiBlock);
+                    // Move cursor after the text
+                    const newRange = document.createRange();
+                    newRange.setStartAfter(textNode);
+                    newRange.collapse(true);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(newRange);
+                    contentEl.focus();
+                    scheduleAutoSave(note);
+                    showToast('已应用修改');
+                });
+
+                aiBlock.querySelector('[data-action="reject"]').addEventListener('click', () => {
+                    aiBlock.remove();
+                    contentEl.focus();
+                    showToast('已取消修改');
+                });
+
+                // Push snapshot after AI
                 const aiTitle = document.getElementById('noteInlineTitle')?.value || '';
-                const aiContent = contentEl.innerHTML;
-                if (_undoStack.length > 0) {
-                    const last = _undoStack[_undoStack.length - 1];
-                    if (last.content !== aiContent) {
-                        _undoStack.push({ title: aiTitle, content: aiContent });
-                        if (_undoStack.length > _UNDO_MAX) _undoStack.shift();
-                        _redoStack = [];
-                        _updateUndoButtons();
-                    }
-                }
-
-                showToast('AI 处理完成');
+                _undoStack.push({ title: aiTitle, content: contentEl.innerHTML });
+                if (_undoStack.length > _UNDO_MAX) _undoStack.shift();
+                _redoStack = [];
+                _updateUndoButtons();
             }
         } catch (e) {
             console.error('AI prompt failed:', e);
             showToast('AI 处理失败');
-        } finally {
-            if (sendBtn) sendBtn.disabled = false;
-            if (input) input.disabled = false;
+            aiBlock.remove();
             contentEl.focus();
-            // Trigger autosave
-            const noteObj = window.ScheduleAppCore?.state?.selectedNote;
-            if (noteObj) scheduleAutoSave(noteObj);
         }
     }
 
