@@ -85,6 +85,12 @@
                 if (insertBtn) {
                     const content = decodeURIComponent(insertBtn.dataset.content);
                     insertAIResponseToNote(content);
+                    return;
+                }
+                const newNoteBtn = e.target.closest('.ai-drawer-newnote-btn');
+                if (newNoteBtn) {
+                    const content = decodeURIComponent(newNoteBtn.dataset.content);
+                    saveAIResponseAsNewNote(content);
                 }
             });
         }
@@ -213,7 +219,12 @@
             <div class="ai-drawer-message ${conv.role}">
                 <div class="ai-drawer-bubble">
                     ${escapeHtml(conv.content)}
-                    ${conv.role === 'assistant' ? `<button class="ai-drawer-insert-btn" data-content="${encodeURIComponent(conv.content)}">↩ 插入</button>` : ''}
+                    ${conv.role === 'assistant' ? `
+                        <div class="ai-drawer-actions">
+                            <button class="ai-drawer-insert-btn" data-content="${encodeURIComponent(conv.content)}" title="插入到当前笔记">↩ 插入</button>
+                            <button class="ai-drawer-newnote-btn" data-content="${encodeURIComponent(conv.content)}" title="另存为新笔记">📄 新笔记</button>
+                        </div>
+                    ` : ''}
                 </div>
                 <div class="ai-drawer-time">${formatNoteTime(conv.created_at)}</div>
             </div>
@@ -262,7 +273,7 @@
                 const thinkingEl = container?.querySelector('.ai-drawer-message.assistant:last-child');
                 if (thinkingEl) {
                     thinkingEl.innerHTML = `
-                        <div class="ai-drawer-bubble">${escapeHtml(response.content)}<button class="ai-drawer-insert-btn" data-content="${encodeURIComponent(response.content)}">↩ 插入</button></div>
+                        <div class="ai-drawer-bubble">${escapeHtml(response.content)}<div class="ai-drawer-actions"><button class="ai-drawer-insert-btn" data-content="${encodeURIComponent(response.content)}" title="插入到当前笔记">↩ 插入</button><button class="ai-drawer-newnote-btn" data-content="${encodeURIComponent(response.content)}" title="另存为新笔记">📄 新笔记</button></div></div>
                     `;
                 }
                 aiState.conversations.push({ role: 'user', content: message });
@@ -311,6 +322,30 @@
         }
     }
 
+    async function saveAIResponseAsNewNote(content) {
+        const { createNote, showToast } = getUtils();
+
+        // Derive a title from the first non-empty line, capped to 32 chars
+        const firstLine = (content.split('\n').find(l => l.trim()) || 'AI 新建笔记').trim();
+        const title = firstLine.length > 32 ? firstLine.substring(0, 32) + '…' : firstLine;
+
+        try {
+            const result = await createNote({ title, content });
+            if (result && (result.id || result.note_id)) {
+                showToast(`已新建笔记：${title}`);
+                // Refresh notes list so the new note appears in the sidebar
+                if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
+                    window.ScheduleAppNotesList.renderNotesList();
+                }
+            } else {
+                showToast('新建笔记失败');
+            }
+        } catch (error) {
+            console.error('Failed to save as new note:', error);
+            showToast('新建笔记失败');
+        }
+    }
+
     function isOpen() {
         return aiState.isOpen;
     }
@@ -331,6 +366,7 @@
         renderAIChatHistory,
         sendAIChatMessage,
         insertAIResponseToNote,
+        saveAIResponseAsNewNote,
         isOpen,
         getCurrentNoteId,
         updateCurrentNoteContent,
