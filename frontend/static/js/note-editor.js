@@ -797,8 +797,9 @@
                         img.style.height = Math.round(newH) + 'px';
                         // Update overlay
                         const r2 = img.getBoundingClientRect();
-                        overlay.style.left = (r2.left - editorRect.left) + 'px';
-                        overlay.style.top = (r2.top - editorRect.top) + 'px';
+                        const er2 = contentEl.getBoundingClientRect();
+                        overlay.style.left = (r2.left - er2.left) + 'px';
+                        overlay.style.top = (r2.top - er2.top) + 'px';
                         overlay.style.width = r2.width + 'px';
                         overlay.style.height = r2.height + 'px';
                     };

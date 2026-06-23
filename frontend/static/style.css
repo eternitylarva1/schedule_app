@@ -6298,6 +6298,7 @@ textarea {
     line-height: 1.7;
     overflow-y: auto;
     outline: none;
+    position: relative; /* needed for image resize overlay positioning */
     white-space: pre-wrap;
     word-break: break-word;
     -webkit-tap-highlight-color: transparent;
