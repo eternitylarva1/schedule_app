@@ -7036,7 +7036,7 @@ textarea {
 .img-resize-se { bottom: -5px; right: -5px; cursor: se-resize; }
 
 /* ============================================
-   Goals Timeline View (Gantt-style)
+   Goals Timeline View (Modern Redesign)
    ============================================ */
 
 /* View Toggle Button */
@@ -7075,39 +7075,67 @@ textarea {
     color: var(--accent-danger);
 }
 
-/* Timeline Group */
+/* ========== Timeline Group ========== */
 .timeline-group {
     background: var(--bg-card);
     border-radius: var(--radius-lg);
     margin-bottom: var(--space-md);
     overflow: hidden;
+    transition: all var(--transition-normal);
 }
 
 .timeline-group-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
+    gap: var(--space-sm);
+}
+
+.timeline-group-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
 }
 
 .timeline-group-title {
     font-size: var(--font-size-md);
     font-weight: 600;
     color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.timeline-group-count {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.timeline-group-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-shrink: 0;
 }
 
 .timeline-group-toggle {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border: none;
     background: transparent;
     color: var(--text-secondary);
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-sm);
     cursor: pointer;
     border-radius: var(--radius-sm);
     transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .timeline-group-toggle:active {
@@ -7119,125 +7147,228 @@ textarea {
 }
 
 .timeline-group-content {
-    padding: var(--space-md);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
+    transition: all var(--transition-normal);
 }
 
 .timeline-group-content.collapsed {
-    display: none;
+    max-height: 0;
 }
 
-/* Timeline Empty State */
-.timeline-empty {
-    text-align: center;
-    padding: var(--space-lg);
-    color: var(--text-muted);
-    font-size: var(--font-size-sm);
-}
-
-/* Timeline Header with Months */
-.timeline-header {
-    position: relative;
-    margin-bottom: var(--space-md);
-    padding-top: var(--space-md);
-}
-
-.timeline-months {
+/* ========== Per-Group Zoom Slider ========== */
+.timeline-zoom-slider-wrap {
     display: flex;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: var(--space-sm);
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-card);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-color);
 }
 
-.timeline-month {
+.timeline-zoom-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.timeline-zoom-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 60px;
+    height: 4px;
+    background: var(--border-medium);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.timeline-zoom-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform var(--transition-fast);
+}
+
+.timeline-zoom-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.timeline-zoom-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.timeline-zoom-value {
+    font-size: 10px;
+    color: var(--text-secondary);
+    min-width: 32px;
+    text-align: right;
+}
+
+/* ========== Timeline Scroll Container ========== */
+.timeline-scroll-container {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--space-md);
+    padding-bottom: var(--space-lg);
+}
+
+.timeline-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* ========== Timeline Header Row ========== */
+.timeline-header-row {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: inherit;
+}
+
+.timeline-months-row {
+    display: flex;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: var(--space-xs);
+}
+
+.timeline-month-cell {
     flex-shrink: 0;
     text-align: center;
-    overflow: hidden;
+    position: relative;
 }
 
 .timeline-month-label {
     display: block;
     font-size: var(--font-size-xs);
     color: var(--text-secondary);
-    font-weight: 500;
+    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding: 0 2px;
 }
 
-/* Timeline Grid Lines */
-.timeline-grid {
+/* ========== Timeline Body Row ========== */
+.timeline-body-row {
     position: relative;
-    height: 100%;
+    min-height: 80px;
+    padding-top: var(--space-xs);
 }
 
-.timeline-grid-cell {
+.timeline-grid-row {
     position: absolute;
     top: 0;
     bottom: 0;
-    border-left: 1px dashed var(--border-subtle);
-}
-
-/* Today Indicator Line */
-.timeline-today-line {
-    position: absolute;
-    top: -8px;
-    bottom: 0;
-    width: 2px;
-    background: var(--accent-primary);
-    z-index: 10;
+    display: flex;
     pointer-events: none;
 }
 
-.timeline-today-line::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -4px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--accent-primary);
+.timeline-grid-cell {
+    flex-shrink: 0;
+    border-left: 1px dashed var(--border-subtle);
+    height: 100%;
 }
 
-.timeline-today-label {
+/* ========== Today Vertical Line ========== */
+.timeline-today-vline {
     position: absolute;
-    top: -20px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, 
+        rgba(99, 102, 241, 0.1) 0%, 
+        rgba(99, 102, 241, 0.6) 20%, 
+        rgba(99, 102, 241, 0.9) 50%, 
+        rgba(99, 102, 241, 0.6) 80%, 
+        rgba(99, 102, 241, 0.1) 100%
+    );
+    z-index: 4;
+    pointer-events: none;
+}
+
+.timeline-today-tag {
+    position: absolute;
+    top: -24px;
     left: 50%;
     transform: translateX(-50%);
     font-size: 10px;
+    font-weight: 600;
     color: var(--accent-primary);
     background: var(--bg-secondary);
-    padding: 1px 4px;
-    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
     white-space: nowrap;
+    border: 1px solid var(--accent-primary);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
-/* Timeline Bars Container */
-.timeline-bars {
+/* ========== Bars Row ========== */
+.timeline-bars-row {
     position: relative;
-    min-height: 50px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
     padding: var(--space-sm) 0;
+    min-height: 60px;
 }
 
-/* Individual Goal Bar */
+/* ========== Individual Goal Bar ========== */
 .timeline-bar {
     position: absolute;
-    height: 32px;
-    min-width: 40px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    padding: 0 var(--space-sm);
+    height: 36px;
+    min-width: 50px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition-fast);
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.timeline-bar:hover {
+    transform: translateY(-2px);
+    z-index: 10;
 }
 
 .timeline-bar:active {
     transform: scale(0.98);
-    box-shadow: var(--shadow-md);
+}
+
+.timeline-bar.subtask {
+    height: 28px;
+    margin-left: var(--space-lg);
+}
+
+.timeline-bar-inner {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, 
+        var(--bar-color, var(--accent-primary)) 0%, 
+        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 85%, black) 100%
+    );
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    padding: 0 var(--space-sm);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+}
+
+.timeline-bar:hover .timeline-bar-inner {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 
 .timeline-bar-title {
@@ -7250,8 +7381,37 @@ textarea {
     text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
+.timeline-bar-dates {
+    position: absolute;
+    right: -4px;
+    top: 50%;
+    transform: translateX(100%) translateY(-50%);
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+    pointer-events: none;
+    margin-left: var(--space-sm);
+    border: 1px solid var(--border-color);
+}
+
+.timeline-bar:hover .timeline-bar-dates {
+    opacity: 1;
+}
+
 .timeline-bar.done {
     opacity: 0.5;
+}
+
+.timeline-bar.done .timeline-bar-inner {
+    background: linear-gradient(135deg, 
+        var(--bar-color, var(--accent-primary)) 0%, 
+        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 70%, black) 100%
+    ) !important;
 }
 
 .timeline-bar.done .timeline-bar-title {
@@ -7260,73 +7420,98 @@ textarea {
 
 .timeline-bar.cancelled {
     opacity: 0.4;
-    background-image: repeating-linear-gradient(
+}
+
+.timeline-bar.cancelled .timeline-bar-inner {
+    background: repeating-linear-gradient(
         45deg,
-        transparent,
-        transparent 5px,
-        rgba(0,0,0,0.2) 5px,
-        rgba(0,0,0,0.2) 10px
+        var(--bar-color, var(--accent-primary)),
+        var(--bar-color, var(--accent-primary)) 5px,
+        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 80%, black) 5px,
+        color-mix(in srgb, var(--bar-color, var(--accent-primary)) 80%, black) 10px
     ) !important;
 }
 
-/* Timeline Zoom Controls */
-.timeline-zoom-controls {
+/* ========== Empty State ========== */
+.timeline-empty {
     display: flex;
-    align-items: center;
-    gap: 2px;
-    background: var(--bg-card);
-    padding: 2px 4px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-}
-
-.timeline-zoom-btn {
-    width: 28px;
-    height: 28px;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: var(--font-size-xs);
-    cursor: pointer;
-    border-radius: var(--radius-sm);
-    transition: all var(--transition-fast);
-    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    padding: var(--space-xl);
+    gap: var(--space-sm);
+    color: var(--text-muted);
 }
 
-.timeline-zoom-btn:active {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+.timeline-empty-icon {
+    font-size: 32px;
+    opacity: 0.5;
 }
 
-.timeline-zoom-reset {
-    font-size: 10px;
-    width: auto;
-    padding: 0 6px;
+.timeline-empty-add-btn {
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
 }
 
-.timeline-zoom-label {
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    min-width: 36px;
-    text-align: center;
+.timeline-empty-add-btn:active {
+    transform: scale(0.98);
+    opacity: 0.9;
 }
 
-/* Scrollbar styling for timeline */
-.timeline-group-content::-webkit-scrollbar {
-    height: 6px;
+/* ========== Scrollbar Styling ========== */
+.timeline-scroll-container::-webkit-scrollbar {
+    height: 8px;
 }
 
-.timeline-group-content::-webkit-scrollbar-track {
-    background: transparent;
+.timeline-scroll-container::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 4px;
 }
 
-.timeline-group-content::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
-    border-radius: 3px;
+.timeline-scroll-container::-webkit-scrollbar-thumb {
+    background: var(--border-medium);
+    border-radius: 4px;
 }
 
-.timeline-group-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+.timeline-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: var(--border-light);
 }
+
+/* ========== Animations ========== */
+@keyframes timelineBarAppear {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scaleX(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scaleX(1);
+    }
+}
+
+.timeline-bar {
+    animation: timelineBarAppear 0.3s ease-out backwards;
+}
+
+.timeline-group {
+    animation: timelineGroupAppear 0.4s ease-out backwards;
+}
+
+@keyframes timelineGroupAppear {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+

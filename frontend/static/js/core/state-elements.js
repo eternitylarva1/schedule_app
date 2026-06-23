@@ -48,7 +48,7 @@
     goals: [],
     goalsHorizon: 'short',
     goalsViewMode: 'list',  // 'list' | 'timeline'
-    timelineZoom: 1,  // zoom factor for timeline view (0.25 to 4.0)
+    timelineZoom: { short: 1, semester: 1, long: 1 },  // per-group zoom factors
     expandedGoalIds: new Set(),
     enableDragResize: false,
     qqReminderEnabled: false,
