@@ -1343,7 +1343,7 @@ async function openGoalDiscussModal(goalId = null) {
                     // Calculate bar positions with vertical stacking
                     let barY = 0;
                     const barHeight = 36;
-                    const subtaskBarHeight = 28;
+                    const subtaskBarHeight = 26;
                     const barGap = 6;
                     
                     // Group goals by parent to handle subtasks properly
@@ -1364,8 +1364,8 @@ async function openGoalDiscussModal(goalId = null) {
                         const currentBarHeight = isSubtask ? subtaskBarHeight : barHeight;
                         
                         const dateRangeText = formatGoalDate(goal.start_date, goal.end_date);
-                        const showTitle = pos.width >= 60;
-                        const showDatesOutside = pos.width < 80;
+                        const showTitle = pos.width >= 35;
+                        const showDatesOutside = pos.width < 60;
                         
                         // Find subtasks of this goal
                         const subtasks = goalsWithDates.filter(g => g.parentTitle === goal.title && !processedIds.has(g.id));
@@ -1393,8 +1393,8 @@ async function openGoalDiscussModal(goalId = null) {
                             const stIsCancelled = st.status === 'cancelled';
                             const stBarColor = st.color || barColor; // Inherit parent color
                             const stDateRangeText = formatGoalDate(st.start_date, st.end_date);
-                            const stShowTitle = stPos.width >= 60;
-                            const stShowDatesOutside = stPos.width < 80;
+                            const stShowTitle = stPos.width >= 35;
+                            const stShowDatesOutside = stPos.width < 60;
                             
                             barsHtml.push(`
                                 <div class="timeline-bar subtask ${stIsDone ? 'done' : ''} ${stIsCancelled ? 'cancelled' : ''} ${stShowDatesOutside ? 'dates-outside' : ''}"
