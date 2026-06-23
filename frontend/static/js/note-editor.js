@@ -672,12 +672,38 @@
                 if (_undoStack.length > _UNDO_MAX) _undoStack.shift();
                 _redoStack = [];
                 _updateUndoButtons();
+            } else {
+                // API returned null — show error and keep block for retry
+                const msg = response ? 'AI 返回为空' : '请求失败，请重试';
+                aiBlock.dataset.state = 'done';
+                aiBlock.innerHTML = `
+                    <div class="ai-inline-result" style="padding:8px 0;color:var(--text-muted);font-size:13px;">
+                        ${msg}
+                        <button class="ai-btn ai-btn-retry" style="margin-left:8px;">↻ 重试</button>
+                    </div>`;
+                aiBlock.querySelector('.ai-btn-retry').addEventListener('click', () => {
+                    aiBlock.dataset.state = '';
+                    aiBlock.innerHTML = '<div class="ai-inline-status"><span class="ai-inline-icon">🤖</span><span class="ai-inline-text">重新生成中</span><span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span></div>';
+                    _retryAIPrompt(contentEl);
+                });
             }
         } catch (e) {
             console.error('AI prompt failed:', e);
-            showToast('AI 处理失败');
-            aiBlock.remove();
-            contentEl.focus();
+            if (aiBlock.parentNode) {
+                aiBlock.dataset.state = 'done';
+                aiBlock.innerHTML = `
+                    <div class="ai-inline-result" style="padding:8px 0;color:var(--text-muted);font-size:13px;">
+                        AI 处理失败
+                        <button class="ai-btn ai-btn-retry" style="margin-left:8px;">↻ 重试</button>
+                    </div>`;
+                aiBlock.querySelector('.ai-btn-retry').addEventListener('click', () => {
+                    aiBlock.dataset.state = '';
+                    aiBlock.innerHTML = '<div class="ai-inline-status"><span class="ai-inline-icon">🤖</span><span class="ai-inline-text">重新生成中</span><span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span></div>';
+                    _retryAIPrompt(contentEl);
+                });
+            } else {
+                showToast('AI 处理失败');
+            }
         }
     }
 
@@ -754,11 +780,30 @@
                         </div>`;
                     _retryAIPrompt(contentEl);
                 });
+            } else {
+                // API returned null — show error and keep block for retry
+                const msg = response ? 'AI 返回为空' : '请求失败，请重试';
+                aiBlock.innerHTML = `
+                    <div class="ai-inline-result" style="padding:8px 0;color:var(--text-muted);font-size:13px;">
+                        ${msg}
+                        <button class="ai-btn ai-btn-retry" style="margin-left:8px;">↻ 重试</button>
+                    </div>`;
+                aiBlock.querySelector('.ai-btn-retry').addEventListener('click', () => {
+                    aiBlock.dataset.state = '';
+                    aiBlock.innerHTML = '<div class="ai-inline-status"><span class="ai-inline-icon">🤖</span><span class="ai-inline-text">重新生成中</span><span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span></div>';
+                    _retryAIPrompt(contentEl);
+                });
             }
         } catch (e) {
-            showToast('AI 处理失败');
-            aiBlock.remove();
-            contentEl.focus();
+            console.error('AI retry failed:', e);
+            if (aiBlock.parentNode) {
+                aiBlock.innerHTML = '<div class="ai-inline-result" style="padding:8px 0;color:var(--text-muted);font-size:13px;">AI 请求失败 <button class="ai-btn ai-btn-retry" style="margin-left:8px;">↻ 重试</button></div>';
+                aiBlock.querySelector('.ai-btn-retry').addEventListener('click', () => {
+                    aiBlock.dataset.state = '';
+                    aiBlock.innerHTML = '<div class="ai-inline-status"><span class="ai-inline-icon">🤖</span><span class="ai-inline-text">重新生成中</span><span class="ai-inline-dots"><span>.</span><span>.</span><span>.</span></span></div>';
+                    _retryAIPrompt(contentEl);
+                });
+            }
         }
     }
 
