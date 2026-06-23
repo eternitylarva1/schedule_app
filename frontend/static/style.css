@@ -6889,3 +6889,29 @@ textarea {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
+
+/* ============================================
+   Image Resize Overlay
+   ============================================ */
+.img-resize-overlay {
+    position: absolute;
+    z-index: 100;
+    border: 2px solid var(--accent-primary);
+    border-radius: var(--radius-sm);
+    pointer-events: none;
+    box-sizing: border-box;
+}
+.img-resize-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--accent-primary);
+    border: 2px solid #fff;
+    border-radius: 2px;
+    pointer-events: all;
+    cursor: nw-resize;
+}
+.img-resize-nw { top: -5px; left: -5px; cursor: nw-resize; }
+.img-resize-ne { top: -5px; right: -5px; cursor: ne-resize; }
+.img-resize-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.img-resize-se { bottom: -5px; right: -5px; cursor: se-resize; }

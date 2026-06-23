@@ -734,6 +734,93 @@
                 contentEl.focus();
             });
         }
+
+        // ── Core: Image resize (4-corner handles) ────────────────
+        let _resizeOverlay = null;
+
+        function _removeResizeOverlay() {
+            if (_resizeOverlay) {
+                _resizeOverlay.remove();
+                _resizeOverlay = null;
+            }
+        }
+
+        contentEl.addEventListener('click', (e) => {
+            const img = e.target.closest('img');
+            _removeResizeOverlay();
+            if (!img || !contentEl.contains(img)) return;
+            e.stopPropagation();
+
+            const overlay = document.createElement('div');
+            overlay.className = 'img-resize-overlay';
+            const pos = img.getBoundingClientRect();
+            const editorRect = contentEl.getBoundingClientRect();
+            overlay.style.left = (pos.left - editorRect.left) + 'px';
+            overlay.style.top = (pos.top - editorRect.top) + 'px';
+            overlay.style.width = pos.width + 'px';
+            overlay.style.height = pos.height + 'px';
+            contentEl.appendChild(overlay);
+
+            // Create 4 corner handles
+            const corners = ['nw', 'ne', 'sw', 'se'];
+            corners.forEach(c => {
+                const handle = document.createElement('div');
+                handle.className = 'img-resize-handle img-resize-' + c;
+                overlay.appendChild(handle);
+            });
+
+            // Track resize via SE handle (bottom-right)
+            let startX, startY, startW, startH;
+            const seHandle = overlay.querySelector('.img-resize-se');
+            if (seHandle) {
+                seHandle.addEventListener('mousedown', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    startX = ev.clientX;
+                    startY = ev.clientY;
+                    startW = img.width;
+                    startH = img.height;
+
+                    const onMove = (me) => {
+                        const dx = me.clientX - startX;
+                        const dy = me.clientY - startY;
+                        const nw = img.naturalWidth || img.width;
+                        const nh = img.naturalHeight || img.height;
+                        const ratio = nw / nh;
+                        let newW = Math.max(50, startW + dx);
+                        let newH = newW / ratio;
+                        if (dy !== 0 && Math.abs(dy / dx) > 0.3) {
+                            newH = Math.max(50, startH + dy);
+                            newW = newH * ratio;
+                        }
+                        img.style.width = Math.round(newW) + 'px';
+                        img.style.height = Math.round(newH) + 'px';
+                        // Update overlay
+                        const r2 = img.getBoundingClientRect();
+                        overlay.style.left = (r2.left - editorRect.left) + 'px';
+                        overlay.style.top = (r2.top - editorRect.top) + 'px';
+                        overlay.style.width = r2.width + 'px';
+                        overlay.style.height = r2.height + 'px';
+                    };
+                    const onUp = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                        scheduleAutoSave(note);
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+            }
+
+            _resizeOverlay = overlay;
+        });
+
+        // Remove overlay when clicking outside images
+        document.addEventListener('click', (e) => {
+            if (_resizeOverlay && !e.target.closest('.img-resize-overlay') && !e.target.closest('img')) {
+                _removeResizeOverlay();
+            }
+        });
     }
 
     function scheduleAutoSave(note) {
