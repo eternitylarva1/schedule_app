@@ -1326,13 +1326,8 @@ async function openGoalDiscussModal(goalId = null) {
                                         </div>
                                     `).join('')}
                                 </div>
-                                ${showTodayLine ? `
-                                    <div class="tl-today-marker" style="left: ${((todayOffset + 0.5) / months.length * 100).toFixed(1)}%">
-                                        <span class="tl-today-label">今天</span>
-                                    </div>
-                                ` : ''}
                             </div>
-                            <div class="timeline-rows-body">
+                            <div class="timeline-goals-list">
                     `;
                     
                     // Process goals with subtasks
@@ -1345,7 +1340,6 @@ async function openGoalDiscussModal(goalId = null) {
                         const isDone = goal.status === 'done';
                         const isCancelled = goal.status === 'cancelled';
                         const barColor = goal.color || GOAL_COLORS[index % GOAL_COLORS.length];
-                        const isSubtask = !!goal.parentTitle;
                         
                         // Find subtasks of this goal
                         const subtasks = goalsWithDates.filter(g => g.parentTitle === goal.title && !processedIds.has(g.id));
@@ -1368,28 +1362,19 @@ async function openGoalDiscussModal(goalId = null) {
                                 ? `${String(startDt.getMonth() + 1).padStart(2, '0')}/${String(startDt.getDate()).padStart(2, '0')}`
                                 : '未设日期';
                         
-                        // Status badge
-                        const statusBadge = isDone ? '<span class="tl-status-badge done">已完成</span>' :
-                                           isCancelled ? '<span class="tl-status-badge cancelled">已取消</span>' : '';
-                        
-                        // Render parent goal row
+                        // Render parent goal (3-row structure)
                         html += `
-                            <div class="tl-row ${isSubtask ? 'tl-row-sub' : ''} ${isDone ? 'done' : ''} ${isCancelled ? 'cancelled' : ''}"
+                            <div class="tl-goal ${isDone ? 'done' : ''} ${isCancelled ? 'cancelled' : ''}"
                                  data-goal-id="${goal.id}">
-                                <div class="tl-row-head">
-                                    <span class="tl-row-title">${escapeHtml(goal.title)}</span>
-                                    ${statusBadge}
-                                </div>
-                                <div class="tl-row-body">
-                                    <span class="tl-row-dates">${dateDisplay}</span>
-                                    <div class="tl-row-bar-wrap">
-                                        <div class="tl-row-bar" style="left: ${barPos.left}; width: ${barPos.width}; --bar-color: ${barColor};"></div>
-                                    </div>
+                                <div class="tl-goal-title">${escapeHtml(goal.title)}</div>
+                                <div class="tl-goal-dates">${dateDisplay}</div>
+                                <div class="tl-goal-bar-wrap">
+                                    <div class="tl-goal-bar" style="left: ${barPos.left}; width: ${barPos.width}; --bar-color: ${barColor};"></div>
                                 </div>
                             </div>
                         `;
                         
-                        // Render subtask rows
+                        // Render subtask rows (3-row structure, indented)
                         subtasks.forEach(st => {
                             const stIsDone = st.status === 'done';
                             const stIsCancelled = st.status === 'cancelled';
@@ -1411,24 +1396,29 @@ async function openGoalDiscussModal(goalId = null) {
                                     : '未设日期';
                             
                             html += `
-                                <div class="tl-row tl-row-sub ${stIsDone ? 'done' : ''} ${stIsCancelled ? 'cancelled' : ''}"
+                                <div class="tl-goal tl-goal-sub ${stIsDone ? 'done' : ''} ${stIsCancelled ? 'cancelled' : ''}"
                                      data-goal-id="${st.id}">
-                                    <div class="tl-row-head">
-                                        <span class="tl-row-title">└ ${escapeHtml(st.title)}</span>
-                                    </div>
-                                    <div class="tl-row-body">
-                                        <span class="tl-row-dates">${stDateDisplay}</span>
-                                        <div class="tl-row-bar-wrap">
-                                            <div class="tl-row-bar" style="left: ${stBarPos.left}; width: ${stBarPos.width}; --bar-color: ${stBarColor};"></div>
-                                        </div>
+                                    <div class="tl-goal-title">└ ${escapeHtml(st.title)}</div>
+                                    <div class="tl-goal-dates">${stDateDisplay}</div>
+                                    <div class="tl-goal-bar-wrap">
+                                        <div class="tl-goal-bar" style="left: ${stBarPos.left}; width: ${stBarPos.width}; --bar-color: ${stBarColor};"></div>
                                     </div>
                                 </div>
                             `;
                         });
                     });
                     
+                    // Add today divider at the end of the list
+                    if (showTodayLine) {
+                        html += `
+                            <div class="tl-today-divider">
+                                <span class="tl-today-divider-text">📍 今天</span>
+                            </div>
+                        `;
+                    }
+                    
                     html += `
-                            </div><!-- end timeline-rows-body -->
+                            </div><!-- end timeline-goals-list -->
                         </div><!-- end timeline-rows-container -->
                     `;
                 }
@@ -1441,10 +1431,10 @@ async function openGoalDiscussModal(goalId = null) {
             
             listEl.innerHTML = html;
             
-            // Add click handlers for goal rows
-            listEl.querySelectorAll('.tl-row').forEach(row => {
-                row.addEventListener('click', (e) => {
-                    const goalId = parseInt(row.dataset.goalId);
+            // Add click handlers for goal blocks
+            listEl.querySelectorAll('.tl-goal').forEach(goalEl => {
+                goalEl.addEventListener('click', (e) => {
+                    const goalId = parseInt(goalEl.dataset.goalId);
                     if (isNaN(goalId)) return;
                     
                     let goal = null;
