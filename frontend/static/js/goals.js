@@ -1132,12 +1132,17 @@ async function openGoalDiscussModal(goalId = null) {
         const effectiveStart = startDate || endDate;
         const effectiveEnd = endDate || startDate;
         
-        const totalMonths = getMonthDiff(minDate, effectiveEnd) + 1;
-        const startOffset = getMonthDiff(minDate, effectiveStart);
+        // Use day-level precision for accurate bar width
+        const msPerDay = 86400000;
+        const daysPerMonth = 30.44; // average days per month
+        
+        const startDayOffset = (effectiveStart - minDate) / msPerDay;
+        const endDayOffset = (effectiveEnd - minDate) / msPerDay;
+        const barSpanDays = endDayOffset - startDayOffset + 1; // inclusive span
         
         return {
-            left: startOffset * monthWidth,
-            width: Math.max(totalMonths * monthWidth, monthWidth * 0.5) // Min width 0.5 month
+            left: (startDayOffset / daysPerMonth) * monthWidth,
+            width: Math.max((barSpanDays / daysPerMonth) * monthWidth, monthWidth * 0.25)
         };
     }
 

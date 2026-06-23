@@ -1371,6 +1371,17 @@
                 <span class="note-menu-icon">📋</span>
                 <span class="note-menu-label">复制笔记</span>
             </button>
+            <div class="note-menu-section">
+                <div class="note-menu-section-title">导出为</div>
+                <button class="note-menu-item" data-action="export-md">
+                    <span class="note-menu-icon">📥</span>
+                    <span class="note-menu-label">Markdown (.md)</span>
+                </button>
+                <button class="note-menu-item" data-action="export-txt">
+                    <span class="note-menu-icon">📥</span>
+                    <span class="note-menu-label">纯文本 (.txt)</span>
+                </button>
+            </div>
             <div class="note-menu-divider"></div>
             ${isTrash ? `
                 <button class="note-menu-item" data-action="restore">
@@ -1478,6 +1489,52 @@
         });
     }
 
+    function _exportNote(note, format) {
+        const { showToast } = getUtils();
+        try {
+            const title = (note.title || '').trim() || '未命名笔记';
+            const content = note.content || '';
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+            let fileContent;
+            let mimeType;
+            if (format === 'md') {
+                // Markdown: frontmatter-style title + content
+                fileContent = `# ${title}\n\n${content}\n`;
+                mimeType = 'text/markdown;charset=utf-8';
+            } else {
+                // Plain text: title + divider + content
+                fileContent = `${title}\n${'='.repeat(Math.min(title.length, 30))}\n\n${content}\n`;
+                mimeType = 'text/plain;charset=utf-8';
+            }
+
+            // Sanitize filename: replace path-invalid chars, collapse whitespace
+            const safeTitle = title
+                .replace(/[\\/:*?"<>|\r\n\t]/g, '_')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .slice(0, 50) || '未命名';
+            const filename = `${safeTitle}_${dateStr}.${format}`;
+
+            const blob = new Blob([fileContent], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            // Revoke after a short delay so the download has time to start
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+            showToast(`已导出：${filename}`);
+        } catch (err) {
+            console.error('Export failed:', err);
+            showToast('导出失败');
+        }
+    }
+
     async function _handleContextMenuAction(note, action) {
         const { updateNote, deleteNote, showToast, showToastWithUndo, showConfirm } = getUtils();
         const editor = window.ScheduleAppNoteEditor;
@@ -1524,6 +1581,8 @@
             } catch (e) {
                 showToast('复制失败');
             }
+        } else if (action === 'export-md' || action === 'export-txt') {
+            _exportNote(note, action === 'export-md' ? 'md' : 'txt');
         } else if (action === 'archive') {
             const swipeEl = document.querySelector(`.note-swipe[data-note-id="${note.id}"]`);
             if (swipeEl) swipeEl.style.display = 'none';
