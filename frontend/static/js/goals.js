@@ -1262,16 +1262,22 @@ async function openGoalDiscussModal(goalId = null) {
                 const goalCount = goals.length;
                 const datedCount = goalsWithDates.length;
                 
+                // Format date range for header
+                const headerDateRange = goalsWithDates.length > 0 
+                    ? ` · ${formatGoalDate(horizonMinDate, horizonMaxDate)}` 
+                    : '';
+                
                 html += `
                     <div class="timeline-group" data-horizon="${horizon}" style="border-left: 3px solid ${horizonColor};">
                         <div class="timeline-group-header">
                             <div class="timeline-group-info">
                                 <span class="timeline-group-title">${horizonGroupLabel(horizon)}</span>
                                 <span class="timeline-group-count">${datedCount > 0 ? datedCount : goalCount > 0 ? goalCount : 0} 个目标</span>
+                                ${headerDateRange ? `<span class="timeline-group-daterange">${headerDateRange}</span>` : ''}
                             </div>
                             <div class="timeline-group-controls">
+                                <button class="timeline-today-btn" data-horizon="${horizon}" data-scroll-to="${todayLineLeft}" title="回到今天">📍 今天</button>
                                 <div class="timeline-zoom-slider-wrap">
-                                    <span class="timeline-zoom-label">缩放</span>
                                     <input type="range" class="timeline-zoom-slider" 
                                            data-horizon="${horizon}" 
                                            min="0.25" max="4" step="0.25" 
@@ -1289,6 +1295,7 @@ async function openGoalDiscussModal(goalId = null) {
                         <div class="timeline-empty">
                             <div class="timeline-empty-icon">${horizon === 'short' ? '📅' : horizon === 'semester' ? '📆' : '🎯'}</div>
                             <div>暂无${horizon === 'short' ? '短期' : horizon === 'semester' ? '学期' : '长期'}目标</div>
+                            <div class="timeline-empty-hint">设定日期后可在此查看时间规划</div>
                             <button class="timeline-empty-add-btn" data-horizon="${horizon}">+ 添加目标</button>
                         </div>
                     `;
@@ -1297,6 +1304,7 @@ async function openGoalDiscussModal(goalId = null) {
                         <div class="timeline-empty">
                             <div class="timeline-empty-icon">📋</div>
                             <div>暂无有日期的目标</div>
+                            <div class="timeline-empty-hint">为目标设置开始/结束日期后，将在时间轴上显示</div>
                         </div>
                     `;
                 } else {
@@ -1327,7 +1335,20 @@ async function openGoalDiscussModal(goalId = null) {
                                     <div class="timeline-bars-row">
                     `;
                     
+                    // Calculate bar positions with vertical stacking
+                    let barY = 0;
+                    const barHeight = 36;
+                    const subtaskBarHeight = 28;
+                    const barGap = 6;
+                    
+                    // Group goals by parent to handle subtasks properly
+                    const processedIds = new Set();
+                    const barsHtml = [];
+                    
                     goalsWithDates.forEach((goal, index) => {
+                        if (processedIds.has(goal.id)) return;
+                        processedIds.add(goal.id);
+                        
                         const pos = calculateGoalBarPosition(goal, horizonMinDate, monthWidth, horizon);
                         if (!pos) return;
                         
@@ -1335,22 +1356,66 @@ async function openGoalDiscussModal(goalId = null) {
                         const isCancelled = goal.status === 'cancelled';
                         const barColor = goal.color || GOAL_COLORS[index % GOAL_COLORS.length];
                         const isSubtask = !!goal.parentTitle;
+                        const currentBarHeight = isSubtask ? subtaskBarHeight : barHeight;
                         
                         const dateRangeText = formatGoalDate(goal.start_date, goal.end_date);
+                        const showTitle = pos.width >= 60;
+                        const showDatesOutside = pos.width < 80;
                         
-                        html += `
-                            <div class="timeline-bar ${isDone ? 'done' : ''} ${isCancelled ? 'cancelled' : ''} ${isSubtask ? 'subtask' : ''}"
-                                 style="left: ${pos.left}px; width: ${pos.width}px; --bar-color: ${barColor};"
+                        // Find subtasks of this goal
+                        const subtasks = goalsWithDates.filter(g => g.parentTitle === goal.title && !processedIds.has(g.id));
+                        subtasks.forEach(st => processedIds.add(st.id));
+                        
+                        barsHtml.push(`
+                            <div class="timeline-bar ${isDone ? 'done' : ''} ${isCancelled ? 'cancelled' : ''} ${isSubtask ? 'subtask' : ''} ${showDatesOutside ? 'dates-outside' : ''}"
+                                 style="left: ${pos.left}px; width: ${pos.width}px; top: ${barY}px; height: ${currentBarHeight}px; --bar-color: ${barColor};"
                                  data-goal-id="${goal.id}">
                                 <div class="timeline-bar-inner">
-                                    <span class="timeline-bar-title">${escapeHtml(goal.title)}</span>
+                                    ${showTitle ? `<span class="timeline-bar-title">${isSubtask ? '└ ' : ''}${escapeHtml(goal.title)}</span>` : ''}
+                                    ${!showDatesOutside && dateRangeText ? `<span class="timeline-bar-dates-inline">${dateRangeText}</span>` : ''}
                                 </div>
-                                <div class="timeline-bar-dates">${dateRangeText}</div>
+                                ${showDatesOutside ? `<div class="timeline-bar-dates">${dateRangeText}</div>` : ''}
                             </div>
-                        `;
+                        `);
+                        
+                        // Add subtask bars
+                        let subtaskY = barY + currentBarHeight + barGap;
+                        subtasks.forEach((st, stIndex) => {
+                            const stPos = calculateGoalBarPosition(st, horizonMinDate, monthWidth, horizon);
+                            if (!stPos) return;
+                            
+                            const stIsDone = st.status === 'done';
+                            const stIsCancelled = st.status === 'cancelled';
+                            const stBarColor = st.color || barColor; // Inherit parent color
+                            const stDateRangeText = formatGoalDate(st.start_date, st.end_date);
+                            const stShowTitle = stPos.width >= 60;
+                            const stShowDatesOutside = stPos.width < 80;
+                            
+                            barsHtml.push(`
+                                <div class="timeline-bar subtask ${stIsDone ? 'done' : ''} ${stIsCancelled ? 'cancelled' : ''} ${stShowDatesOutside ? 'dates-outside' : ''}"
+                                     style="left: ${stPos.left}px; width: ${stPos.width}px; top: ${subtaskY}px; height: ${subtaskBarHeight}px; --bar-color: ${stBarColor};"
+                                     data-goal-id="${st.id}">
+                                    <div class="timeline-bar-inner">
+                                        ${stShowTitle ? `<span class="timeline-bar-title">└ ${escapeHtml(st.title)}</span>` : ''}
+                                        ${!stShowDatesOutside && stDateRangeText ? `<span class="timeline-bar-dates-inline">${stDateRangeText}</span>` : ''}
+                                    </div>
+                                    ${stShowDatesOutside ? `<div class="timeline-bar-dates">${stDateRangeText}</div>` : ''}
+                                </div>
+                            `);
+                            
+                            subtaskY += subtaskBarHeight + barGap;
+                        });
+                        
+                        // Next bar starts after subtasks or one bar height
+                        barY = subtasks.length > 0 ? subtaskY : barY + currentBarHeight + barGap;
                     });
                     
+                    // Calculate total bars row height
+                    const barsRowHeight = Math.max(barY + 20, 80); // At least 80px
+                    
                     html += `
+                                    <div class="timeline-bars-row" style="min-height: ${barsRowHeight}px;">
+                                        ${barsHtml.join('')}
                                     </div><!-- end timeline-bars-row -->
                                 </div><!-- end timeline-body-row -->
                             </div><!-- end timeline-inner -->
@@ -1423,6 +1488,39 @@ async function openGoalDiscussModal(goalId = null) {
                     e.stopPropagation();
                     showAddGoalModal();
                 });
+            });
+            
+            // Add "Back to Today" button handler
+            listEl.querySelectorAll('.timeline-today-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const horizon = btn.dataset.horizon;
+                    const scrollTo = parseInt(btn.dataset.scrollTo);
+                    const container = listEl.querySelector(`#timeline-content-${horizon}`);
+                    const scrollWrapper = container?.closest('.timeline-scroll-container');
+                    if (scrollWrapper && !isNaN(scrollTo)) {
+                        // Scroll to center the today line
+                        const containerWidth = scrollWrapper.clientWidth;
+                        const scrollLeft = Math.max(0, scrollTo - containerWidth / 2);
+                        scrollWrapper.scrollTo({
+                            left: scrollLeft,
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+            
+            // Add scroll hint visibility toggle
+            listEl.querySelectorAll('.timeline-scroll-container').forEach(container => {
+                const updateScrollHint = () => {
+                    const hasOverflow = container.scrollWidth > container.clientWidth + 10;
+                    container.classList.toggle('can-scroll', hasOverflow);
+                };
+                updateScrollHint();
+                container.addEventListener('scroll', updateScrollHint, { passive: true });
+                // Also check on resize
+                if (window.ResizeObserver) {
+                    new ResizeObserver(updateScrollHint).observe(container);
+                }
             });
             
         } catch (error) {
