@@ -7276,7 +7276,7 @@ textarea {
 .timeline-body-row {
     position: relative;
     min-height: 80px;
-    padding-top: var(--space-xs);
+    padding-top: var(--space-md);
 }
 
 .timeline-grid-row {
@@ -7312,7 +7312,7 @@ textarea {
 
 .timeline-today-tag {
     position: absolute;
-    top: -24px;
+    top: 4px;
     left: 50%;
     transform: translateX(-50%);
     font-size: 10px;
@@ -7324,6 +7324,7 @@ textarea {
     white-space: nowrap;
     border: 1px solid var(--accent-primary);
     box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    z-index: 6;
 }
 
 /* ========== Bars Row ========== */

@@ -1242,10 +1242,18 @@ async function openGoalDiscussModal(goalId = null) {
                 horizonMinDate = new Date(horizonMinDate.getFullYear(), horizonMinDate.getMonth() - paddingBack, 1);
                 horizonMaxDate = new Date(horizonMaxDate.getFullYear(), horizonMaxDate.getMonth() + paddingForward + 1, 0);
                 
-                const baseWidth = horizon === 'long' ? 50 : 70;
-                const monthWidth = baseWidth * groupZoom;
+                const baseWidth = horizon === 'long' ? 80 : 100;
+                let monthWidth = baseWidth * groupZoom;
                 const months = generateTimelineMonths(horizonMinDate, horizonMaxDate, horizon);
-                const totalWidth = months.length * monthWidth;
+                let totalWidth = months.length * monthWidth;
+                
+                // Responsive: ensure timeline fills at least 85% of typical mobile/desktop view
+                // If content is too narrow, scale month width up proportionally
+                const minFillWidth = horizon === 'short' ? 750 : horizon === 'semester' ? 800 : 850;
+                if (totalWidth < minFillWidth && months.length > 0) {
+                    monthWidth = Math.max(monthWidth, minFillWidth / months.length);
+                    totalWidth = months.length * monthWidth;
+                }
                 
                 const todayOffset = getMonthDiff(horizonMinDate, today);
                 const todayLineLeft = todayOffset * monthWidth + monthWidth / 2;
