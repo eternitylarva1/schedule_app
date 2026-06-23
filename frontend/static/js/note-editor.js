@@ -420,6 +420,7 @@
     // ===== /a Command =====
     let _aiPromptEl = null;
     let _dismissPromptHandler = null;
+    let _savedRange = null; // save cursor range when /a is detected
 
     function _showAIPrompt(contentEl, cursorRect) {
         _hideAIPrompt();
@@ -498,6 +499,7 @@
     }
 
     function _hideAIPrompt() {
+        _savedRange = null;
         if (!_aiPromptEl) return;
         document.removeEventListener('click', _dismissPromptHandler);
         _aiPromptEl.remove();
@@ -535,8 +537,8 @@
         // Hide floating prompt
         _hideAIPrompt();
 
-        // Insert inline AI block at cursor position
-        const range = window.getSelection().getRangeAt(0);
+        // Insert inline AI block at saved cursor position
+        const range = _savedRange || window.getSelection().getRangeAt(0);
         const aiBlock = document.createElement('div');
         aiBlock.className = 'ai-inline-edit';
         aiBlock.contentEditable = 'false';
@@ -750,7 +752,8 @@
 
                 // Get cursor position
                 const sel = window.getSelection();
-                const cursorRect = sel?.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
+                _savedRange = sel?.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+                const cursorRect = _savedRange?.getBoundingClientRect() || null;
 
                 _showAIPrompt(contentEl, cursorRect);
             } else {
