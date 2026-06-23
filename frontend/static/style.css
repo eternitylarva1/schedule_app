@@ -6289,7 +6289,7 @@ textarea {
 .note-inline-content {
     flex: 1;
     min-height: 0;
-    padding: 14px 16px;
+    padding: 14px 16px 40vh 16px; /* extra bottom space so content scrolls up */
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
     border-radius: 0 0 var(--radius-lg) var(--radius-lg);
