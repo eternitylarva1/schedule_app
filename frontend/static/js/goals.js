@@ -1022,7 +1022,11 @@ async function openGoalDiscussModal(goalId = null) {
                     color: GOAL_COLORS[0]
                 });
                 closeModal();
-                await renderGoalsList();
+                if (state.goalsViewMode === 'timeline') {
+                    await renderTimelineView();
+                } else {
+                    await renderGoalsList();
+                }
                 showToast?.('目标已添加');
             } catch (error) {
                 console.error('Create goal error:', error);
