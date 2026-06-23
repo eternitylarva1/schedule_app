@@ -515,6 +515,204 @@
         _aiPromptEl = null;
     }
 
+    // ===== @-mention =====
+    let _mentionDropdownEl = null;
+    let _mentionSavedRange = null;
+    let _mentionItems = [];      // filtered results
+    let _mentionSelectedIdx = 0;
+
+    function _showMentionDropdown(contentEl, cursorRect) {
+        _hideMentionDropdown();
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'mention-dropdown';
+        dropdown.innerHTML = `
+            <div class="mention-dropdown-header">
+                <input type="text" class="mention-dropdown-input"
+                       placeholder="搜索笔记标题..." autocomplete="off">
+            </div>
+            <div class="mention-dropdown-list"></div>
+        `;
+        document.body.appendChild(dropdown);
+        _mentionDropdownEl = dropdown;
+
+        // Position near cursor
+        _positionPrompt(dropdown, cursorRect);
+
+        // Focus input
+        const input = dropdown.querySelector('.mention-dropdown-input');
+        if (input) setTimeout(() => input.focus(), 50);
+
+        // Bind input filtering
+        if (input) {
+            input.addEventListener('input', () => {
+                _filterMentionItems(input.value);
+                _renderMentionItems();
+            });
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    _moveMentionSelection(1);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    _moveMentionSelection(-1);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (_mentionItems.length > 0) {
+                        _insertMention(_mentionItems[_mentionSelectedIdx]);
+                    }
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _mentionSavedRange = null;
+                    _hideMentionDropdown();
+                    contentEl.focus();
+                }
+            });
+        }
+
+        // Dismiss on outside click
+        _dismissPromptHandler = (e) => {
+            if (_mentionDropdownEl && !_mentionDropdownEl.contains(e.target)) {
+                _mentionSavedRange = null;
+                _hideMentionDropdown();
+            }
+        };
+        setTimeout(() => document.addEventListener('click', _dismissPromptHandler), 0);
+
+        // Initial filter (show all except current)
+        _filterMentionItems('');
+        _renderMentionItems();
+    }
+
+    function _hideMentionDropdown() {
+        if (!_mentionDropdownEl) return;
+        document.removeEventListener('click', _dismissPromptHandler);
+        _mentionDropdownEl.remove();
+        _mentionDropdownEl = null;
+        _mentionItems = [];
+        _mentionSelectedIdx = 0;
+    }
+
+    function _filterMentionItems(query) {
+        const state = getState();
+        const allNotes = state.notes || [];
+        const currentNote = state.selectedNote;
+        const q = query.trim().toLowerCase();
+
+        _mentionItems = allNotes
+            .filter(note => {
+                if (!note.id || note.id === currentNote?.id) return false;
+                return true;
+            })
+            .filter(note => {
+                if (!q) return true;
+                // Match title (case-insensitive)
+                if (note.title && note.title.toLowerCase().includes(q)) return true;
+                // Match content substring
+                if (note.content && note.content.toLowerCase().includes(q)) return true;
+                return false;
+            })
+            .slice(0, 8);
+
+        _mentionSelectedIdx = 0;
+    }
+
+    function _renderMentionItems() {
+        if (!_mentionDropdownEl) return;
+        const list = _mentionDropdownEl.querySelector('.mention-dropdown-list');
+        if (!list) return;
+
+        if (_mentionItems.length === 0) {
+            list.innerHTML = '<div class="mention-dropdown-empty">没有找到笔记</div>';
+            return;
+        }
+
+        list.innerHTML = _mentionItems.map((note, idx) => {
+            const selected = idx === _mentionSelectedIdx ? ' selected' : '';
+            const title = escapeHtml(note.title || '（无标题）');
+            const snippet = note.content
+                ? escapeHtml(note.content.substring(0, 60).replace(/<[^>]+>/g, ''))
+                : '';
+            return `
+                <div class="mention-dropdown-item${selected}" data-idx="${idx}">
+                    <span class="mention-dropdown-title">${title}</span>
+                    ${snippet ? `<span class="mention-dropdown-snippet">${snippet}</span>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        // Bind click on items
+        list.querySelectorAll('.mention-dropdown-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idx = parseInt(item.dataset.idx);
+                if (_mentionItems[idx]) {
+                    _insertMention(_mentionItems[idx]);
+                }
+            });
+            item.addEventListener('mouseenter', () => {
+                const idx = parseInt(item.dataset.idx);
+                _mentionSelectedIdx = idx;
+                _renderMentionItems();
+            });
+        });
+    }
+
+    function _moveMentionSelection(delta) {
+        if (_mentionItems.length === 0) return;
+        _mentionSelectedIdx = (_mentionSelectedIdx + delta + _mentionItems.length) % _mentionItems.length;
+        _renderMentionItems();
+
+        // Scroll selected into view
+        if (_mentionDropdownEl) {
+            const selected = _mentionDropdownEl.querySelector('.mention-dropdown-item.selected');
+            if (selected) selected.scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    function _insertMention(note) {
+        if (!_mentionSavedRange) return;
+
+        const contentEl = document.getElementById('noteInlineContent');
+        if (!contentEl) return;
+
+        // Hide dropdown first
+        _hideMentionDropdown();
+
+        // Create mention span
+        const span = document.createElement('span');
+        span.className = 'note-mention';
+        span.contentEditable = 'false';
+        span.dataset.noteId = String(note.id);
+        span.dataset.title = note.title || '（无标题）';
+        span.textContent = '@' + (note.title || '（无标题）');
+
+        // Insert span at saved cursor position
+        const range = _mentionSavedRange.cloneRange();
+        range.deleteContents();
+        range.insertNode(span);
+
+        // Add trailing space
+        const space = document.createTextNode('\u00A0');
+        span.parentNode.insertBefore(space, span.nextSibling);
+
+        // Collapse cursor after the space
+        const newRange = document.createRange();
+        newRange.setStartAfter(space);
+        newRange.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+
+        // Refocus editor
+        contentEl.focus();
+
+        // Trigger save
+        const state = getState();
+        const currentNote = state.selectedNote;
+        if (currentNote) scheduleAutoSave(currentNote);
+    }
+
     // ===== Inline AI typing effect =====
     async function _typeText(element, text, speed = 25) {
         let i = 0;
@@ -908,28 +1106,48 @@
         contentEl.addEventListener('input', _scheduleSnapshot);
         titleInput.addEventListener('input', _scheduleSnapshot);
 
-        // ── Core: /a command detection (input-based, works with any IME) ──
+        // ── Core: /a and @-mention command detection (input-based, works with any IME) ──
         contentEl.addEventListener('keydown', (e) => {
-            // Esc while prompt is showing: dismiss
+            // Esc while AI prompt is showing: dismiss
             if (_aiPromptEl && e.key === 'Escape') {
                 e.preventDefault();
                 _savedRange = null;
                 _hideAIPrompt();
                 contentEl.focus();
             }
+            // Esc while mention dropdown is showing: dismiss and remove @
+            if (_mentionDropdownEl && e.key === 'Escape') {
+                e.preventDefault();
+                _mentionSavedRange = null;
+                _hideMentionDropdown();
+                contentEl.focus();
+            }
+            // Arrow keys while mention dropdown is showing
+            if (_mentionDropdownEl) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    _moveMentionSelection(1);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    _moveMentionSelection(-1);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (_mentionItems.length > 0) {
+                        _insertMention(_mentionItems[_mentionSelectedIdx]);
+                    }
+                }
+            }
         });
 
         contentEl.addEventListener('input', () => {
-            if (_aiPromptEl) return; // prompt already showing
-
             const sel = window.getSelection();
             if (!sel || !sel.rangeCount) return;
             const range = sel.getRangeAt(0);
             const node = range.startContainer;
             const offset = range.startOffset;
 
-            // Check if text before cursor ends with "/a"
-            if (node.nodeType === Node.TEXT_NODE && offset >= 2) {
+            // Check for /a command (only if AI prompt not already showing)
+            if (!_aiPromptEl && node.nodeType === Node.TEXT_NODE && offset >= 2) {
                 const text = node.textContent;
                 if (text.substring(offset - 2, offset) === '/a') {
                     // Remove /a from content
@@ -951,6 +1169,49 @@
 
                     _showAIPrompt(contentEl, cursorRect);
                     return;
+                }
+            }
+
+            // Check for @ mention (only if mention dropdown not already showing)
+            if (!_mentionDropdownEl && node.nodeType === Node.TEXT_NODE && offset >= 1) {
+                const text = node.textContent;
+                if (text.substring(offset - 1, offset) === '@') {
+                    // Remove @ from content
+                    node.textContent = text.substring(0, offset - 1) + text.substring(offset);
+                    // Save the range (position where @ was)
+                    _mentionSavedRange = document.createRange();
+                    _mentionSavedRange.setStart(node, offset - 1);
+                    _mentionSavedRange.collapse(true);
+
+                    // Get cursor rect for floating dropdown positioning
+                    const tempRange = document.createRange();
+                    tempRange.setStart(node, offset - 1);
+                    tempRange.collapse(true);
+                    const cursorRect = tempRange.getBoundingClientRect();
+
+                    // Restore cursor position
+                    sel.removeAllRanges();
+                    sel.addRange(_mentionSavedRange);
+
+                    _showMentionDropdown(contentEl, cursorRect);
+                    return;
+                }
+            }
+        });
+
+        // ── Core: Click on mention to navigate ──
+        contentEl.addEventListener('click', (e) => {
+            const mention = e.target.closest('.note-mention');
+            if (mention) {
+                e.preventDefault();
+                e.stopPropagation();
+                const noteId = parseInt(mention.dataset.noteId);
+                // Find the .note-item in sidebar and click it
+                const item = document.querySelector(`.note-item[data-note-id="${noteId}"]`);
+                if (item) {
+                    item.click();
+                } else if (window.ScheduleAppNotesList?.openNoteById) {
+                    window.ScheduleAppNotesList.openNoteById(noteId);
                 }
             }
         });
