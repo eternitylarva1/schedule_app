@@ -1,0 +1,339 @@
+/* ============================================
+   [测试版 - 未启用] modals.css
+   拆分自: frontend/static/style.css
+   创建时间: 2026-06-24
+   状态: TESTING - 此文件尚未被 index.html 引用
+   说明: 这是 style.css 物理拆分测试。
+         旧 /static/style.css 保持不变,服务仍用旧版。
+         等用户确认无副作用后再切入口路径。
+   ============================================ */
+
+
+/* Detail modal */
+.detail-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.detail-row {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.detail-time-row {
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.detail-time-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.detail-time-item input {
+    flex: 1;
+    padding: var(--space-sm);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.detail-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    min-width: 60px;
+}
+
+.detail-value {
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+}
+
+.detail-category {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+}
+
+/* Detail history section */
+.detail-history-section {
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--border-color);
+}
+
+.detail-history-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: var(--space-xs);
+}
+
+.detail-history-action {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--accent-primary);
+}
+
+.detail-history-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.detail-history-diff {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.detail-history-loading,
+.detail-history-empty,
+.detail-history-error {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    text-align: center;
+    padding: var(--space-sm);
+}
+
+.detail-history-error {
+    color: var(--color-danger);
+}
+
+/* ============================================
+   Breakdown Modal
+   ============================================ */
+.breakdown-results {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.breakdown-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    padding: var(--space-sm);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    border-left: 3px solid var(--color-work);
+}
+
+.breakdown-item:nth-child(1) { border-left-color: var(--color-work); }
+.breakdown-item:nth-child(2) { border-left-color: var(--color-life); }
+.breakdown-item:nth-child(3) { border-left-color: var(--color-study); }
+.breakdown-item:nth-child(4) { border-left-color: var(--color-health); }
+
+.breakdown-item-time {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+}
+
+.breakdown-item-time input {
+    padding: var(--space-xs);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-xs);
+}
+
+.breakdown-date-input {
+    width: 130px;
+}
+
+.breakdown-time-input {
+    width: 90px;
+}
+
+.breakdown-item-title input {
+    width: 100%;
+    padding: var(--space-sm);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+}
+
+.breakdown-item-title {
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+}
+
+.breakdown-item-title input {
+    width: 100%;
+    padding: var(--space-sm);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+}
+
+.breakdown-empty {
+    text-align: center;
+    padding: var(--space-lg);
+    color: var(--text-muted);
+}
+
+/* Saved Breakdowns List */
+.saved-breakdowns-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.saved-breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+}
+
+.saved-breakdown-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.saved-breakdown-text {
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.saved-breakdown-meta {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.saved-breakdown-load-btn {
+    flex-shrink: 0;
+    padding: var(--space-sm) var(--space-md);
+}
+
+textarea {
+    width: 100%;
+    padding: var(--space-sm);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    resize: vertical;
+    min-height: 60px;
+}
+
+/* ============================================
+   Custom Confirm Dialog
+   ============================================ */
+.confirm-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.confirm-backdrop.visible {
+    opacity: 1;
+}
+
+.confirm-dialog {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    width: 280px;
+    max-width: 80vw;
+    transform: scale(0.9);
+    transition: transform 0.2s ease;
+}
+
+.confirm-backdrop.visible .confirm-dialog {
+    transform: scale(1);
+}
+
+.confirm-message {
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    text-align: center;
+    margin-bottom: var(--space-lg);
+    line-height: 1.5;
+}
+
+.confirm-input {
+    width: 100%;
+    height: 44px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-md);
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    background: var(--bg-card);
+    margin-bottom: var(--space-md);
+}
+
+.confirm-buttons {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.confirm-btn {
+    flex: 1;
+    height: 44px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-md);
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.confirm-btn:active {
+    opacity: 0.8;
+}
+
+.confirm-cancel {
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.confirm-ok {
+    background: var(--accent-danger);
+    color: white;
+}
+
+@media (max-width: 480px) {
+    .confirm-dialog {
+        width: min(92vw, 360px);
+    }
+
+    .confirm-buttons {
+        flex-direction: column-reverse;
+    }
+}
+

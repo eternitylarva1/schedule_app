@@ -1,0 +1,182 @@
+/* ============================================
+   [测试版 - 未启用] header.css
+   拆分自: frontend/static/style.css
+   创建时间: 2026-06-24
+   状态: TESTING - 此文件尚未被 index.html 引用
+   说明: 这是 style.css 物理拆分测试。
+         旧 /static/style.css 保持不变,服务仍用旧版。
+         等用户确认无副作用后再切入口路径。
+   ============================================ */
+
+/* ============================================
+   Header
+   ============================================ */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--header-height);
+    padding: 0 var(--space-md);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+/* Header Calendar Segmented Control */
+.header .calendar-segmented {
+    margin: 0;
+    padding: 2px;
+}
+
+.header-btn {
+    width: 44px;
+    height: 44px;
+    border: none !important;
+    border-style: none !important;
+    border-color: transparent !important;
+    border-image: none !important;
+    background: var(--accent-primary) !important;
+    background-color: var(--accent-primary) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: white !important;
+    font-size: var(--font-size-lg);
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.header-btn:active {
+    transform: scale(0.95);
+}
+
+.header-btn svg {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block;
+    fill: none !important;
+    stroke: white !important;
+}
+
+.header-btn:active {
+    background: #1a1a1a !important;
+    background-color: #1a1a1a !important;
+}
+
+.header-btn svg {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block;
+    fill: none !important;
+    stroke: white !important;
+}
+
+/* Gradient circular buttons for header */
+.header-btn-purple {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1) !important;
+    background-color: transparent !important;
+}
+
+.header-btn-purple:active {
+    background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
+    background-color: transparent !important;
+}
+
+.header-btn-blue {
+    background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+    background-color: transparent !important;
+}
+
+.header-btn-blue:active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+    background-color: transparent !important;
+}
+
+.header-btn-green {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background-color: transparent !important;
+}
+
+.header-btn-green:active {
+    background: linear-gradient(135deg, #059669, #047857) !important;
+    background-color: transparent !important;
+}
+
+.header-btn-orange {
+    background: linear-gradient(135deg, #f97316, #ea580c) !important;
+    background-color: transparent !important;
+}
+
+.header-btn-orange:active {
+    background: linear-gradient(135deg, #ea580c, #c2410c) !important;
+    background-color: transparent !important;
+}
+
+.header-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.header-center {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.nav-arrow-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 24px;
+    font-weight: 300;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.nav-arrow-btn:active {
+    background: var(--bg-hover);
+    transform: scale(0.95);
+}
+
+.refresh-btn {
+    font-size: var(--font-size-md);
+}
+
+.refresh-btn.rotating {
+    animation: rotate 0.6s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+

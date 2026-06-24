@@ -1,0 +1,1030 @@
+/* ============================================
+   [测试版 - 未启用] notepad.css
+   拆分自: frontend/static/style.css
+   创建时间: 2026-06-24
+   状态: TESTING - 此文件尚未被 index.html 引用
+   说明: 这是 style.css 物理拆分测试。
+         旧 /static/style.css 保持不变,服务仍用旧版。
+         等用户确认无副作用后再切入口路径。
+   ============================================ */
+
+/* Stage 5.3: Notes empty state */
+.notes-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+}
+.notes-empty-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+.notes-empty-text {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+.notes-empty-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+.notes-empty-guide-btn {
+    margin-top: 12px;
+    padding: 6px 16px;
+    background: var(--accent-primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.notes-empty-guide-btn:hover { opacity: 0.85; }
+
+/* Task 3: Notes sort bar */
+.notes-sort-bar {
+    display: flex;
+    gap: 4px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.notes-sort-btn {
+    padding: 3px 8px;
+    border: 1px solid var(--border-medium);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    cursor: pointer;
+}
+.notes-sort-btn.active {
+    background: var(--accent-primary);
+    color: #fff;
+    border-color: var(--accent-primary);
+}
+.notes-sort-btn:hover:not(.active) { opacity: 0.8; }
+
+/* Task 2: Note inline dates */
+.note-inline-dates {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 0 2px 4px;
+}
+.note-date-created { color: var(--text-muted); }
+.note-date-updated { color: var(--accent-primary); opacity: 0.8; }
+.note-inline-sep { color: var(--border-medium); }
+.note-inline-fontsize {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 1px 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    outline: none;
+}
+.note-inline-fontsize:hover {
+    border-color: var(--border-medium);
+    color: var(--text-secondary);
+}
+.note-inline-fontsize option {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
+/* ============================================
+   Notepad View
+   ============================================ */
+.notepad-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-primary);
+}
+
+.notepad-tabs {
+    display: flex;
+    padding: var(--space-sm) var(--space-md);
+    gap: var(--space-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.notepad-tab {
+    flex: 1;
+    padding: var(--space-sm) var(--space-md);
+    border: none;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.notepad-tab.active {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.notepad-input-area {
+    display: flex;
+    padding: var(--space-sm) var(--space-md);
+    gap: var(--space-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.notepad-input-area input {
+    flex: 1;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+}
+
+.notepad-add-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: var(--accent-primary);
+    color: white;
+    border-radius: 50%;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.notepad-add-btn:active {
+    transform: scale(0.95);
+    background: var(--accent-primary);
+}
+
+.notepad-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-md);
+}
+
+/* Note Group Styles */
+
+.add-group-container {
+    padding: var(--space-md);
+    text-align: center;
+}
+
+.add-group-btn {
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    color: var(--text-muted);
+    font-size: var(--font-size-md);
+    cursor: pointer;
+    width: 100%;
+    transition: all var(--transition-fast);
+}
+
+.add-group-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* Notes Styles */
+.note-item {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    margin-bottom: var(--space-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.note-title {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.note-actions-hint {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.note-edit-textarea {
+    width: 100%;
+    min-height: 180px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.note-edit-title-input {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    margin-bottom: var(--space-sm);
+}
+
+.note-edit-title-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.note-edit-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+}
+
+.note-edit-group-select {
+    flex: 0 0 120px;
+    max-width: 120px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+}
+
+.note-edit-group-select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.note-edit-ai-btn {
+    flex-shrink: 0;
+    padding: 8px 16px;
+    font-size: var(--font-size-sm);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.note-edit-ai-btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+/* Note Drag Handle */
+.note-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+}
+
+.note-drag-handle {
+    color: var(--text-muted);
+    font-size: var(--font-size-lg);
+    cursor: grab;
+    padding: var(--space-xs);
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.note-drag-handle:active {
+    cursor: grabbing;
+}
+
+.note-item .note-title,
+.note-item .note-content {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Note Drag State */
+.note-swipe.dragging {
+    opacity: 0.5;
+}
+
+.note-swipe.drag-over {
+    border-top: 2px solid var(--accent-primary);
+}
+
+.note-swipe.drag-over::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-primary);
+}
+
+/* Drop Indicator */
+.drop-indicator {
+    height: 3px;
+    background: var(--accent-primary);
+    border-radius: 2px;
+    margin: var(--space-xs) 0;
+}
+
+/* Note Group Styles */
+.note-group {
+    margin-bottom: var(--space-sm);
+}
+
+.note-group-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    user-select: none;
+}
+
+.note-group-toggle {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    width: 16px;
+    text-align: center;
+}
+
+.note-group-name {
+    flex: 1;
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.note-group-count {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    background: var(--bg-card);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.note-group-delete {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: var(--font-size-lg);
+    cursor: pointer;
+    padding: 0 var(--space-xs);
+    opacity: 0.6;
+    transition: opacity var(--transition-fast);
+}
+
+.note-group-delete:hover {
+    opacity: 1;
+    color: var(--accent-danger);
+}
+
+.note-group-content {
+    overflow: hidden;
+}
+
+.note-group-content.collapsed {
+    display: none;
+}
+
+.note-group-empty {
+    padding: var(--space-md);
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.add-group-container {
+    padding: var(--space-md);
+    text-align: center;
+}
+
+.add-group-btn {
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    color: var(--text-muted);
+    font-size: var(--font-size-md);
+    cursor: pointer;
+    width: 100%;
+    transition: all var(--transition-fast);
+}
+
+.add-group-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+/* Group Drop Target Highlight */
+.note-group.drag-over .note-group-header {
+    background: var(--accent-primary);
+    opacity: 0.3;
+}
+
+/* Group Selected for Drop (click to select during drag) */
+.note-group.selected-group .note-group-header {
+    background: var(--accent-primary);
+    opacity: 0.5;
+    border: 2px solid var(--accent-primary);
+}
+
+.note-detail-title {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+    line-height: 1.35;
+}
+
+/* Swipe common */
+.swipe-item {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-sm);
+}
+
+.swipe-action {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 82px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: #fff;
+    z-index: 1;
+    user-select: none;
+}
+
+.note-group-header::-webkit-details-marker {
+    display: none;
+}
+
+.note-group-header::marker {
+    content: '';
+}
+
+.swipe-action-left {
+    left: 0;
+    background: #2563eb;
+}
+
+.swipe-action-right {
+    right: 0;
+    background: #dc2626;
+}
+
+.swipe-content {
+    position: relative;
+    z-index: 2;
+    background: var(--bg-card);
+    transition: transform 160ms ease;
+    will-change: transform;
+    touch-action: pan-y;
+}
+
+.swipe-content.dragging {
+    transition: none;
+}
+
+.swipe-item.swipe-open .swipe-content {
+    box-shadow: var(--shadow-md);
+}
+
+.note-swipe .note-item,
+.expense-swipe .expense-item {
+    margin-bottom: 0;
+    border-radius: var(--radius-md);
+}
+
+.note-item:active {
+    transform: scale(0.98);
+}
+
+.note-content {
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    line-height: 1.5;
+    margin-bottom: var(--space-sm);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.note-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.note-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.note-actions {
+    display: flex;
+    gap: var(--space-xs);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.note-item:active .note-actions {
+    opacity: 1;
+}
+
+.note-action-btn {
+    padding: var(--space-xs);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+}
+
+.note-detail-content {
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: var(--space-md);
+}
+
+.note-detail-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.settings-cleanup-btn {
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: var(--font-size-sm);
+}
+
+/* Expense Month Selector */
+.expense-month-selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.expense-month-selector.hidden {
+    display: none;
+}
+
+.expense-month-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 4px 10px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+}
+
+.expense-month-btn:active {
+    background: var(--bg-secondary);
+}
+
+.expense-month-selector input[type="month"] {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 4px 8px;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    color-scheme: light;
+}
+
+/* Expense Styles */
+.expense-stats-card {
+    background: linear-gradient(135deg, var(--accent-primary), #6366f1);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    margin-bottom: var(--space-md);
+    color: white;
+}
+
+.expense-total {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: var(--space-md);
+}
+
+.expense-total-label {
+    font-size: var(--font-size-sm);
+    opacity: 0.9;
+}
+
+.expense-total-value {
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.expense-category-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+}
+
+.expense-cat-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--font-size-xs);
+    opacity: 0.9;
+}
+
+.expense-cat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.expense-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding-bottom: calc(var(--tab-bar-height) + var(--safe-area-bottom) + var(--space-md));
+}
+
+.expense-day-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.expense-day-header {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    padding: var(--space-xs) 0;
+}
+
+.expense-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 12px var(--space-md);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    transition: all var(--transition-fast);
+}
+
+.expense-item-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex: 1;
+    min-width: 0;
+}
+
+.expense-item-cat {
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.expense-item-note {
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.expense-item-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-shrink: 0;
+}
+
+.expense-item-amount {
+    color: var(--accent-danger);
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    letter-spacing: -0.3px;
+}
+
+.expense-item-budget {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.expense-item-clickable {
+    cursor: pointer;
+}
+
+.expense-item:active {
+    transform: scale(0.99);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.expense-swipe .swipe-action-right {
+    background: var(--accent-danger);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
+}
+
+.expense-swipe .swipe-action-right::before {
+    content: '删除';
+}
+
+.expense-action-btn {
+    padding: 4px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: var(--font-size-lg);
+}
+
+.expense-action-btn:active {
+    color: var(--accent-danger);
+}
+
+/* Empty state hints */
+.empty-hint {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    margin-top: var(--space-xs);
+}
+
+/* Budget Styles */
+.budget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-md);
+}
+
+.budget-header-title {
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.budget-add-btn {
+    padding: 4px 12px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--accent-primary);
+    color: white;
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+}
+
+.budget-cards {
+    display: flex;
+    gap: var(--space-sm);
+    overflow-x: auto;
+    padding-bottom: var(--space-sm);
+    margin-bottom: var(--space-md);
+    -webkit-overflow-scrolling: touch;
+}
+
+.budget-cards::-webkit-scrollbar {
+    display: none;
+}
+
+.budget-card {
+    flex-shrink: 0;
+    width: 140px;
+    padding: var(--space-md);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.budget-card:active {
+    transform: scale(0.95);
+}
+
+.budget-card-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    margin-bottom: var(--space-xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.budget-card-remaining {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.budget-card-remaining.over-budget {
+    color: #fef08a;
+}
+
+.budget-card-progress {
+    height: 4px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.budget-card-progress-bar {
+    height: 100%;
+    background: white;
+    border-radius: 2px;
+    transition: width 0.3s;
+}
+
+.budget-card-spent {
+    font-size: var(--font-size-xs);
+    opacity: 0.8;
+    margin-top: 4px;
+}
+
+.budget-card-period {
+    font-size: 10px;
+    opacity: 0.9;
+    margin-bottom: 2px;
+}
+
+.budget-card-rollover {
+    font-size: 10px;
+    opacity: 0.9;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.3);
+}
+
+.budget-card-delete {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.3);
+    border: none;
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.budget-card-wrapper {
+    position: relative;
+}
+
+.budget-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin-top: var(--space-md);
+}
+
+.budget-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+}
+
+.budget-list-color {
+    width: 4px;
+    height: 40px;
+    border-radius: 2px;
+}
+
+.budget-list-info {
+    flex: 1;
+}
+
+.budget-list-name {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.budget-list-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: 4px;
+}
+
+.budget-list-progress-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--bg-secondary);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.budget-list-progress-fill {
+    height: 100%;
+    border-radius: 2px;
+}
+
+.budget-list-amount {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.color-picker-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.color-picker {
+    width: 40px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.color-picker-hint {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+/* Expense Modal Styles */
+.expense-category-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.expense-category-btn {
+    padding: 4px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.expense-category-btn.selected {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    background: var(--accent-primary-bg);
+}
+
+.expense-budget-selector {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+.expense-budget-btn {
+    padding: 4px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.expense-budget-btn.selected {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+    background: var(--accent-primary-bg);
+}
+

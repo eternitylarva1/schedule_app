@@ -1,0 +1,551 @@
+/* ============================================
+   [测试版 - 未启用] _shared.css
+   拆分自: frontend/static/style.css
+   创建时间: 2026-06-24
+   状态: TESTING - 此文件尚未被 index.html 引用
+   说明: 这是 style.css 物理拆分测试。
+         旧 /static/style.css 保持不变,服务仍用旧版。
+         等用户确认无副作用后再切入口路径。
+   ============================================ */
+
+/* ============================================
+   Main Content
+   ============================================ */
+.main-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    /* Account for LLM input area height */
+    margin-top: 0;
+}
+
+.view {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.week-view {
+    overflow: hidden;
+}
+
+.week-view.view {
+    overflow: hidden;
+}
+
+.view-enter {
+    animation: viewFadeIn 0.2s ease-out;
+}
+
+@keyframes viewFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+#app.notepad-immersive .header,
+#app.notepad-immersive .llm-input-area {
+    display: none;
+}
+
+#app.notepad-immersive .main-content {
+    height: calc(100dvh - var(--tab-bar-height) - var(--safe-area-bottom));
+}
+
+#app.notepad-immersive .notepad-view {
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+}
+
+#app.notepad-immersive .notepad-container {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.view.hidden {
+    display: none;
+}
+
+/* ============================================
+   Modals
+   ============================================ */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    max-height: 85vh;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp var(--transition-normal) ease-out;
+    overflow: hidden;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.modal-close {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--font-size-xl);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-close:active {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-lg);
+}
+
+.modal-footer {
+    display: flex;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Form elements */
+.form-group {
+    margin-bottom: var(--space-md);
+}
+
+.form-group label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xs);
+}
+
+.form-group input[type="text"],
+.form-group input[type="datetime-local"],
+.form-group input[type="number"] {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+    font-family: inherit;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* Hide number input spinners */
+.form-group input[type="number"]::-webkit-inner-spin-button,
+.form-group input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.form-group input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.form-row {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+/* Category selector */
+.category-selector {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+}
+
+.category-pill {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all var(--transition-fast);
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.category-pill.selected {
+    border-color: currentColor;
+    background: var(--bg-hover);
+}
+
+.category-pill[data-category="work"] { color: var(--color-work); }
+.category-pill[data-category="life"] { color: var(--color-life); }
+.category-pill[data-category="study"] { color: var(--color-study); }
+.category-pill[data-category="health"] { color: var(--color-health); }
+
+/* Checkbox */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    cursor: pointer;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--accent-primary);
+}
+
+/* Buttons */
+.btn {
+    flex: 1;
+    height: 48px;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-primary {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.btn-secondary {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.btn-success {
+    background: var(--accent-success);
+    color: white;
+}
+
+.btn-danger {
+    background: var(--accent-danger);
+    color: white;
+}
+/* Pull-to-refresh */
+.ptr-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    transform: translateY(-100%);
+    z-index: 200;
+    pointer-events: none;
+}
+
+.ptr-indicator.visible {
+    transform: translateY(0);
+}
+
+.ptr-indicator.refreshing {
+    transform: translateY(0);
+}
+
+.ptr-icon {
+    font-size: var(--font-size-lg);
+    display: none;
+}
+
+.ptr-indicator.refreshing .ptr-icon {
+    display: block;
+    animation: spin 1s linear infinite;
+}
+
+/* Dropdown arrow when not enough */
+.ptr-arrow {
+    width: 20px;
+    height: 20px;
+    border-top: 2px solid var(--text-muted);
+    border-right: 2px solid var(--text-muted);
+    transform: rotate(-45deg);
+    transition: transform 0.2s;
+}
+
+.ptr-indicator.enough .ptr-arrow {
+    transform: rotate(135deg);
+}
+
+.ptr-indicator.refreshing .ptr-text {
+    display: none;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+/* ============================================
+    Bottom Tab Bar (4 tabs)
+    ============================================ */
+.tab-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(var(--tab-bar-height) + var(--safe-area-bottom));
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-start;
+    padding-top: var(--space-xs);
+    padding-bottom: var(--safe-area-bottom);
+    z-index: 100;
+}
+
+.tab-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 64px;
+    min-height: 44px;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+    position: relative;
+}
+
+.tab-item:active {
+    background: var(--bg-hover);
+}
+
+.tab-item.active {
+    color: var(--accent-primary);
+}
+
+.tab-icon {
+    font-size: var(--font-size-xl);
+    line-height: 1;
+}
+
+.tab-label {
+    font-size: var(--font-size-xs);
+    margin-top: var(--space-xs);
+}
+
+
+
+/* ============================================
+   Floating Add Button (content area)
+   ============================================ */
+.content-fab {
+    position: fixed;
+    bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px) + 20px);
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    color: white;
+    border: none;
+    font-size: 28px;
+    font-weight: 300;
+    cursor: pointer;
+    z-index: 90;
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    line-height: 1;
+}
+
+.content-fab:active {
+    transform: scale(0.95);
+    box-shadow: var(--shadow-sm);
+}
+
+@keyframes fabPulse {
+    0%, 70%, 100% { transform: scale(1); }
+    80% { transform: scale(1.15); }
+    90% { transform: scale(0.95); }
+}
+.content-fab.pulse-once {
+    animation: fabPulse 0.6s ease-in-out 3;
+}
+
+.add-icon {
+    width: 56px;
+    height: 56px;
+    background: var(--accent-primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-2xl);
+    color: white;
+    box-shadow: var(--shadow-lg);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.tab-item[data-view="add"]:active .add-icon {
+    transform: scale(0.95);
+    box-shadow: var(--shadow-sm);
+}
+/* ============================================
+   Utility Classes
+   ============================================ */
+.hidden {
+    display: none !important;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    border: 0;
+}
+/* Loading state */
+.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Skeleton loaders */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.skeleton {
+    border-radius: var(--radius-md);
+    background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-hover) 50%, var(--bg-card) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Stage 5.2: Notes skeleton loader */
+.notes-skeleton { padding: 12px; }
+.skeleton-item {
+    height: 52px;
+    background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-hover) 50%, var(--bg-secondary) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+/* Empty state */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-xl);
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    margin-bottom: var(--space-md);
+    opacity: 0.5;
+}
+
+.empty-state-text {
+    font-size: var(--font-size-md);
+}

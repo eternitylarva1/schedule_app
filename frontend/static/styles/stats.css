@@ -1,0 +1,144 @@
+/* ============================================
+   [测试版 - 未启用] stats.css
+   拆分自: frontend/static/style.css
+   创建时间: 2026-06-24
+   状态: TESTING - 此文件尚未被 index.html 引用
+   说明: 这是 style.css 物理拆分测试。
+         旧 /static/style.css 保持不变,服务仍用旧版。
+         等用户确认无副作用后再切入口路径。
+   ============================================ */
+
+/* ============================================
+   Stats View
+   ============================================ */
+.stats-view {
+    padding: var(--space-md);
+}
+
+.stats-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.stats-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.stats-clock-card {
+    text-align: center;
+}
+
+.stats-clock-value {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--accent-primary);
+    letter-spacing: 0.5px;
+}
+
+.stats-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-md);
+}
+
+.stats-item {
+    text-align: center;
+    padding: var(--space-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.stats-value {
+    font-size: var(--font-size-2xl);
+    font-weight: 700;
+    color: var(--text-primary);
+    display: block;
+}
+
+.stats-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    margin-top: var(--space-xs);
+}
+
+.stats-rate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    padding: var(--space-lg);
+}
+
+.stats-rate-circle {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: conic-gradient(
+        var(--accent-success) calc(var(--rate) * 1%),
+        var(--bg-hover) calc(var(--rate) * 1%)
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.stats-rate-circle::before {
+    content: '';
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--bg-card);
+}
+
+.stats-rate-value {
+    position: relative;
+    z-index: 1;
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--accent-success);
+}
+
+/* Category stats */
+.category-stats {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.category-stat-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.category-color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.category-stat-name {
+    flex: 1;
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+}
+
+.category-stat-count {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+

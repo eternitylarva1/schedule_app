@@ -1,0 +1,322 @@
+/* ============================================
+   [测试版 - 未启用] todo.css
+   拆分自: frontend/static/style.css
+   创建时间: 2026-06-24
+   状态: TESTING - 此文件尚未被 index.html 引用
+   说明: 这是 style.css 物理拆分测试。
+         旧 /static/style.css 保持不变,服务仍用旧版。
+         等用户确认无副作用后再切入口路径。
+   ============================================ */
+
+/* ============================================
+   Todo View
+   ============================================ */
+.todo-view {
+    padding: var(--space-md);
+    padding-bottom: var(--content-bottom-clearance);
+}
+
+.todo-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.todo-date-group {
+    margin-bottom: var(--space-md);
+}
+
+.todo-date-group-done {
+    margin-top: var(--space-lg);
+    padding-top: var(--space-md);
+    border-top: 1px dashed var(--border-color);
+}
+
+.todo-date-group-done .todo-date-header {
+    color: var(--text-muted);
+}
+
+.todo-date-header {
+    font-size: var(--font-size-md);
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+    padding: var(--space-xs) 0;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm);
+}
+
+.todo-date-label {
+    flex: 1;
+}
+
+.todo-select-all-btn {
+    font-size: var(--font-xs);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--primary);
+    color: white;
+    border: none;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity var(--transition-fast);
+}
+
+.todo-select-all-btn:hover {
+    opacity: 1;
+}
+
+.todo-item {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+}
+
+/* Main content that slides left */
+.todo-main-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: transform var(--transition-normal);
+    position: relative;
+    z-index: 2;
+}
+
+.todo-main-content:active {
+    background: var(--bg-hover);
+}
+
+/* Ensure checkbox, content, category appear above swipe actions */
+.todo-checkbox,
+.todo-item-content,
+.todo-item-category {
+    position: relative;
+    z-index: 1;
+}
+
+.todo-item:active {
+    background: var(--bg-hover);
+}
+
+.todo-item.done {
+    opacity: 0.5;
+}
+
+.todo-item.done .todo-item-title {
+    text-decoration: line-through;
+}
+
+.todo-checkbox {
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--border-light);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all var(--transition-fast);
+}
+
+.todo-checkbox.checked {
+    background: var(--accent-success);
+    border-color: var(--accent-success);
+}
+
+.todo-checkbox.checked::after {
+    content: '✓';
+    color: white;
+    font-size: 14px;
+}
+
+/* Selection mode checkbox - blue dot to distinguish from completion */
+.todo-checkbox.selected {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.todo-checkbox.selected::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: white;
+    border-radius: 50%;
+}
+
+.todo-item-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.todo-item-title {
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.todo-item-time {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.todo-item-category {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Todo item swipe actions */
+.todo-item {
+    position: relative;
+    overflow: hidden;
+    opacity: 1 !important;
+}
+
+.todo-item.swiped .todo-main-content {
+    transform: translateX(-90px);
+}
+
+.todo-item.selection-mode .todo-actions {
+    display: none;
+}
+
+.todo-item.selection-mode .todo-main-content {
+    transition: none !important;
+}
+
+.todo-item.selected {
+    box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.9);
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.todo-actions {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    transform: translateX(100%);
+    transition: transform var(--transition-normal);
+    z-index: 1;
+}
+
+.todo-item.swiped .todo-actions {
+    transform: translateX(0);
+}
+
+.todo-action-btn {
+    height: 100%;
+    padding: 0 16px;
+    border: none;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: background var(--transition-fast);
+}
+
+.todo-action-btn:active {
+    background: var(--bg-hover);
+}
+
+.todo-action-btn.delete-btn {
+    background: var(--accent-danger);
+    color: white;
+}
+
+.todo-action-btn.delete-btn:active {
+    background: #dc2626;
+}
+
+.todo-action-btn.edit-btn {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.todo-action-btn.edit-btn:active {
+    background: #2563eb;
+}
+
+/* Multi-select bottom action bar (mobile UX) */
+.selection-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--tab-bar-height) + var(--safe-area-bottom));
+    z-index: 1200;
+    background: rgba(17, 24, 39, 0.96);
+    border-top: 1px solid var(--border-color);
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.selection-bar.hidden {
+    display: none;
+}
+
+.selection-count {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    flex-shrink: 0;
+}
+
+.selection-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.selection-actions .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.goal-card.selection-mode {
+    position: relative;
+    cursor: pointer;
+}
+
+.goal-card.selection-mode::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(156, 163, 175, 0.8);
+    background: transparent;
+    pointer-events: none;
+}
+
+.goal-card.selection-mode.selected {
+    box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.9);
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.goal-card.selection-mode.selected::before {
+    border-color: var(--accent-primary);
+    background: var(--accent-primary);
+}
+

@@ -1,0 +1,168 @@
+/* ============================================
+   [测试版 - 未启用] calendar-month.css
+   拆分自: frontend/static/style.css
+   创建时间: 2026-06-24
+   状态: TESTING - 此文件尚未被 index.html 引用
+   说明: 这是 style.css 物理拆分测试。
+         旧 /static/style.css 保持不变,服务仍用旧版。
+         等用户确认无副作用后再切入口路径。
+   ============================================ */
+
+/* ============================================
+   Month View
+   ============================================ */
+.month-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.month-header {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: var(--space-sm) 0;
+    flex-shrink: 0;
+}
+
+.month-header-day {
+    text-align: center;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    padding: var(--space-xs);
+}
+
+.month-header-day.weekend {
+    color: var(--accent-danger);
+}
+
+.month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-auto-rows: 1fr;
+    gap: 1px;
+    background: var(--border-color);
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: var(--content-bottom-clearance);
+}
+
+.month-cell {
+    background: var(--bg-primary);
+    min-height: 80px;
+    padding: var(--space-xs);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    transition: background var(--transition-fast);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.month-cell:active {
+    background: var(--bg-hover);
+}
+
+.month-cell.other-month {
+    opacity: 0.4;
+}
+
+.month-cell.today {
+    background: var(--bg-secondary);
+    position: relative;
+}
+
+.month-cell.today::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent-danger);
+    border-radius: 0;
+}
+
+.month-cell.today .month-day-number {
+    color: var(--accent-danger);
+    font-weight: 600;
+}
+
+.month-day-number {
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: var(--space-xs);
+}
+
+.month-cell.other-month .month-day-number {
+    color: var(--text-muted);
+}
+
+.month-events {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.month-event {
+    padding: 3px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    color: white;
+    background: var(--event-color, var(--color-work));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    width: 98%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 18px;
+}
+.month-event:active { opacity: 0.8; }
+
+.month-event-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+    font-size: 10px;
+    line-height: 1.3;
+}
+
+.month-event-time {
+    font-size: 9px;
+    opacity: 0.92;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: none;
+}
+
+@media (min-width: 480px) {
+    .month-event-time {
+        display: inline;
+    }
+}
+
+.month-event-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 2px;
+    vertical-align: middle;
+}
+
+.month-more {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+

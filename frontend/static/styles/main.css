@@ -1,0 +1,33 @@
+/* ============================================
+   [测试版 - 未启用] main.css
+   状态: TESTING - 此文件尚未被 index.html 引用
+   拆分自: frontend/static/style.css
+   说明: 这是 style.css 物理拆分测试入口。
+         旧 /static/style.css 保持不变。
+   ============================================ */
+
+/* 1. 基础层(token 必须先加载) */
+@import url('./_tokens.css');
+@import url('./_reset.css');
+
+/* 2. 通用组件层 */
+@import url('./_shared.css');
+@import url('./modals.css');
+@import url('./responsive.css');
+
+/* 3. 全局布局 */
+@import url('./header.css');
+@import url('./llm-input.css');
+
+/* 4. 视图层(按 Tab 顺序) */
+@import url('./calendar-day.css');
+@import url('./calendar-week.css');
+@import url('./calendar-month.css');
+@import url('./calendar-agenda.css');
+@import url('./todo.css');
+@import url('./stats.css');
+@import url('./goals.css');
+@import url('./notepad.css');
+@import url('./notes.css');
+@import url('./note-groups.css');
+@import url('./settings.css');

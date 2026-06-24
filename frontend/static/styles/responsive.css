@@ -1,0 +1,66 @@
+/* ============================================
+   [测试版 - 未启用] responsive.css
+   拆分自: frontend/static/style.css
+   创建时间: 2026-06-24
+   状态: TESTING - 此文件尚未被 index.html 引用
+   说明: 这是 style.css 物理拆分测试。
+         旧 /static/style.css 保持不变,服务仍用旧版。
+         等用户确认无副作用后再切入口路径。
+   ============================================ */
+
+/* ============================================
+   Touch Gestures
+   ============================================ */
+.swipe-hint {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--bg-card);
+    padding: var(--space-md) var(--space-lg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+    pointer-events: none;
+    z-index: 90;
+}
+
+.swipe-hint.visible {
+    opacity: 1;
+}
+
+.swipe-hint.left {
+    left: var(--space-md);
+}
+
+.swipe-hint.right {
+    right: var(--space-md);
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+@media (min-width: 768px) {
+    :root {
+        --timeline-hour-height: 80px;
+    }
+    
+    .modal-content {
+        border-radius: var(--radius-xl);
+        margin: var(--space-lg);
+        max-height: calc(100vh - var(--space-xl) * 2);
+    }
+    
+    .timeline-event {
+        right: var(--space-lg);
+    }
+}
+
+/* Dark mode adjustments for OLED */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #0a0a0f;
+    }
+}
+
