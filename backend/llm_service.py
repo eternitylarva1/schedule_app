@@ -1023,6 +1023,7 @@ class LLMService:
         message: str,
         note_id: Optional[int] = None,
         selected_text: str = "",
+        referenced_notes: Optional[list[int]] = None,
         tools: Optional[list[str]] = None,
         db_instance = None,
     ) -> Optional[str]:
@@ -1057,8 +1058,22 @@ class LLMService:
             except Exception:
                 pass
 
+        # Fetch referenced notes content as additional context
+        if referenced_notes and db_instance:
+            for ref_id in referenced_notes:
+                try:
+                    ref_note = await db_instance.get_note(ref_id)
+                    if ref_note:
+                        context[f"referenced_note_{ref_id}"] = {
+                            "id": ref_note.id,
+                            "title": ref_note.title,
+                            "content": ref_note.content,
+                        }
+                except Exception as e:
+                    print(f"Failed to fetch referenced note {ref_id}: {e}")
+
         # 4. Pass 2: 结合数据回答
-        answer = await self._answer_with_context(message, context, selected_text)
+        answer = await self._answer_with_context(message, context, selected_text, referenced_notes=referenced_notes)
         return answer
 
 
@@ -1113,6 +1128,7 @@ class LLMService:
         message: str,
         context: dict,
         selected_text: str = "",
+        referenced_notes: Optional[list[int]] = None,
     ) -> Optional[str]:
         """Pass 2: 结合已有数据回答用户"""
         # 格式化 context
@@ -1132,10 +1148,12 @@ class LLMService:
                 parts.append(f"## {name}\n{str(data)}")
 
         context_str = "\n\n".join(parts)
-        
+
         intro = "你是一个日程管理 AI 助手。用户提供了以下数据，请基于这些真实数据回答用户的问题。\n"
         if selected_text:
             intro += f"\n用户选中了以下文本：\n{selected_text}\n"
+        if referenced_notes:
+            intro += "\n用户在消息中引用了以下笔记（@后面的笔记已自动加载其完整内容）：\n"
 
         prompt = f"""{intro}
 

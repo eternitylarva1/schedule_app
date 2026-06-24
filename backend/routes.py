@@ -1306,12 +1306,13 @@ async def _handle_goal_operation(op, action, user_text, dry_run):
 
 async def llm_agent_chat(request: web.Request) -> web.Response:
     """POST /api/llm/chat-agent — 两步 AI Agent 工具调用
-    
+
     Body:
     {
         "message": "我今天有什么安排？",
         "note_id": 123,          // 可选
         "selected_text": "",     // 可选
+        "referenced_notes": [],  // 可选，引用笔记 ID 列表
         "tools": null            // null=全部，["get_note_content"]=仅这些
     }
     """
@@ -1330,10 +1331,12 @@ async def llm_agent_chat(request: web.Request) -> web.Response:
         return error_response("消息内容不能为空")
 
     from .llm_service import llm_service
+    referenced_notes = data.get("referenced_notes")  # optional list[int]
     response = await llm_service.chat_with_agent(
         message=message,
         note_id=data.get("note_id"),
         selected_text=data.get("selected_text", ""),
+        referenced_notes=referenced_notes,
         tools=data.get("tools"),  # None = 全部可用
         db_instance=db,
     )

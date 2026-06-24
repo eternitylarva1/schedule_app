@@ -52,6 +52,11 @@
         }
     }
 
+    // --- @-mention dropdown state ---
+    let _aiMentionDropdownEl = null;
+    let _aiMentionItems = [];
+    let _aiMentionSelectedIdx = 0;
+
     // --- state ---
     let aiState = {
         isOpen: false,
@@ -59,6 +64,7 @@
         conversations: [],
         isLoading: false,
         selectedText: '',
+        referencedNotes: [], // [{ token: '@标题', noteId: 47 }, ...]
     };
 
     function initAIChatPanel() {
@@ -71,7 +77,30 @@
         }
         if (input) {
             input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') sendAIChatMessage();
+                if (e.key === 'Enter' && !_aiMentionDropdownEl) sendAIChatMessage();
+            });
+            // @-mention: detect trailing '@'
+            input.addEventListener('input', () => {
+                if (_aiMentionDropdownEl) {
+                    // search input is being typed in dropdown — ignore
+                    return;
+                }
+                const val = input.value;
+                const pos = input.selectionStart;
+                if (pos === val.length && val.endsWith('@')) {
+                    // User just typed '@'; remove it temporarily, show dropdown
+                    input.value = val.slice(0, -1);
+                    input.setSelectionRange(input.value.length, input.value.length);
+                    _showAIMentionDropdown(input);
+                }
+            });
+            input.addEventListener('keydown', (e) => {
+                if (_aiMentionDropdownEl) {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); _moveAIMentionSelection(1); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); _moveAIMentionSelection(-1); }
+                    else if (e.key === 'Enter') { e.preventDefault(); }
+                    else if (e.key === 'Escape') { e.preventDefault(); _hideAIMentionDropdown(); input.focus(); }
+                }
             });
         }
         if (closeBtn) {
@@ -194,6 +223,145 @@
         contextEl.innerHTML = html;
     }
 
+    // ── @-mention dropdown ──────────────────────────────────────
+
+    function _filterAIMentionItems(query) {
+        const notes = getState().notes || [];
+        const currentId = aiState.currentNote?.id;
+        const q = query.toLowerCase();
+        return notes
+            .filter(n => n.id !== currentId)
+            .filter(n => {
+                if (!q) return true;
+                return (n.title || '').toLowerCase().includes(q) ||
+                       (n.content || '').toLowerCase().includes(q);
+            })
+            .slice(0, 8);
+    }
+
+    function _renderAIMentionItems() {
+        if (!_aiMentionDropdownEl) return;
+        const list = _aiMentionDropdownEl.querySelector('.mention-dropdown-list');
+        if (!list) return;
+        if (_aiMentionItems.length === 0) {
+            list.innerHTML = '<div class="mention-dropdown-empty">没有匹配的笔记</div>';
+            return;
+        }
+        list.innerHTML = _aiMentionItems.map((note, i) => {
+            const title = escapeHtml(note.title || '（无标题）');
+            const snippet = escapeHtml((note.content || '').substring(0, 80));
+            const cls = i === _aiMentionSelectedIdx ? 'mention-dropdown-item selected' : 'mention-dropdown-item';
+            return `<div class="${cls}" data-idx="${i}">
+                <div class="mention-dropdown-title">${title}</div>
+                <div class="mention-dropdown-snippet">${snippet}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function _moveAIMentionSelection(delta) {
+        if (_aiMentionItems.length === 0) return;
+        _aiMentionSelectedIdx = Math.max(0, Math.min(_aiMentionItems.length - 1, _aiMentionSelectedIdx + delta));
+        _renderAIMentionItems();
+    }
+
+    function _insertAIMention(note, inputEl) {
+        if (!inputEl) return;
+        // The '@' was already removed by the input handler before dropdown showed.
+        // Insert '@title ' at current cursor position.
+        const val = inputEl.value;
+        const pos = inputEl.selectionStart;
+        const before = val.substring(0, pos);
+        const after = val.substring(pos);
+        const token = '@' + (note.title || '（无标题）');
+        inputEl.value = before + token + ' ' + after;
+        // Place cursor after inserted text
+        const newPos = before.length + token.length + 1;
+        inputEl.setSelectionRange(newPos, newPos);
+        inputEl.focus();
+        // Track reference
+        aiState.referencedNotes.push({ token, noteId: note.id });
+    }
+
+    function _showAIMentionDropdown(inputEl) {
+        _hideAIMentionDropdown();
+        _aiMentionSelectedIdx = 0;
+        _aiMentionItems = _filterAIMentionItems('');
+
+        // Build dropdown DOM
+        const dropdown = document.createElement('div');
+        dropdown.className = 'mention-dropdown';
+        dropdown.style.cssText = 'position:fixed;z-index:9999;min-width:260px;max-width:340px;';
+        dropdown.innerHTML = `
+            <div class="mention-dropdown-header">
+                <input type="text" class="mention-dropdown-input" placeholder="搜索笔记..." autocomplete="off" />
+            </div>
+            <div class="mention-dropdown-list"></div>
+        `;
+
+        // Position below the input
+        const rect = inputEl.getBoundingClientRect();
+        dropdown.style.top = (rect.bottom + 4) + 'px';
+        dropdown.style.left = rect.left + 'px';
+
+        document.body.appendChild(dropdown);
+        _aiMentionDropdownEl = dropdown;
+
+        // Search input
+        const searchInput = dropdown.querySelector('.mention-dropdown-input');
+        searchInput.focus();
+        searchInput.addEventListener('input', () => {
+            _aiMentionItems = _filterAIMentionItems(searchInput.value);
+            _aiMentionSelectedIdx = 0;
+            _renderAIMentionItems();
+        });
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); _moveAIMentionSelection(1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); _moveAIMentionSelection(-1); }
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (_aiMentionItems[_aiMentionSelectedIdx]) {
+                    _insertAIMention(_aiMentionItems[_aiMentionSelectedIdx], inputEl);
+                    _hideAIMentionDropdown();
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                _hideAIMentionDropdown();
+                inputEl.focus();
+            }
+        });
+
+        // Item click
+        dropdown.querySelector('.mention-dropdown-list').addEventListener('click', (e) => {
+            const item = e.target.closest('.mention-dropdown-item');
+            if (item) {
+                const idx = parseInt(item.dataset.idx, 10);
+                _insertAIMention(_aiMentionItems[idx], inputEl);
+                _hideAIMentionDropdown();
+            }
+        });
+
+        // Click outside to close
+        setTimeout(() => {
+            document.addEventListener('click', _aiOutsideHandler);
+        }, 0);
+
+        _renderAIMentionItems();
+    }
+
+    function _hideAIMentionDropdown() {
+        if (_aiMentionDropdownEl) {
+            _aiMentionDropdownEl.remove();
+            _aiMentionDropdownEl = null;
+        }
+        document.removeEventListener('click', _aiOutsideHandler);
+    }
+
+    function _aiOutsideHandler(e) {
+        if (_aiMentionDropdownEl && !_aiMentionDropdownEl.contains(e.target)) {
+            _hideAIMentionDropdown();
+        }
+    }
+
     async function loadAIChatHistory() {
         if (!aiState.currentNote) return;
         const { fetchNoteConversations } = getUtils();
@@ -238,8 +406,28 @@
 
         const { showToast } = getUtils();
         const input = document.getElementById('aiDrawerInput');
-        const message = input?.value.trim();
-        if (!message) return;
+        const rawMessage = input?.value.trim();
+        if (!rawMessage) return;
+
+        // Resolve referenced notes: only keep those whose @token still appears in rawMessage
+        const referencedNotes = [];
+        const seenIds = new Set();
+        for (const ref of aiState.referencedNotes) {
+            if (rawMessage.includes(ref.token) && !seenIds.has(ref.noteId)) {
+                referencedNotes.push({ noteId: ref.noteId, title: ref.token });
+                seenIds.add(ref.noteId);
+            }
+        }
+        aiState.referencedNotes = [];
+
+        // Build display message (strip @tokens for bubble, keep full for API)
+        let displayMessage = rawMessage;
+        for (const ref of referencedNotes) {
+            displayMessage = displayMessage.replace(ref.token, ref.token);
+        }
+        const referencedLine = referencedNotes.length
+            ? `<div class="ai-drawer-referenced">📎 引用的笔记: ${referencedNotes.map(r => r.title.replace('@', '')).join(', ')}</div>`
+            : '';
 
         const container = document.getElementById('aiDrawerHistory');
         aiState.isLoading = true;
@@ -248,7 +436,7 @@
         if (container) {
             container.innerHTML += `
                 <div class="ai-drawer-message user">
-                    <div class="ai-drawer-bubble">${escapeHtml(message)}</div>
+                    <div class="ai-drawer-bubble">${escapeHtml(displayMessage)}${referencedLine}</div>
                 </div>
                 <div class="ai-drawer-message assistant">
                     <div class="ai-drawer-bubble" style="color: var(--text-muted);">思考中...</div>
@@ -262,9 +450,10 @@
             const response = await utils.apiCall('llm/chat-agent', {
                 method: 'POST',
                 body: JSON.stringify({
-                    message: message,
+                    message: rawMessage,
                     note_id: aiState.currentNote.id,
                     selected_text: aiState.selectedText || '',
+                    referenced_notes: referencedNotes.map(r => r.noteId),
                     tools: null,  // 全部工具可用
                 })
             });
@@ -276,7 +465,7 @@
                         <div class="ai-drawer-bubble">${escapeHtml(response.content)}<div class="ai-drawer-actions"><button class="ai-drawer-insert-btn" data-content="${encodeURIComponent(response.content)}" title="插入到当前笔记">↩ 插入</button><button class="ai-drawer-newnote-btn" data-content="${encodeURIComponent(response.content)}" title="另存为新笔记">📄 新笔记</button></div></div>
                     `;
                 }
-                aiState.conversations.push({ role: 'user', content: message });
+                aiState.conversations.push({ role: 'user', content: rawMessage });
                 aiState.conversations.push({ role: 'assistant', content: response.content });
             }
         } catch (error) {
