@@ -1,12 +1,3 @@
-/* ============================================
-   [测试版 - 未启用] note-editor.css
-   拆分自: frontend/static/style.css
-   创建时间: 2026-06-24
-   状态: TESTING - 此文件尚未被 index.html 引用
-   说明: notes.css 拆分后的第 2 部分(AI浮动提示+内联编辑+深色主题+图片调整)。
-         旧 /static/style.css 保持不变。
-   ============================================ */
-
 .ai-prompt-float {
     position: fixed;
     z-index: 1003;
