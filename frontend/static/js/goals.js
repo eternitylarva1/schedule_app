@@ -10,7 +10,7 @@
     const getElements = () => (window.ScheduleAppCore && window.ScheduleAppCore.elements) || {};
     const getUtils = () => window.ScheduleAppCore || {};
 
-    // Top-level references (same pattern as main.js for code that was migrated there)
+    // Top-level references (same pattern as main.js for migrated code)
     const state = getState();
     const elements = getElements();
     const {
@@ -953,7 +953,6 @@
         renderSelectionBar(type);
     }
 
-function showAddGoalModal() {
     function openBreakdownModal(options = {}) {
         elements.breakdownInput.value = options.text || '';
         state.breakdownItems = [];
@@ -2636,6 +2635,7 @@ function showAddGoalModal() {
             showToast(failed > 0 ? '导入失败，请检查数据' : '没有可导入的日程');
         }
     }
+function showAddGoalModal() {
         const utils = getUtils();
         const state = getState();
         const { showToast } = utils;
