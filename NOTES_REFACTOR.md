@@ -508,6 +508,18 @@ async function deleteNote(noteId) {
 
 ---
 
+## 当前状态（2026-06-24）
+
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| 阶段 1 | ✅ 已完成 | main.js 死代码清理 + notepad.js 拆分为 notes-list/note-editor/note-ai/expense |
+| 阶段 2 | ⏳ 未开始 | 数据模型扩展（is_pinned/color/is_archived）有设计方案待实施 |
+| 阶段 3 | ⏳ 未开始 | 双栏 UI 重构（当前编辑器是 textarea，非 contenteditable） |
+| 阶段 4 | ✅ 已完成 | AI 浮窗已改为笔记右侧抽屉（注：在阶段 1 合并实施） |
+| 阶段 5 | ⏳ 未开始 | 体验打磨（Optimistic update / 骨架屏 / a11y） |
+
+---
+
 ## 附录 A：每阶段预估工作量
 
 | 阶段 | 改动量 | 复杂度 | 预估工时 |
