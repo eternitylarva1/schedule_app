@@ -44,3 +44,36 @@
 ### 结论
 
 Phase 1 迁移完成，LLM 队列功能已从 main.js 成功提取到 `llm-queue.js`，所有功能正常工作，无回归问题。
+
+## Phase 3: Goal Discuss + Breakdown 迁移 → goals.js
+
+**日期**: 2026-06-24
+**状态**: ✅ **全部通过**
+
+### 测试范围
+
+| 测试项 | 结果 | 备注 |
+|--------|------|------|
+| ScheduleAppGoals 导出 (30 个) | ✅ | 含 14 个新增函数 |
+| `openBreakdownModal` / `closeBreakdownModal` | ✅ | |
+| `analyzeBreakdown` / `renderBreakdownResults` | ✅ | |
+| `saveBreakdowns` / `importBreakdowns` / `loadSavedBreakdowns` | ✅ | |
+| `startGoalDiscuss` / `saveGoalDiscuss` / `closeGoalDiscussModal` | ✅ | |
+| Tab 切换 (Day/Todo/Goals/Notepad) | ✅ | |
+| ScheduleAppCore 引用 (`openGoalDiscussModal`, `loadData`) | ✅ | |
+| `window.updateBreakdownItem` 全局 | ✅ | onClick 兼容 |
+| LLM 队列 | ✅ | 无回归 |
+| Settings 模块 | ✅ | 无回归 |
+| Goals 视图渲染 | ✅ | |
+| JavaScript 语法 | ✅ | Node parser 均通过 |
+
+### 影响节点
+
+| 节点 | 状态 | 说明 |
+|------|------|------|
+| main.js `bindEvents()` Discuss/Breakdown 部分 | ✅ | → ScheduleAppGoals 委托 |
+| main.js `ScheduleAppCore` 引用 | ✅ | → ScheduleAppGoals 委托 |
+| goals.js 导出列表 | ✅ | 30 个函数 |
+| goals.js 顶层 state/elements/utils 引用 | ✅ | 与 main.js 模式一致 |
+| `window.updateBreakdownItem` | ✅ | 从 main.js 移到 goals.js |
+| index.html 版本号 | ✅ | goals.js 版本更新 |
