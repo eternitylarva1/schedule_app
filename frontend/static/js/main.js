@@ -3137,6 +3137,7 @@
     // ============================================
     async function openSettingsView() {
         return await window.ScheduleAppSettings?.openSettingsView?.();
+    }
 
     async function loadUserContexts() {
         return await window.ScheduleAppSettings?.loadUserContexts?.();
@@ -3154,11 +3155,6 @@
         deleteAiProvider: (id) => window.ScheduleAppSettings?.deleteAiProvider?.(id),
     };
 
-    // ============================================
-    }
-
-    // ============================================
-    // Settings Modal (Legacy - kept for reference)
     // ============================================
 
     async function analyzeBreakdown() {
@@ -3885,7 +3881,6 @@
         
         // AI Provider modal events
         elements.addAiProviderBtn?.addEventListener('click', () => settings?.openAiProviderModal?.());
-        const settings = window.ScheduleAppSettings;
         elements.aiProviderBackdrop?.addEventListener('click', () => settings?.closeAiProviderModal?.());
         elements.aiProviderClose?.addEventListener('click', () => settings?.closeAiProviderModal?.());
         elements.aiProviderCancelBtn?.addEventListener('click', () => settings?.closeAiProviderModal?.());
