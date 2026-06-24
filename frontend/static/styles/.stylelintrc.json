@@ -1,0 +1,6 @@
+{
+  "plugins": ["./node_modules/stylelint-no-unused-selectors"],
+  "rules": {
+    "plugin/no-unused-selectors": true
+  }
+}

@@ -28,6 +28,7 @@
 @import url('./stats.css');
 @import url('./goals.css');
 @import url('./notepad.css');
-@import url('./notes.css');
+@import url('./note-app-shell.css');
+@import url('./note-editor.css');
 @import url('./note-groups.css');
 @import url('./settings.css');

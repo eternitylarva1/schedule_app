@@ -174,16 +174,6 @@
     color: var(--text-primary);
 }
 
-.breakdown-item-title input {
-    width: 100%;
-    padding: var(--space-sm);
-    background: var(--bg-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    font-size: var(--font-size-md);
-}
-
 .breakdown-empty {
     text-align: center;
     padding: var(--space-lg);
