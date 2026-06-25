@@ -797,7 +797,7 @@
             const response = await apiCall('llm/chat-agent', {
                 method: 'POST',
                 body: JSON.stringify({
-                    message: '对以下笔记内容执行指令。\n指令：' + message + '\n\n直接输出修改后的完整内容，不要额外解释。',
+                    message: '对以下笔记内容执行指令。\n指令：' + message + '\n\n直接输出修改后的完整内容，不要额外解释。使用纯文本格式，不要 Markdown 语法（**、#、- 等符号均不要使用）。',
                     note_id: note.id,
                     selected_text: '',
                     tools: ['get_note_content'],
