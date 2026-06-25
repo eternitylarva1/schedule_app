@@ -1,21 +1,45 @@
-const CACHE_NAME = 'schedule-app-v26';
+/**
+ * Schedule App Service Worker
+ *
+ * ⚠️ STATIC_ASSETS 列表必须与 index.html 保持同步。
+ * 每次新增/删除/重命名 JS/CSS 文件或更新版本号后，必须同时更新此列表。
+ *
+ * 自动同步命令: python scripts/sync_sw_cache.py
+ */
+
+const CACHE_NAME = 'schedule-app-v27';
 const STATIC_ASSETS = [
+  // Root
   '/',
   '/index.html',
-  '/static/styles/main.css?v=20260624-01',
-  '/static/js/core/state-elements.js?v=20260623-01',
+
+  // Core JS
+  '/static/js/core/state-elements.js?v=20260623-03',
   '/static/js/core/utils.js?v=20260412-04',
-  '/static/js/core/api-toast.js?v=20260412-04',
+  '/static/js/core/api-toast.js?v=20260622-01',
   '/static/js/core/drag.js?v=20260412-05',
+
+  // Feature modules
   '/static/js/utils2.js?v=20260425-01',
   '/static/js/budget.js?v=20260426-08',
-  '/static/js/notepad.js?v=20260426-06',
-  '/static/js/settings.js?v=20260429-01',
-  '/static/js/main.js?v=20260520-02',
-  '/static/js/goals.js?v=20260623-01',
+  '/static/js/note-ai.js?v=20260624-03',
+  '/static/js/note-editor.js?v=20260623-03',
+  '/static/js/notes-list.js?v=20260623-01',
+  '/static/js/expense.js?v=20260622-02',
+  '/static/js/notepad.js?v=20260622-02',
+  '/static/js/settings.js?v=20260624-02',
+  '/static/js/llm-queue.js?v=20260624-01',
+  '/static/js/main.js?v=20260624-03',
+  '/static/js/goals.js?v=20260624-01',
   '/static/js/selection.js?v=20260425-01',
   '/static/js/calendar-views.js?v=20260425-01',
-  '/manifest.json'
+
+  // CSS
+  '/static/styles/main.css?v=20260624-01',
+
+  // Other
+  '/manifest.json',
+  '/static/icon-192.png',
 ];
 
 // Install event - cache static assets

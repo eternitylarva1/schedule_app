@@ -110,6 +110,11 @@ window.ScheduleAppGoals = { renderGoalsView, ... };
 3. **浏览器调试**：使用 `browser-harness` skill，设置 `BU_CDP_URL` 环境变量
 4. **不要暴露 API Key**：AI key 优先从环境变量读取
 5. **QQ 提醒**：每次 commit 并 push 后必须用 qq-notify skill 发送 QQ 通知
+6. **Service Worker 缓存同步**：每次新增/删除 JS 或 CSS 文件，或更新 `?v=` 版本号后，必须同步更新 `service-worker.js`：
+   ```bash
+   python3 scripts/sync_sw_cache.py --write
+   ```
+   dry-run 预览：`python3 scripts/sync_sw_cache.py`（不加 --write）
 
 ## Browser-Harness 使用流程
 
