@@ -272,34 +272,9 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 
     /* Firefox subtle scrollbar */
-    scrollbar-width: thin;
-    scrollbar-color: rgba(128, 128, 128, 0.25) transparent;
 }
 
 /* WebKit semi-transparent overlay scrollbar (content area) */
-.note-inline-content::-webkit-scrollbar {
-    width: 12px;
-}
-.note-inline-content::-webkit-scrollbar-track {
-    background: transparent;
-}
-.note-inline-content::-webkit-scrollbar-thumb {
-    background: rgba(128, 128, 128, 0.25);
-    border-radius: 8px;
-    border: 3px solid transparent;
-    background-clip: padding-box;
-}
-.note-inline-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(128, 128, 128, 0.45);
-    border: 2px solid transparent;
-    background-clip: padding-box;
-}
-.note-inline-content::-webkit-scrollbar-thumb:active {
-    background: rgba(128, 128, 128, 0.6);
-    border: 2px solid transparent;
-    background-clip: padding-box;
-}
-
 .note-inline-content:focus {
     border-color: var(--accent-primary);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 3px rgba(99,102,241,0.1);
@@ -387,39 +362,6 @@
     }
 
     /* Thinner scrollbar on mobile */
-    .notes-main::-webkit-scrollbar {
-        width: 6px;
-    }
-    .notes-main::-webkit-scrollbar-thumb {
-        border: 1px solid transparent;
-    }
-    .notes-list-scroll::-webkit-scrollbar {
-        width: 6px;
-    }
-    .notes-list-scroll::-webkit-scrollbar-thumb {
-        border: 1px solid transparent;
-    }
-    .note-inline-content::-webkit-scrollbar {
-        width: 6px;
-    }
-    .note-inline-content::-webkit-scrollbar-thumb {
-        border: 1px solid transparent;
-    }
-}
-/* ============================================
-   Deep Dark Modern Theme — Notes Interface
-   Inspired by: Linear, Vercel, Raycast, Arc
-   ============================================ */
-
-/* ── Dark Token Layer (override :root) ─────────────────────── */
-:root {
-    /* Backgrounds — near-black with subtle layering */
-    --bg-primary:    #0d0d0f;
-    --bg-secondary:  #131316;
-    --bg-card:       #1a1a1f;
-    --bg-elevated:   #232328;
-    --bg-hover:      #2a2a30;
-
     /* Text — high/medium/low contrast tiers */
     --text-primary:   #fafafa;
     --text-secondary: #b0b0b8;
