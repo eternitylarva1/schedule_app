@@ -35,7 +35,7 @@ const STATIC_ASSETS = [
   '/static/js/calendar-views.js?v=20260425-01',
 
   // CSS
-  '/static/styles/main.css?v=20260624-01',
+  '/static/styles/main.css?v=20260624-02',
 
   // Other
   '/manifest.json',
