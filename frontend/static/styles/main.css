@@ -20,7 +20,7 @@
 @import url('./stats.css');
 @import url('./goals.css');
 @import url('./notepad.css');
-@import url('./note-app-shell.css');
-@import url('./note-editor.css');
+@import url('./note-app-shell.css?v=20260624-01');
+@import url('./note-editor.css?v=20260624-01');
 @import url('./note-groups.css');
 @import url('./settings.css');
