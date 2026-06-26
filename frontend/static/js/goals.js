@@ -530,6 +530,7 @@
                                         : `<button class="goal-date-badge goal-date-btn goal-date-placeholder" data-action="setDate" data-goal-id="${st.id}" title="点击设置日期">📅 设置日期</button>`}
                                 </div>
                                 <div class="goal-actions">
+                                    <button class="goal-action-btn promote-btn" data-action="promote" data-goal-id="${st.id}" title="升级为独立目标">↗️</button>
                                     <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${st.id}" title="AI细分">📋</button>
                                     <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="${st.id}" title="完成">✓</button>
                                     <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${st.id}" title="删除">🗑️</button>
@@ -740,6 +741,14 @@
                     state.expandedGoalIds.delete(String(goalId));
                     showToast?.('已完成 ✓');
                     await renderGoalsList();
+                } else if (action === 'promote') {
+                    const confirmed = await showConfirm('将此子任务升级为独立目标？\n它将从当前父目标中移除，成为顶层目标。');
+                    if (confirmed) {
+                        await updateGoal(parseInt(goalId), { parent_id: null, root_goal_id: null });
+                        state.expandedGoalIds.delete(String(goalId));
+                        showToast?.('已升级为独立目标 ↗️');
+                        await renderGoalsList();
+                    }
                 } else if (action === 'edit') {
                     const goal = state.goals.find(g => g.id === parseInt(goalId));
                     if (goal) {
@@ -3065,7 +3074,7 @@ function showAddGoalModal() {
                             html += `
                                 <div class="tl-goal tl-goal-sub ${stIsDone ? 'done' : ''} ${stIsCancelled ? 'cancelled' : ''}"
                                      data-goal-id="${st.id}">
-                                    <div class="tl-goal-title">└ ${escapeHtml(st.title)}</div>
+                                    <div class="tl-goal-title">└ ${escapeHtml(st.title)} <button class="tl-promote-btn" data-action="promote" data-goal-id="${st.id}" title="升级为独立目标">↗️</button></div>
                                     <div class="tl-goal-dates">${stDateDisplay}</div>
                                     <div class="tl-goal-bar-wrap">
                                         <div class="tl-goal-bar" style="left: ${stBarPos.left}; width: ${stBarPos.width}; --bar-color: ${stBarColor};"></div>
@@ -3118,6 +3127,22 @@ function showAddGoalModal() {
                     
                     if (goal) {
                         openGoalEditModal(goal);
+                    }
+                });
+            });
+            
+            // Add click handlers for promote buttons in timeline view
+            listEl.querySelectorAll('.tl-promote-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const goalId = parseInt(btn.dataset.goalId);
+                    if (isNaN(goalId)) return;
+                    const { showConfirm } = utils;
+                    const confirmed = await showConfirm('将此子任务升级为独立目标？\n它将从当前父目标中移除，成为顶层目标。');
+                    if (confirmed) {
+                        await updateGoal(goalId, { parent_id: null, root_goal_id: null });
+                        showToast?.('已升级为独立目标 ↗️');
+                        await renderTimelineView();
                     }
                 });
             });

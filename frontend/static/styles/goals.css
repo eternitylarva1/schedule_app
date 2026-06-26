@@ -905,6 +905,31 @@
     max-height: 0;
 }
 
+/* Promote button (in timeline subtask rows) */
+.tl-promote-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: all var(--transition-fast);
+    margin-left: var(--space-sm);
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+.tl-promote-btn:hover,
+.tl-promote-btn:active {
+    opacity: 1;
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
 /* ========== Per-Group Zoom Slider ========== */
 .timeline-zoom-slider-wrap {
     display: flex;
