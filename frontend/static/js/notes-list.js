@@ -497,6 +497,7 @@
                 if (note && !note.is_archived) {
                     const targetItem = container.querySelector(`.note-item[data-note-id="${lastNoteId}"]`);
                     if (targetItem && !targetItem.closest('.note-group[data-group-id="trash"]')) {
+                        targetItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
                         setTimeout(() => targetItem.click(), 300);
                     }
                 }
