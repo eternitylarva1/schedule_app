@@ -14,6 +14,34 @@
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+
+    /* Firefox subtle scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.25) transparent;
+}
+
+/* WebKit semi-transparent overlay scrollbar — all views */
+.view::-webkit-scrollbar {
+    width: 12px;
+}
+.view::-webkit-scrollbar-track {
+    background: transparent;
+}
+.view::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.25);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+.view::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.45);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+.view::-webkit-scrollbar-thumb:active {
+    background: rgba(128, 128, 128, 0.6);
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
 
 .week-view {

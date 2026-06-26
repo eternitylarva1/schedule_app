@@ -3,7 +3,7 @@
 @import url('./_reset.css');
 
 /* 2. 通用组件层 */
-@import url('./_shared.css');
+@import url('./_shared.css?v=20260624-01');
 @import url('./modals.css');
 @import url('./responsive.css');
 
