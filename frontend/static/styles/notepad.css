@@ -89,11 +89,18 @@
    Notepad View
    ============================================ */
 .notepad-view {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
+    display: flex;
+    flex-direction: column;
     height: 100%;
     overflow: hidden;
     background: var(--bg-primary);
+}
+
+/* 笔记 app 填满，但用 max-height 防止溢出让 flex-shrink 失效 */
+#notesApp:not(.hidden) {
+    height: 0;
+    min-height: 0;
+    flex: 1 1 0;
 }
 
 .notepad-tabs {
