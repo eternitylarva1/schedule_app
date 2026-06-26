@@ -469,6 +469,29 @@
     overflow-y: auto;
     min-height: 0;
     background: var(--bg-secondary);
+
+    /* Firefox subtle scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
+}
+
+/* WebKit semi-transparent overlay scrollbar (sidebar) */
+.notes-list-scroll::-webkit-scrollbar {
+    width: 10px;
+}
+.notes-list-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.notes-list-scroll::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.18);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+.notes-list-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.35);
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
 
 .notes-list-scroll .note-group {
@@ -708,10 +731,39 @@
 .notes-main {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     overflow-y: auto;
     background: var(--bg-primary);
     display: flex;
     flex-direction: column;
+
+    /* Firefox subtle scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.25) transparent;
+}
+
+/* WebKit semi-transparent overlay scrollbar */
+.notes-main::-webkit-scrollbar {
+    width: 12px;
+}
+.notes-main::-webkit-scrollbar-track {
+    background: transparent;
+}
+.notes-main::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.25);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+.notes-main::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.45);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+.notes-main::-webkit-scrollbar-thumb:active {
+    background: rgba(128, 128, 128, 0.6);
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
 
 .notes-main-placeholder {
@@ -745,7 +797,8 @@
 .note-inline-editor {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     padding: 20px 24px;
     box-sizing: border-box;
     background: var(--bg-primary);
