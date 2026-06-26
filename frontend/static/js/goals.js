@@ -531,6 +531,7 @@
                                 </div>
                                 <div class="goal-actions">
                                     <button class="goal-action-btn promote-btn" data-action="promote" data-goal-id="${st.id}" title="升级为独立目标">↗️</button>
+                                    ${countSubtasks(st) > 0 ? `<button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${st.id}" title="展开">▶</button>` : ''}
                                     <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${st.id}" title="AI细分">📋</button>
                                     <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="${st.id}" title="完成">✓</button>
                                     <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${st.id}" title="删除">🗑️</button>
