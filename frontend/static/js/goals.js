@@ -647,6 +647,7 @@
                     color
                 });
                 showToast?.('子任务已添加');
+                state.expandedGoalIds.add(String(goalId));
                 await renderGoalsList();
             } catch (err) {
                 console.error(err);
@@ -708,6 +709,7 @@
                                     });
                                 }
                                 showToast?.(`已添加 ${result.subtasks.length} 个子任务`);
+                                state.expandedGoalIds.add(String(goalId));
                                 await renderGoalsList();
                             } else {
                                 showToast?.('AI 细分失败');
@@ -781,6 +783,7 @@
                             color: color
                         });
                         showToast?.('子任务已添加');
+                        state.expandedGoalIds.add(String(parentId));
                         await renderGoalsList();
                     } catch (err) {
                         console.error(err);
