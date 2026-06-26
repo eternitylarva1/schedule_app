@@ -89,8 +89,8 @@
    Notepad View
    ============================================ */
 .notepad-view {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
     height: 100%;
     overflow: hidden;
     background: var(--bg-primary);
