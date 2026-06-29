@@ -2,6 +2,7 @@
 from aiohttp import web
 from typing import Any
 from .. import db
+from ..models import Event, EventHistory
 from ._helpers import (
     json_response, error_response,
     _parse_datetime, _extract_deadline_from_text, _extract_deadline_label_from_text,

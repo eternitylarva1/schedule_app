@@ -3,7 +3,7 @@ import json
 from aiohttp import web
 from typing import Any
 from .. import db
-from ..models import Expense
+from ..models import Expense, Event, CATEGORIES
 from ._helpers import (
     json_response, error_response, _sanitize_ai_provider,
     _update_event_stats, _update_expense_stats, _update_note_stats, _update_goal_stats,
