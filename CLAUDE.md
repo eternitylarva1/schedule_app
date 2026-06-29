@@ -26,8 +26,8 @@ python -m backend.main
 | File | Purpose |
 |------|---------|
 | `main.py` | aiohttp 服务器入口，初始化数据库、AI 提供商、CORS |
-| `routes.py` | 所有 REST API 路由（约 2000 行），包含 events/goals/notes/expenses/budgets/llm |
-| `db.py` | SQLite 所有 CRUD 操作（约 2100 行），使用 aiosqlite |
+| `routes/` | REST API 路由（按功能拆分 12 个子模块：events/goals/notes/expenses/budgets/llm/settings/等） |
+| `db/` | SQLite CRUD 操作（按表拆分 12 个子模块：events/goals/notes/expenses/budgets/settings/等） |
 | `llm_service.py` | LLM 集成，统一调用 OpenAI 兼容 API，支持多提供商动态切换 |
 | `models.py` | 数据模型（Event, Goal, Note, Expense, Budget 等） |
 | `time_parser.py` | 时间解析工具 |
@@ -98,14 +98,15 @@ window.ScheduleAppGoals = { renderGoalsView, ... };
 
 - `frontend/index.html` — 单页应用入口，所有视图的 HTML 结构
 - `frontend/static/js/main.js` — 主逻辑，视图切换路由
-- `backend/routes.py` — 所有 API 端点（按功能分组，约 2000 行）
+- `backend/routes/` — 所有 API 端点（按功能拆分为 12 个子模块）
 - `backend/llm_service.py` — 所有 AI 交互 prompt 模板
-- `SPEC.md` — 项目规范（交互设计、优先级、注意事项）
-- `DEBUG_WORKFLOW.md` — 调试流程文档（强制执行）
+- `docs/specs/SPEC.md` — 项目规范（交互设计、优先级、注意事项）
+- `docs/guides/DEBUG_WORKFLOW.md` — 调试流程文档（强制执行）
+- `docs/REQUIREMENT_ANALYSIS.md` — 需求缺口分析（对标市面产品）
 
 ## Development Guidelines
 
-1. **调试流程**：必须遵循 `DEBUG_WORKFLOW.md`
+1. **调试流程**：必须遵循 `docs/guides/DEBUG_WORKFLOW.md`
 2. **提交规范**：每次完成后 `git add . && git commit -m "描述" && git push origin main`
 3. **浏览器调试**：使用 `browser-harness` skill，设置 `BU_CDP_URL` 环境变量
 4. **不要暴露 API Key**：AI key 优先从环境变量读取

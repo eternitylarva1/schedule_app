@@ -27,6 +27,12 @@
                 <button class="nav-arrow-btn hidden" id="nextBtn" title="下一页">›</button>
             </div>
             <div class="header-right">
+                <button class="header-btn header-btn-blue" id="searchBtn" title="搜索">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
                 <button class="header-btn header-btn-purple" id="refreshBtn" title="刷新">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                 </button>
@@ -885,6 +891,23 @@
                         <button class="btn btn-secondary" id="expenseCancelBtn" style="flex:1;">取消</button>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div class="modal hidden" id="searchModal">
+        <div class="modal-backdrop" id="searchModalBackdrop"></div>
+        <div class="modal-content search-modal-content">
+            <div class="modal-header" style="padding-bottom: 0;">
+                <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="searchInput" placeholder="搜索日程、笔记、目标..." autocomplete="off" style="flex:1; border:none; background:transparent; font-size:16px; outline:none; padding:6px 0;">
+                    <button id="searchClose" style="background:none;border:none;font-size:20px;color:#999;cursor:pointer;padding:0 4px;">×</button>
+                </div>
+            </div>
+            <div class="modal-body" id="searchResults" style="max-height: 60vh; overflow-y: auto; padding-top: 8px;">
+                <div style="color: var(--text-muted); text-align: center; padding: 32px;">输入关键词搜索</div>
             </div>
         </div>
     </div>

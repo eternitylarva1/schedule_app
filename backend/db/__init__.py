@@ -15,6 +15,7 @@ from .events import (
     save_learning_pattern, delete_learning_pattern, get_learning_stats,
     batch_complete_events, find_duplicate_event, find_overlapping_events,
     batch_uncomplete_events, batch_delete_events, get_stats,
+    search_events,
 )
 from .settings import (
     get_setting, set_setting,
@@ -25,13 +26,13 @@ from .settings import (
 )
 from .goals import (
     create_goal, get_goals, get_goal, get_goal_subtasks, get_goal_tree,
-    update_goal, delete_goal, get_goals_by_title,
+    update_goal, delete_goal, get_goals_by_title, search_goals,
     create_goal_conversation, get_goal_conversations, delete_goal_conversations,
     create_goal_deliverable, get_goal_deliverables, update_goal_deliverable,
     delete_goal_deliverable,
 )
 from .notes import (
-    create_note, get_notes, get_note, update_note, delete_note,
+    create_note, get_notes, get_note, update_note, delete_note, search_notes,
     create_note_conversation, get_note_conversations, delete_note_conversations,
     get_notes_by_title, create_note_group, get_note_groups, get_note_group,
     update_note_group, delete_note_group,
@@ -72,6 +73,7 @@ __all__ = [
     "save_learning_pattern", "delete_learning_pattern", "get_learning_stats",
     "batch_complete_events", "find_duplicate_event", "find_overlapping_events",
     "batch_uncomplete_events", "batch_delete_events", "get_stats",
+    "search_events",
     # Settings
     "get_setting", "set_setting",
     "get_ai_providers", "get_active_ai_provider", "get_ai_provider",
@@ -80,12 +82,12 @@ __all__ = [
     "delete_user_context", "reorder_user_contexts",
     # Goals
     "create_goal", "get_goals", "get_goal", "get_goal_subtasks", "get_goal_tree",
-    "update_goal", "delete_goal", "get_goals_by_title",
+    "update_goal", "delete_goal", "get_goals_by_title", "search_goals",
     "create_goal_conversation", "get_goal_conversations", "delete_goal_conversations",
     "create_goal_deliverable", "get_goal_deliverables", "update_goal_deliverable",
     "delete_goal_deliverable",
     # Notes
-    "create_note", "get_notes", "get_note", "update_note", "delete_note",
+    "create_note", "get_notes", "get_note", "update_note", "delete_note", "search_notes",
     "create_note_conversation", "get_note_conversations", "delete_note_conversations",
     "get_notes_by_title", "create_note_group", "get_note_groups", "get_note_group",
     "update_note_group", "delete_note_group",

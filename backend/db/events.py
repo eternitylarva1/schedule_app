@@ -12,8 +12,8 @@ async def create_event(event: Event) -> Event:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """INSERT INTO events 
-               (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at, reminder_enabled, reminder_minutes, reminder_sent, is_test)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at, reminder_enabled, reminder_minutes, reminder_sent, priority, is_test)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event.title,
                 event.start_time.isoformat() if event.start_time else None,
@@ -27,6 +27,7 @@ async def create_event(event: Event) -> Event:
                 1 if event.reminder_enabled else 0,
                 event.reminder_minutes,
                 1 if event.reminder_sent else 0,
+                event.priority,
                 1 if event.is_test else 0,
             ),
         )
@@ -37,8 +38,20 @@ async def create_event(event: Event) -> Event:
     return event
 
 
+async def search_events(q: str, limit: int = 20) -> List[Event]:
+    """Search events by title."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        rows = await db.execute(
+            """SELECT * FROM events WHERE title LIKE ? AND status != 'hidden' ORDER BY start_time DESC LIMIT ?""",
+            (f"%{q}%", limit)
+        )
+        rows = await rows.fetchall()
+        return [Event.from_dict(dict(row)) for row in rows]
+
+
 async def get_events(date_filter: str = "today") -> List[Event]:
-    """Get events filtered by date (today/week/month/YYYY-MM-DD)."""
+    """Get events filtered by date (today/week/month/YYYY-MM-DD/YYYY-MM)."""
     from datetime import timedelta
     import re
 
@@ -137,6 +150,7 @@ async def get_events(date_filter: str = "today") -> List[Event]:
                 reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row_keys and row["reminder_enabled"] is not None else False,
                 reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row_keys and row["reminder_minutes"] is not None else 1,
                 reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row_keys and row["reminder_sent"] is not None else False,
+                priority=row["priority"] if "priority" in row_keys else "none",
                 is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
             ))
     return events
@@ -164,7 +178,8 @@ async def get_event(event_id: int) -> Optional[Event]:
                 updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
                 reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in row_keys and row["reminder_enabled"] is not None else False,
                 reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in row_keys and row["reminder_minutes"] is not None else 1,
-reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row_keys and row["reminder_sent"] is not None else False,
+                reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row_keys and row["reminder_sent"] is not None else False,
+                priority=row["priority"] if "priority" in row_keys else "none",
                 is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
                 completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
             )
@@ -181,7 +196,7 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
             """UPDATE events SET 
                title = ?, start_time = ?, end_time = ?, category_id = ?, 
                all_day = ?, recurrence = ?, status = ?, updated_at = ?,
-               reminder_enabled = ?, reminder_minutes = ?, reminder_sent = ?, is_test = ?,
+               reminder_enabled = ?, reminder_minutes = ?, reminder_sent = ?, priority = ?, is_test = ?,
                completed_at = ?
                WHERE id = ?""",
             (
@@ -196,6 +211,7 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
                 1 if event.reminder_enabled else 0,
                 event.reminder_minutes,
                 1 if event.reminder_sent else 0,
+                event.priority,
                 1 if event.is_test else 0,
                 event.completed_at.isoformat() if event.completed_at else None,
                 event_id,
@@ -1054,6 +1070,7 @@ async def find_duplicate_event(title: str, start_time: datetime | None, end_time
                 reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
                 reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
                 reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
+                priority=row["priority"] if "priority" in list(row.keys()) else "none",
             )
 
 
@@ -1091,6 +1108,7 @@ async def find_overlapping_events(start_time: datetime, end_time: datetime, stat
                     reminder_enabled=bool(row["reminder_enabled"]) if "reminder_enabled" in list(row.keys()) and row["reminder_enabled"] is not None else False,
                     reminder_minutes=int(row["reminder_minutes"]) if "reminder_minutes" in list(row.keys()) and row["reminder_minutes"] is not None else 1,
                     reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in list(row.keys()) and row["reminder_sent"] is not None else False,
+                    priority=row["priority"] if "priority" in list(row.keys()) else "none",
                 ))
             return result
 

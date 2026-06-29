@@ -36,7 +36,7 @@
    - 发送 QQ 更新通知
 
 2. 调试必须遵循：
-   - `DEBUG_WORKFLOW.md`
+   - `docs/guides/DEBUG_WORKFLOW.md`
    - 使用 `browser-harness` 做交互与可视化验证
    - **Windows 环境使用 `start /b browser-harness '<command>'` 后台执行**
 
@@ -77,7 +77,7 @@
 2. API 数据校验：today/week/month
 3. 前端状态校验：currentView/calendarSubview/currentDate/currentMonth
 4. 浏览器交互验证（browser-harness skill）
-5. 详细调试流程见 DEBUG_WORKFLOW.md
+5. 详细调试流程见 docs/guides/DEBUG_WORKFLOW.md
 
 ---
 

@@ -31,10 +31,11 @@ async def create_expense(expense: Expense) -> Expense:
             return expense
         
         cursor = await db.execute(
-            """INSERT INTO expenses (amount, category, note, budget_id, is_test, expense_date, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (expense.amount, expense.category, expense.note, expense.budget_id, 
-             1 if expense.is_test else 0, expense_date, now_iso),
+            """INSERT INTO expenses (amount, category, note, budget_id, is_test, expense_date, is_recurring, recurrence_period, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (expense.amount, expense.category, expense.note, expense.budget_id,
+             1 if expense.is_test else 0, expense_date,
+             1 if expense.is_recurring else 0, expense.recurrence_period, now_iso),
         )
         await db.commit()
         expense.id = cursor.lastrowid
@@ -98,6 +99,9 @@ async def get_expenses(date_filter: str = "month") -> List[Expense]:
                     note=row["note"] or "",
                     budget_id=row["budget_id"] if "budget_id" in row_keys else None,
                     is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
+                    expense_date=row["expense_date"] if "expense_date" in row_keys else None,
+                    is_recurring=bool(row["is_recurring"]) if "is_recurring" in row_keys and row["is_recurring"] is not None else False,
+                    recurrence_period=row["recurrence_period"] if "recurrence_period" in row_keys else "monthly",
                     created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
                 ))
     return expenses
@@ -119,6 +123,9 @@ async def get_expense(expense_id: int) -> Optional[Expense]:
                 note=row["note"] or "",
                 budget_id=row["budget_id"] if "budget_id" in row_keys else None,
                 is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
+                expense_date=row["expense_date"] if "expense_date" in row_keys else None,
+                is_recurring=bool(row["is_recurring"]) if "is_recurring" in row_keys and row["is_recurring"] is not None else False,
+                recurrence_period=row["recurrence_period"] if "recurrence_period" in row_keys else "monthly",
                 created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
             )
 
@@ -127,8 +134,9 @@ async def update_expense(expense_id: int, expense: Expense) -> Optional[Expense]
     """Update an existing expense."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
-            "UPDATE expenses SET amount = ?, category = ?, note = ?, budget_id = ?, is_test = ? WHERE id = ?",
-            (expense.amount, expense.category, expense.note, expense.budget_id, 1 if expense.is_test else 0, expense_id),
+            "UPDATE expenses SET amount = ?, category = ?, note = ?, budget_id = ?, is_test = ?, expense_date = ?, is_recurring = ?, recurrence_period = ? WHERE id = ?",
+            (expense.amount, expense.category, expense.note, expense.budget_id, 1 if expense.is_test else 0,
+             expense.expense_date, 1 if expense.is_recurring else 0, expense.recurrence_period, expense_id),
         )
         await db.commit()
     return await get_expense(expense_id)

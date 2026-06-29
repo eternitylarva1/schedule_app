@@ -67,6 +67,7 @@ async def create_event(request: web.Request) -> web.Response:
             reminder_enabled=reminder_enabled,
             reminder_minutes=data.get("reminder_minutes", 1),
             reminder_sent=data.get("reminder_sent", False),
+            priority=data.get("priority", "none"),
             is_test=bool(data.get("is_test", False)),
         )
 
@@ -140,6 +141,7 @@ async def update_event(request: web.Request) -> web.Response:
             reminder_enabled=data.get("reminder_enabled", existing.reminder_enabled),
             reminder_minutes=data.get("reminder_minutes", existing.reminder_minutes),
             reminder_sent=data.get("reminder_sent", existing.reminder_sent),
+            priority=data.get("priority", existing.priority),
         )
 
         updated = await db.update_event(event_id, event)

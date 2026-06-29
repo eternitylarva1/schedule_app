@@ -98,6 +98,37 @@ async def get_goals(horizon: str | None = None, include_subtasks: bool = True) -
     return goals
 
 
+async def search_goals(q: str, limit: int = 20) -> List[Goal]:
+    """Search goals by title or description."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM goals WHERE (title LIKE ? OR description LIKE ?) ORDER BY goal_order ASC, created_at DESC LIMIT ?""",
+            (f"%{q}%", f"%{q}%", limit)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            goals: List[Goal] = []
+            for row in rows:
+                goals.append(Goal(
+                    id=row["id"],
+                    title=row["title"],
+                    description=row["description"] or "",
+                    horizon=row["horizon"] or "short",
+                    status=row["status"] or "active",
+                    start_date=datetime.fromisoformat(row["start_date"]) if row["start_date"] else None,
+                    end_date=datetime.fromisoformat(row["end_date"]) if row["end_date"] else None,
+                    parent_id=row["parent_id"],
+                    root_goal_id=row["root_goal_id"],
+                    order=row["goal_order"] or 0,
+                    color=row["color"] or "",
+                    ai_context=row["ai_context"] or "",
+                    is_test=bool(row["is_test"]) if "is_test" in row.keys() and row["is_test"] is not None else False,
+                    created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
+                    updated_at=datetime.fromisoformat(row["updated_at"]) if row["updated_at"] else None,
+                ))
+    return goals
+
+
 async def get_goal(goal_id: int) -> Optional[Goal]:
     """Get a single goal by ID."""
     async with aiosqlite.connect(DB_PATH) as db:

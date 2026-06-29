@@ -71,6 +71,33 @@ async def create_note(note: Note) -> Note:
         return note
 
 
+async def search_notes(q: str, limit: int = 20) -> list[Note]:
+    """Search notes by title or content."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            """SELECT id, title, content, group_id, sort_order, is_pinned, color, is_archived, created_at, updated_at
+               FROM notes WHERE (title LIKE ? OR content LIKE ?) AND is_archived = 0
+               ORDER BY is_pinned DESC, created_at DESC LIMIT ?""",
+            (f"%{q}%", f"%{q}%", limit)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                Note(
+                    id=row[0],
+                    title=row[1],
+                    content=row[2],
+                    group_id=row[3],
+                    sort_order=row[4] if row[4] is not None else 0,
+                    is_pinned=bool(row[5]) if row[5] is not None else False,
+                    color=row[6] if row[6] is not None else "",
+                    is_archived=bool(row[7]) if row[7] is not None else False,
+                    created_at=datetime.fromisoformat(row[8]) if row[8] else None,
+                    updated_at=datetime.fromisoformat(row[9]) if row[9] else None,
+                )
+                for row in rows
+            ]
+
+
 async def get_notes(include_archived: bool = False) -> list[Note]:
     """Get all notes ordered by created_at desc."""
     async with aiosqlite.connect(DB_PATH) as db:

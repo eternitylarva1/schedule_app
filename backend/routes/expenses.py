@@ -44,6 +44,8 @@ async def create_expense(request: web.Request) -> web.Response:
             budget_id=data.get("budget_id"),
             is_test=bool(data.get("is_test", False)),
             expense_date=data.get("expense_date"),
+            is_recurring=bool(data.get("is_recurring", False)),
+            recurrence_period=data.get("recurrence_period", "monthly"),
         )
         if expense.amount <= 0:
             return error_response("金额必须大于0")
@@ -108,7 +110,13 @@ async def update_expense(request: web.Request) -> web.Response:
             field_changes.append({"field": "note", "old_value": existing.note, "new_value": new_note})
         if new_is_test != existing.is_test:
             field_changes.append({"field": "is_test", "old_value": str(existing.is_test), "new_value": str(new_is_test)})
-        
+        new_is_recurring = data.get("is_recurring", existing.is_recurring)
+        if new_is_recurring != existing.is_recurring:
+            field_changes.append({"field": "is_recurring", "old_value": str(existing.is_recurring), "new_value": str(new_is_recurring)})
+        new_recurrence_period = data.get("recurrence_period", existing.recurrence_period)
+        if new_recurrence_period != existing.recurrence_period:
+            field_changes.append({"field": "recurrence_period", "old_value": existing.recurrence_period, "new_value": new_recurrence_period})
+
         expense = Expense(
             amount=new_amount,
             category=new_category,
@@ -116,6 +124,8 @@ async def update_expense(request: web.Request) -> web.Response:
             budget_id=data.get("budget_id", existing.budget_id),
             is_test=new_is_test,
             expense_date=new_expense_date,
+            is_recurring=data.get("is_recurring", existing.is_recurring),
+            recurrence_period=data.get("recurrence_period", existing.recurrence_period),
         )
         updated = await db.update_expense(expense_id, expense)
         if not updated:

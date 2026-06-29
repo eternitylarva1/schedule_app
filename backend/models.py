@@ -20,6 +20,7 @@ class Event:
     reminder_enabled: bool = False
     reminder_minutes: int = 1
     reminder_sent: bool = False
+    priority: str = "none"  # none/low/medium/high
     is_test: bool = False
     goal_id: int | None = None
     completed_at: datetime | None = None
@@ -231,6 +232,8 @@ class Expense:
     budget_id: int | None = None
     is_test: bool = False
     expense_date: str | None = None  # YYYY-MM-DD format, defaults to today
+    is_recurring: bool = False
+    recurrence_period: str = "monthly"  # monthly/weekly/yearly
     created_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -247,6 +250,8 @@ class Expense:
             d["created_at"] = datetime.fromisoformat(d["created_at"])
         if "amount" in d and d["amount"] is not None:
             d["amount"] = float(d["amount"])
+        if 'is_recurring' in d:
+            d['is_recurring'] = bool(d['is_recurring'])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
 

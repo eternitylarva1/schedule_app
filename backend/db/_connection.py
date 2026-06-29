@@ -197,6 +197,10 @@ async def init_db() -> None:
             await db.execute("ALTER TABLE events ADD COLUMN is_test INTEGER DEFAULT 0")
         except Exception:
             pass
+        try:
+            await db.execute("ALTER TABLE events ADD COLUMN priority TEXT DEFAULT 'none'")
+        except Exception:
+            pass
         
         # Migrate goals table - add new columns if they don't exist
         try:
@@ -370,6 +374,14 @@ async def init_db() -> None:
             pass
         try:
             await db.execute("ALTER TABLE expenses ADD COLUMN is_test INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE expenses ADD COLUMN is_recurring INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            await db.execute("ALTER TABLE expenses ADD COLUMN recurrence_period TEXT DEFAULT 'monthly'")
         except Exception:
             pass
 
