@@ -248,3 +248,77 @@ send_private_message(
 6. **模块命名规则**: 每个前端模块通过 `window.ScheduleAppXxx` 命名空间导出
 7. **调试执行**: 调试流程以 `DEBUG_WORKFLOW.md` 为唯一基线
 8. **跨文件修改**: 涉及多个模块的改动（如加字段）需排查所有 CRUD 路径和 payload 构造点
+
+---
+
+## 9. 时间轴总视图开发教训（2026-06-23）
+
+时间轴 Gantt 视图是近期改动最大的功能，以下是反复踩坑后的设计原则和排查清单。
+
+### 9.1 缓存刷新三板斧
+
+浏览器缓存 + Service Worker 双缓存常导致"代码改了但不生效"。每次 JS/CSS 改动后必须：
+
+1. **递增 HTML 版本号**: `index.html` 中 `?v=` 参数
+2. **如果文件列表有变化**: 同步更新 `service-worker.js` 的 `CACHE_NAME` 和 `STATIC_ASSETS` 的 `?v=`
+3. **验证**: `curl -s http://localhost:8080/static/js/goals.js | grep "新增关键字"`
+
+参见 `scripts/sync_sw_cache.py` 自动同步。
+
+### 9.2 浏览器测试选择器验证
+
+用 `querySelectorAll` 验证时，**CSS 类名必须与实际渲染的 HTML 一致**。不要凭记忆写选择器。
+
+错误示例：
+- 代码用 `.timeline-bar-dates-inline`，测试查 `.timeline-bar-dates` → 误报 MISSING
+- 代码用 `.timeline-today-btn`，测试查 `.timeline-group-scroll-today` → 误报 not found
+
+**正确做法**: 测试前先用 `element.innerHTML.substring(0,300)` 打印实际 HTML 结构。
+
+### 9.3 设计稿 vs 施工结果核对
+
+委托 @designer 产出后，**必须逐行对比设计稿和实际渲染**：
+
+| 检查项 | 方法 |
+|--------|------|
+| DOM 结构层级 | `element.children[0].className` 递归 |
+| 每行排版（几行） | `element.querySelectorAll(':scope > div').length` |
+| 字体大小 | `getComputedStyle(el).fontSize` |
+| 间距/padding | `getComputedStyle(el).padding` |
+| 颜色 | `getComputedStyle(el).color` 或 `backgroundColor` |
+
+不要只看 JS 数据正确就过。视觉还原度与数据正确性同等重要。
+
+### 9.4 绝对定位必须有 x 和 y
+
+使用 `position: absolute` 定位元素时，只设 `left/width` 不设 `top`，所有元素会堆叠在 `top: 0`。
+
+**教训**: 每个 absolute 元素必须显式设 `top` 或 `bottom`，或用 JS 计算 `top: ${index * height}px`。
+
+### 9.5 子树渲染完整性
+
+渲染层级树时，必须验证**每个节点都能被独立展开**：
+
+- 顶层节点有 `▶` 按钮 → ✅
+- 子节点有 `▶` 按钮（当它有子级时）→ ❌ 最初遗漏
+- 孙节点有 `▶` 按钮 → 如果深度限制为 2，则不需要
+
+**教训**: 不要只给顶层加 toggle 按钮。写递归渲染时，toggle 按钮也应该是递归的。
+
+### 9.6 时间跨度计算用日精度
+
+`getMonthDiff()` 只到月粒度，同一个月内不同日期的任务宽度相同。
+
+**教训**: 甘特条宽度计算用 `(endDate - startDate) / msPerDay` 的日精度，不要用月粒度。对于小时级任务，需要更细的刻度体系（见方案 A/B/C 讨论）。
+
+### 9.7 列表视图展开后内容不可见
+
+`.goal-children` 默认 `hidden`，添加子任务后 `renderGoalsList()` 重渲染，新内容在 DOM 但不可见。
+
+**教训**: 任何"添加后刷新列表"的操作，必须在刷新前把父节点 ID 加入 `expandedGoalIds`。
+
+### 9.8 已完成区域展开不滚动
+
+完成后目标移入底部折叠区，展开时内容被推出视口。需要在展开时触发 `scrollIntoView()`。
+
+**通用原则**: 任何折叠面板展开时，如果面板在视口外，应自动滚动到可见位置。
