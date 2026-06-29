@@ -1497,3 +1497,27 @@
     margin-left: var(--space-sm);
 }
 
+.goal-completed-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-shrink: 0;
+}
+
+.goal-completed .restore-btn {
+    padding: 2px 6px;
+    font-size: var(--font-size-xs);
+    color: var(--accent-primary);
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.goal-completed .restore-btn:hover,
+.goal-completed .restore-btn:active {
+    background: var(--accent-primary);
+    color: white;
+    border-color: var(--accent-primary);
+}
+

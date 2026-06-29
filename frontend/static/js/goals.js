@@ -592,7 +592,10 @@
                                 <span class="goal-completed-check">${goal.status === 'cancelled' ? '✕' : '✓'}</span>
                                 <div class="goal-title">${escapeHtml(goal.title)}</div>
                             </div>
-                            <span class="goal-completed-label">${completedLabel}</span>
+                            <div class="goal-completed-actions">
+                                <button class="goal-action-btn restore-btn" data-action="restore" data-goal-id="${goal.id}" title="恢复为进行中">↩</button>
+                                <span class="goal-completed-label">${completedLabel}</span>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -629,9 +632,23 @@
                 list?.querySelectorAll('.goal-completed').forEach(card => {
                     card.addEventListener('click', (e) => {
                         if (state.selectionMode.active) return;
+                        // Ignore clicks on restore button
+                        if (e.target.closest('.restore-btn')) return;
                         const goalId = parseInt(card.dataset.goalId);
                         const goal = goals.find(g => g.id === goalId);
                         if (goal) openGoalEditModal(goal);
+                    });
+                });
+                
+                // Restore button → set back to active
+                list?.querySelectorAll('.restore-btn').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        const goalId = parseInt(btn.dataset.goalId);
+                        await updateGoal(goalId, { status: 'active' });
+                        state.expandedGoalIds.delete(String(goalId));
+                        showToast?.('已恢复为进行中 ↩');
+                        await renderGoalsList();
                     });
                 });
             }, 0);
