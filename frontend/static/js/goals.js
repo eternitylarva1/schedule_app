@@ -342,12 +342,14 @@
         listEl = freshListEl;
         
         const goals = await fetchGoals(state.goalsHorizon);
+        const activeGoals = (goals || []).filter(g => g.status !== 'done' && g.status !== 'cancelled');
+        const completedGoals = (goals || []).filter(g => g.status === 'done' || g.status === 'cancelled');
         const goalsSelectionActive = state.selectionMode.active && state.selectionMode.type === 'goals';
         if (goalsSelectionActive) {
             renderSelectionBar('goals');
         }
         
-        if (!goals || goals.length === 0) {
+        if (!activeGoals || activeGoals.length === 0) {
             listEl.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-icon">🎯</div>
@@ -545,7 +547,7 @@
             `;
         }
         
-        listEl.innerHTML = goals.map(goal => {
+        listEl.innerHTML = activeGoals.map(goal => {
             const subtaskCount = countSubtasks(goal);
             const selectedClass = goalsSelectionActive && state.selectionMode.goalIds.has(String(goal.id)) ? ' selected' : '';
             const selectionClass = goalsSelectionActive ? ' selection-mode' : '';
@@ -564,6 +566,7 @@
                             <button class="goal-action-btn edit-btn" data-action="edit" data-goal-id="${goal.id}" title="编辑">✏️</button>
                             <button class="goal-action-btn history-btn" data-action="history" data-goal-id="${goal.id}" title="历史">🕘</button>
                             <button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${goal.id}" title="展开">▶</button>
+                            <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="${goal.id}" title="完成">✓</button>
                             <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${goal.id}" title="删除">🗑️</button>
                         </div>
                     </div>
@@ -576,6 +579,59 @@
                 </div>
             `;
         }).join('');
+        
+        // Render completed goals section (collapsed by default)
+        if (completedGoals.length > 0) {
+            const completedHtml = completedGoals.map(goal => {
+                const completedLabel = goal.status === 'cancelled' ? '已取消' : '已完成';
+                const cancelledClass = goal.status === 'cancelled' ? 'cancelled' : '';
+                return `
+                    <div class="goal-card goal-completed ${cancelledClass}" data-goal-id="${goal.id}"${goal.color ? ` style="border-left: 4px solid ${goal.color}"` : ''}>
+                        <div class="goal-card-head">
+                            <div class="goal-title-wrap">
+                                <span class="goal-completed-check">${goal.status === 'cancelled' ? '✕' : '✓'}</span>
+                                <div class="goal-title">${escapeHtml(goal.title)}</div>
+                            </div>
+                            <span class="goal-completed-label">${completedLabel}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            listEl.innerHTML += `
+                <div class="goals-completed-section">
+                    <button class="goals-completed-toggle" id="goalsCompletedToggle">
+                        <span>✅ 已完成 · ${completedGoals.length}项</span>
+                        <span class="goals-completed-arrow">▶</span>
+                    </button>
+                    <div class="goals-completed-list hidden" id="goalsCompletedList">
+                        ${completedHtml}
+                    </div>
+                </div>
+            `;
+            
+            // Toggle handler — bind after DOM insertion
+            setTimeout(() => {
+                const toggle = document.getElementById('goalsCompletedToggle');
+                const list = document.getElementById('goalsCompletedList');
+                if (toggle && list) {
+                    toggle.addEventListener('click', () => {
+                        const expanded = list.classList.toggle('hidden');
+                        toggle.querySelector('.goals-completed-arrow').textContent = expanded ? '▶' : '▼';
+                    });
+                }
+                
+                // Click completed goal → open edit (to un-complete)
+                list?.querySelectorAll('.goal-completed').forEach(card => {
+                    card.addEventListener('click', (e) => {
+                        if (state.selectionMode.active) return;
+                        const goalId = parseInt(card.dataset.goalId);
+                        const goal = goals.find(g => g.id === goalId);
+                        if (goal) openGoalEditModal(goal);
+                    });
+                });
+            }, 0);
+        }
 
         restoreGoalExpandedState(listEl);
 

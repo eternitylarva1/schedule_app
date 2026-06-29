@@ -1400,3 +1400,98 @@
     }
 }
 
+/* ============================================
+   Goals Completed Section
+   ============================================ */
+.goals-completed-section {
+    margin-top: var(--space-lg);
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--space-md);
+}
+
+.goals-completed-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.goals-completed-toggle:active {
+    background: var(--bg-hover);
+}
+
+.goals-completed-arrow {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.goals-completed-list {
+    margin-top: var(--space-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+/* Completed goal card */
+.goal-completed {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: var(--space-sm) var(--space-md);
+    opacity: 0.55;
+    transition: opacity var(--transition-fast);
+    cursor: pointer;
+}
+.goal-completed:hover {
+    opacity: 0.75;
+}
+.goal-completed.cancelled {
+    opacity: 0.35;
+}
+.goal-completed.cancelled:hover {
+    opacity: 0.5;
+}
+.goal-completed .goal-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.goal-completed .goal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex: 1;
+    min-width: 0;
+}
+.goal-completed .goal-title {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    text-decoration: line-through;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.goal-completed.cancelled .goal-title {
+    text-decoration: line-through;
+}
+.goal-completed-check {
+    font-size: var(--font-size-sm);
+    color: var(--accent-success);
+    flex-shrink: 0;
+}
+.goal-completed.cancelled .goal-completed-check {
+    color: var(--accent-danger);
+}
+.goal-completed-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    flex-shrink: 0;
+    margin-left: var(--space-sm);
+}
+
