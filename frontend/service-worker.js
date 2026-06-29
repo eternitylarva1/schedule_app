@@ -30,12 +30,12 @@ const STATIC_ASSETS = [
   '/static/js/settings.js?v=20260624-02',
   '/static/js/llm-queue.js?v=20260624-01',
   '/static/js/main.js?v=20260624-03',
-  '/static/js/goals.js?v=20260624-01',
+  '/static/js/goals.js?v=20260624-02',
   '/static/js/selection.js?v=20260425-01',
   '/static/js/calendar-views.js?v=20260425-01',
 
   // CSS
-  '/static/styles/main.css?v=20260624-02',
+  '/static/styles/main.css?v=20260624-04',
 
   // Other
   '/manifest.json',

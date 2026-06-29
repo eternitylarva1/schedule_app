@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/styles/main.css?v=20260624-04">
+    <link rel="stylesheet" href="/static/styles/main.css?v=20260629-01">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -453,6 +453,24 @@
                             <span>全天事件</span>
                         </label>
                     </div>
+                    <div class="form-group" id="recurrenceGroup">
+                        <label for="recurrenceSelect">重复</label>
+                        <select id="recurrenceSelect" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--border); background: var(--bg-input); color: var(--text); font-size:14px;">
+                            <option value="none">不重复</option>
+                            <option value="daily">每天</option>
+                            <option value="weekly">每周</option>
+                            <option value="monthly">每月</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="prioritySelect">优先级</label>
+                        <select id="prioritySelect" style="width:100%; padding:8px; border-radius:6px; border:1px solid var(--border); background: var(--bg-input); color: var(--text); font-size:14px;">
+                            <option value="none">无优先级</option>
+                            <option value="low">🟢 低</option>
+                            <option value="medium">🟡 中</option>
+                            <option value="high">🔴 高</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" id="cancelEventBtn">取消</button>
@@ -882,6 +900,17 @@
                     </div>
                     <div class="form-group">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="expenseRecurring" style="width: 18px; height: 18px;">
+                            <span>周期性支出</span>
+                        </label>
+                        <select id="expenseRecurrencePeriod" style="width:100%; padding:6px; border-radius:6px; border:1px solid var(--border); background: var(--bg-input); color: var(--text); font-size:13px; margin-top: 6px; display:none;">
+                            <option value="monthly">每月</option>
+                            <option value="weekly">每周</option>
+                            <option value="yearly">每年</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                             <input type="checkbox" id="expenseIsTest" style="width: 18px; height: 18px;">
                             <span>标记为测试</span>
                         </label>
@@ -912,20 +941,20 @@
         </div>
     </div>
 
-    <script src="/static/js/core/state-elements.js?v=20260623-03"></script>
+    <script src="/static/js/core/state-elements.js?v=20260629-01"></script>
     <script src="/static/js/core/utils.js?v=20260412-04"></script>
     <script src="/static/js/core/api-toast.js?v=20260622-01"></script>
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
     <script src="/static/js/utils2.js?v=20260425-01"></script>
-    <script src="/static/js/budget.js?v=20260426-08"></script>
+    <script src="/static/js/budget.js?v=20260629-01"></script>
     <script src="/static/js/note-ai.js?v=20260624-03"></script>
-    <script src="/static/js/note-editor.js?v=20260623-03"></script>
+    <script src="/static/js/note-editor.js?v=20260629-01"></script>
     <script src="/static/js/notes-list.js?v=20260623-01"></script>
     <script src="/static/js/expense.js?v=20260622-02"></script>
     <script src="/static/js/notepad.js?v=20260622-02"></script>
     <script src="/static/js/settings.js?v=20260624-02"></script>
     <script src="/static/js/llm-queue.js?v=20260624-01"></script>
-    <script src="/static/js/main.js?v=20260624-03"></script>
+    <script src="/static/js/main.js?v=20260629-01"></script>
     <script src="/static/js/goals.js?v=20260624-02"></script>
     <script src="/static/js/selection.js?v=20260425-01"></script>
     <script src="/static/js/calendar-views.js?v=20260425-01"></script>

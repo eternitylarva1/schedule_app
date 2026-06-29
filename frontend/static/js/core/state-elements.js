@@ -152,6 +152,8 @@
     startTime: document.getElementById('startTime'),
     endTime: document.getElementById('endTime'),
     allDayCheck: document.getElementById('allDayCheck'),
+    recurrenceSelect: document.getElementById('recurrenceSelect'),
+    prioritySelect: document.getElementById('prioritySelect'),
     categorySelector: document.getElementById('categorySelector'),
     cancelEventBtn: document.getElementById('cancelEventBtn'),
     saveEventBtn: document.getElementById('saveEventBtn'),
@@ -259,6 +261,8 @@
     expenseCancelBtn: document.getElementById('expenseCancelBtn'),
     expenseId: document.getElementById('expenseId'),
     expenseIsTest: document.getElementById('expenseIsTest'),
+    expenseRecurring: document.getElementById('expenseRecurring'),
+    expenseRecurrencePeriod: document.getElementById('expenseRecurrencePeriod'),
   };
 
   global.ScheduleAppCore = {

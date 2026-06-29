@@ -177,6 +177,15 @@
                 }
             });
         });
+
+        // Toggle recurrence period visibility
+        const recurCheck = document.getElementById('expenseRecurring');
+        const recurPeriod = document.getElementById('expenseRecurrencePeriod');
+        if (recurCheck && recurPeriod) {
+            recurCheck.addEventListener('change', () => {
+                recurPeriod.style.display = recurCheck.checked ? 'block' : 'none';
+            });
+        }
     }
     
     async function showAllBudgetsList() {
@@ -493,6 +502,14 @@
         
         elements.expenseIsTest.checked = expense ? (expense.is_test || false) : false;
         
+        // Recurring expense fields
+        if (elements.expenseRecurring && elements.expenseRecurrencePeriod) {
+            const isRecurring = expense ? (expense.is_recurring || false) : false;
+            elements.expenseRecurring.checked = isRecurring;
+            elements.expenseRecurrencePeriod.value = expense ? (expense.recurrence_period || 'monthly') : 'monthly';
+            elements.expenseRecurrencePeriod.style.display = isRecurring ? 'block' : 'none';
+        }
+        
         if (expense && expense.budget_id) {
             selectedExpenseBudgetId = expense.budget_id;
         } else if (lastUsedBudgetId) {
@@ -600,6 +617,8 @@
         const note = elements.expenseNote.value.trim();
         const budgetId = selectedExpenseBudgetId;
         const isTest = elements.expenseIsTest.checked;
+        const isRecurring = elements.expenseRecurring?.checked || false;
+        const recurrencePeriod = elements.expenseRecurrencePeriod?.value || 'monthly';
 
         if (isNaN(amount) || amount <= 0) {
             showToast('请输入有效的金额');
@@ -612,7 +631,9 @@
                 amount,
                 category: selectedExpenseCategory,
                 note: note || '记账',
-                budget_id: budgetId || null
+                budget_id: budgetId || null,
+                is_recurring: isRecurring,
+                recurrence_period: recurrencePeriod,
             });
             showToast('支出已更新');
         } else {
@@ -621,7 +642,9 @@
                 category: selectedExpenseCategory,
                 note: note || '记账',
                 budget_id: budgetId,
-                is_test: isTest
+                is_test: isTest,
+                is_recurring: isRecurring,
+                recurrence_period: recurrencePeriod,
             });
             showToast('已记录 ¥' + amount.toFixed(1) + (isTest ? ' [测试]' : ''));
             if (budgetId) {

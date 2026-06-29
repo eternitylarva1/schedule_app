@@ -78,10 +78,59 @@
     let _saveTimer = null;
     let _currentInlineNoteId = null;
 
+    // ===== execFormatCmd for formatting toolbar =====
+    function execFormatCmd(command, value = null) {
+        const editor = document.getElementById('noteInlineContent');
+        if (!editor) return;
+        editor.focus();
+        document.execCommand(command, false, value);
+        // Trigger auto-save after formatting
+        if (window.ScheduleAppNoteEditor && window.ScheduleAppNoteEditor._triggerAutoSave) {
+            window.ScheduleAppNoteEditor._triggerAutoSave();
+        }
+    }
+
+    // Expose for external callers (e.g. AI block accept)
+    window.ScheduleAppNoteEditor = window.ScheduleAppNoteEditor || {};
+    window.ScheduleAppNoteEditor._triggerAutoSave = () => {
+        const note = (window.ScheduleAppCore && window.ScheduleAppCore.state && window.ScheduleAppCore.state.selectedNote) || null;
+        if (note) scheduleAutoSave(note);
+    };
+
     // ===== Toolbar Registry =====
     // Each action: { id, group, order, render(note), bind(note) }
     const _toolbarActions = [
         // ── Format group ──────────────────────────────────────
+        { id: 'bold', group: 'format', order: 0, render() {
+            return `<button class="tb-btn" id="noteBtnBold" title="加粗 (Ctrl+B)"><b>B</b></button>`;
+        }, bind() {
+            document.getElementById('noteBtnBold').addEventListener('click', () => execFormatCmd('bold'));
+        }},
+        { id: 'italic', group: 'format', order: 0.1, render() {
+            return `<button class="tb-btn" id="noteBtnItalic" title="斜体 (Ctrl+I)"><i>I</i></button>`;
+        }, bind() {
+            document.getElementById('noteBtnItalic').addEventListener('click', () => execFormatCmd('italic'));
+        }},
+        { id: 'h1', group: 'format', order: 0.2, render() {
+            return `<button class="tb-btn" id="noteBtnH1" title="大标题">H1</button>`;
+        }, bind() {
+            document.getElementById('noteBtnH1').addEventListener('click', () => execFormatCmd('formatBlock', '<h2>'));
+        }},
+        { id: 'h2', group: 'format', order: 0.3, render() {
+            return `<button class="tb-btn" id="noteBtnH2" title="小标题">H2</button>`;
+        }, bind() {
+            document.getElementById('noteBtnH2').addEventListener('click', () => execFormatCmd('formatBlock', '<h3>'));
+        }},
+        { id: 'ul', group: 'format', order: 0.4, render() {
+            return `<button class="tb-btn" id="noteBtnUl" title="无序列表">•≡</button>`;
+        }, bind() {
+            document.getElementById('noteBtnUl').addEventListener('click', () => execFormatCmd('insertUnorderedList'));
+        }},
+        { id: 'ol', group: 'format', order: 0.5, render() {
+            return `<button class="tb-btn" id="noteBtnOl" title="有序列表">1.</button>`;
+        }, bind() {
+            document.getElementById('noteBtnOl').addEventListener('click', () => execFormatCmd('insertOrderedList'));
+        }},
         {
             id: 'colors',
             group: 'format',

@@ -426,6 +426,9 @@
                 }
                 
                 // Swipe action buttons
+                const priorityLabel = event.priority && event.priority !== 'none' 
+                    ? `<span class="todo-priority todo-priority-${event.priority}">${event.priority === 'high' ? '高' : event.priority === 'medium' ? '中' : '低'}</span>` 
+                    : '';
                 eventEl.innerHTML = `
                     <div class="todo-actions">
                         <button class="todo-action-btn edit-btn" data-action="edit" data-event-id="${event.id}">✏️</button>
@@ -438,6 +441,7 @@
                             <div class="todo-item-time">${timeStr}</div>
                         </div>
                         <div class="todo-item-category" style="background: ${getCategoryColor(event.category_id)}"></div>
+                        ${priorityLabel}
                     </div>
                 `;
                  
@@ -1454,6 +1458,15 @@
         elements.pendingTimeCheck.checked = !event || !event.start_time;
         elements.allDayCheck.checked = event ? event.all_day : false;
         
+        // Recurrence
+        if (elements.recurrenceSelect) {
+            elements.recurrenceSelect.value = event ? (event.recurrence || 'none') : 'none';
+        }
+        // Priority
+        if (elements.prioritySelect) {
+            elements.prioritySelect.value = event ? (event.priority || 'none') : 'none';
+        }
+        
         // Reset reminder fields
         elements.reminderEnabled.checked = event
             ? (event.reminder_enabled === true || event.reminder_enabled === 'true')
@@ -1511,7 +1524,9 @@
             all_day: elements.allDayCheck.checked,
             status: state.selectedEvent?.status || 'pending',
             reminder_enabled: elements.reminderEnabled.checked,
-            reminder_minutes: elements.reminderEnabled.checked ? 1 : 0
+            reminder_minutes: elements.reminderEnabled.checked ? 1 : 0,
+            recurrence: elements.recurrenceSelect ? elements.recurrenceSelect.value : 'none',
+            priority: elements.prioritySelect ? elements.prioritySelect.value : 'none',
         };
         
         state.isSavingEvent = true;

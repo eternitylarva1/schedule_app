@@ -895,4 +895,27 @@
 .note-inline-color-option.no-color { background: transparent !important; border: 1px dashed var(--border-medium) !important; box-shadow: none; }
 .note-inline-color-option:active { transform: scale(0.9); }
 
+/* Format group separator */
+.tb-group-format {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+.tb-group-format::after {
+    content: '';
+    display: inline-block;
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 4px 0 6px;
+}
+
+/* Content heading styles */
+.note-inline-content h2 { font-size: 18px; font-weight: 700; margin: 12px 0 4px; line-height: 1.3; }
+.note-inline-content h3 { font-size: 16px; font-weight: 600; margin: 10px 0 4px; line-height: 1.3; }
+.note-inline-content ul, .note-inline-content ol { padding-left: 20px; margin: 4px 0; }
+.note-inline-content li { margin: 2px 0; }
+.note-inline-content b, .note-inline-content strong { font-weight: 600; }
+.note-inline-content i, .note-inline-content em { font-style: italic; }
+
 /* ===== /a Command — floating prompt ===== */
