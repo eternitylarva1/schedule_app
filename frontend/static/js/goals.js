@@ -618,6 +618,10 @@
                     toggle.addEventListener('click', () => {
                         const expanded = list.classList.toggle('hidden');
                         toggle.querySelector('.goals-completed-arrow').textContent = expanded ? '▶' : '▼';
+                        // Auto-scroll into view when expanding
+                        if (!expanded) {
+                            toggle.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
                     });
                 }
                 
