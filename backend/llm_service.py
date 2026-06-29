@@ -1091,21 +1091,31 @@ class LLMService:
             if not response:
                 return {"error": "LLM 无响应", "results": results}
 
-            # Parse JSON response
+            # Parse JSON response — handle both objects and arrays
             try:
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                if json_start < 0 or json_end <= json_start:
-                    # No JSON - treat as final answer
-                    return {"done": response.strip(), "results": results}
-                parsed = _json.loads(response[json_start:json_end])
+                # Try array first
+                arr_start = response.find('[')
+                arr_end = response.rfind(']') + 1
+                if arr_start >= 0 and arr_end > arr_start:
+                    parsed = _json.loads(response[arr_start:arr_end])
+                    if isinstance(parsed, list):
+                        # LLM returned array of tool calls directly
+                        calls = parsed
+                    else:
+                        calls = parsed.get("calls", []) if isinstance(parsed, dict) else []
+                else:
+                    # Try object
+                    json_start = response.find('{')
+                    json_end = response.rfind('}') + 1
+                    if json_start >= 0 and json_end > json_start:
+                        parsed = _json.loads(response[json_start:json_end])
+                        if "done" in parsed:
+                            return {"done": parsed["done"], "results": results}
+                        calls = parsed.get("calls", []) if isinstance(parsed, dict) else []
+                    else:
+                        return {"done": response.strip(), "results": results}
             except _json.JSONDecodeError:
                 return {"done": response.strip(), "results": results}
-
-            if "done" in parsed:
-                return {"done": parsed["done"], "results": results}
-
-            calls = parsed.get("calls", [])
             if not calls:
                 return {"done": parsed.get("done", response.strip()), "results": results}
 
