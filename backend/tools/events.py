@@ -55,7 +55,7 @@ async def move_event(*, db_instance=None, event_id=0, new_start_time="", **kwarg
         new_end = new_start + duration
         event.start_time = new_start
         event.end_time = new_end
-        await db.update_event(event)
+        await db.update_event(event_id, event)
         return {"ok": True, "event_id": event_id, "title": event.title,
                 "old_start": str(old_start), "new_start": new_start.isoformat(),
                 "new_end": new_end.isoformat()}
@@ -75,7 +75,7 @@ async def complete_event(*, db_instance=None, event_id=0, **kwargs):
         if not event:
             return f"事件 {event_id} 不存在"
         event.status = "done"
-        await db.update_event(event)
+        await db.update_event(event_id, event)
         return {"ok": True, "event_id": event_id, "title": event.title, "status": "done"}
     except Exception as ex:
         return f"完成事件失败: {ex}"
