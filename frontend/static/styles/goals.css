@@ -3,11 +3,13 @@
    ============================================ */
 .goals-view {
     padding: var(--space-md);
+    padding-bottom: var(--content-bottom-clearance);
 }
 
 /* Full-width timeline mode */
 .goals-view.timeline-mode {
     padding: 0;
+    padding-bottom: var(--content-bottom-clearance);
 }
 .goals-view.timeline-mode .goals-toolbar {
     padding: var(--space-md);

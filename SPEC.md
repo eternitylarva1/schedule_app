@@ -248,6 +248,7 @@ send_private_message(
 6. **模块命名规则**: 每个前端模块通过 `window.ScheduleAppXxx` 命名空间导出
 7. **调试执行**: 调试流程以 `DEBUG_WORKFLOW.md` 为唯一基线
 8. **跨文件修改**: 涉及多个模块的改动（如加字段）需排查所有 CRUD 路径和 payload 构造点
+9. **底部 Tab 栏遮蔽**: 每个新增或修改的 `.view` 必须设置 `padding-bottom: var(--content-bottom-clearance)`，否则底部内容会被 64px + safe-area 的固定 Tab 栏遮挡。所有现有视图（日历/待办/设置/记事本）均已设置，勿遗漏
 
 ---
 
@@ -322,3 +323,16 @@ send_private_message(
 完成后目标移入底部折叠区，展开时内容被推出视口。需要在展开时触发 `scrollIntoView()`。
 
 **通用原则**: 任何折叠面板展开时，如果面板在视口外，应自动滚动到可见位置。
+
+### 9.9 底部 Tab 栏遮蔽内容
+
+`goals.css` 最初未设置 `padding-bottom`，导致列表/时间轴的底部内容被 64px 的固定 Tab 栏遮住。
+
+每个 `.view` 必须有：
+```css
+padding-bottom: var(--content-bottom-clearance);
+/* = calc(var(--tab-bar-height) + var(--safe-area-bottom) + var(--space-lg)) */
+/* = calc(64px + env(safe-area-inset-bottom, 0px) + 24px)               */
+```
+
+所有现有视图（日历/待办/设置/记事本）均已设置，新增视图或修改 padding 时勿遗漏。特别提醒 `timeline-mode` 覆写了 `padding: 0`，需要单独补回 `padding-bottom`。
