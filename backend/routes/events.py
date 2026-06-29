@@ -43,7 +43,7 @@ async def create_event(request: web.Request) -> web.Response:
         # Parse natural language time if start_time not provided
         title = data.get("title", "")
         if data.get("start_time") is None and title:
-            from .time_parser import parse_time
+            from ..time_parser import parse_time
             time_result = parse_time(title)
             if time_result:
                 data["start_time"] = time_result[0].isoformat()

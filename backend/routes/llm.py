@@ -31,8 +31,8 @@ async def llm_chat(request: web.Request) -> web.Response:
     if not user_text:
         return error_response("输入不能为空")
     
-    from .llm_service import llm_service
-    from .db import get_events
+    from ..llm_service import llm_service
+    from ..db import get_events
     from datetime import datetime
     
     # 获取当天已有事件
@@ -90,8 +90,8 @@ async def llm_create(request: web.Request) -> web.Response:
     if not user_text:
         return error_response("输入不能为空")
     
-    from .llm_service import llm_service
-    from .db import get_events
+    from ..llm_service import llm_service
+    from ..db import get_events
     from datetime import datetime
     
     # 获取当天已有事件
@@ -209,7 +209,7 @@ async def llm_command(request: web.Request) -> web.Response:
 
     dry_run = bool(data.get("dry_run", False))
 
-    from .llm_service import llm_service
+    from ..llm_service import llm_service
     plan = await llm_service.process_unified_command(user_text)
     if not plan:
         return error_response("LLM命令解析失败，请稍后重试")
@@ -341,7 +341,7 @@ async def llm_agent_chat(request: web.Request) -> web.Response:
     if not message:
         return error_response("消息内容不能为空")
 
-    from .llm_service import llm_service
+    from ..llm_service import llm_service
     referenced_notes = data.get("referenced_notes")  # optional list[int]
     response = await llm_service.chat_with_agent(
         message=message,
@@ -403,7 +403,7 @@ async def llm_breakdown(request: web.Request) -> web.Response:
     if not user_text:
         return error_response("请输入任务描述")
     
-    from .llm_service import llm_service
+    from ..llm_service import llm_service
     
     result = await llm_service.breakdown_task(user_text, horizon=horizon, self_description=self_description)
     if result:
@@ -451,7 +451,7 @@ async def llm_parse_expense(request: web.Request) -> web.Response:
     auto_assign = await db.get_setting("auto_assign_budget_from_llm")
     auto_assign_budget = bool(auto_assign and auto_assign.lower() == "true")
 
-    from .llm_service import llm_service
+    from ..llm_service import llm_service
 
     parsed = await llm_service.parse_expense(user_text, budgets=budget_list, auto_assign_budget=auto_assign_budget)
     if not parsed:

@@ -61,7 +61,7 @@ async def chat_note(request: web.Request) -> web.Response:
             history_str = "\n".join(history_lines)
         
         # Call LLM service
-        from .llm_service import llm_service
+        from ..llm_service import llm_service
         ai_response = await llm_service.chat_about_note(
             note_content=note.content,
             user_message=user_message,

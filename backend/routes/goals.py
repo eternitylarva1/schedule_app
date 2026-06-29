@@ -338,7 +338,7 @@ async def ai_discuss_goal(request: web.Request) -> web.Response:
             todo_str = "今日暂无待办"
         
         # Import LLM service
-        from .llm_service import llm_service
+        from ..llm_service import llm_service
         
         # Build conversation context
         history_context = ""
@@ -412,7 +412,7 @@ async def ai_reschedule_goal(request: web.Request) -> web.Response:
             history_context += f"{role}: {msg.get('content', '')}\n"
         
         # Import LLM service
-        from .llm_service import llm_service
+        from ..llm_service import llm_service
         
         # Call LLM for rescheduling
         result = await llm_service.reschedule_goal(

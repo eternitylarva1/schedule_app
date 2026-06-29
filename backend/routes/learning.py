@@ -24,7 +24,7 @@ async def ai_learn_from_history(request: web.Request) -> web.Response:
         existing_data = [p.to_dict() for p in existing]
         
         # Call AI to analyze
-        from .llm_service import llm_service
+        from ..llm_service import llm_service
         result = await llm_service.learn_from_task_history(duration_data, existing_data)
         
         patterns = result.get("patterns", [])

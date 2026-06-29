@@ -309,7 +309,7 @@ async def _handle_event_operation(op, action, user_text, dry_run):
 
 async def _handle_expense_operation(op, action, user_text, dry_run):
     """Handle expense domain operations."""
-    from .models import Expense
+    from ..models import Expense
     
     # expense_create
     if action == "expense_create":
@@ -437,7 +437,7 @@ async def _handle_expense_operation(op, action, user_text, dry_run):
 
 async def _handle_note_operation(op, action, user_text, dry_run):
     """Handle note domain operations."""
-    from .models import Note
+    from ..models import Note
     
     # note_create
     if action == "note_create":
@@ -539,7 +539,7 @@ async def _handle_note_operation(op, action, user_text, dry_run):
 
 async def _handle_goal_operation(op, action, user_text, dry_run):
     """Handle goal domain operations."""
-    from .models import Goal
+    from ..models import Goal
     
     # goal_create
     if action == "goal_create":
