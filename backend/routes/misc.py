@@ -158,7 +158,7 @@ async def search_handler(request: web.Request) -> web.Response:
             ]
             
             # Search notes (title + content模糊匹配)
-            async with db.execute(
+            async with conn.execute(
                 """SELECT id, title, content FROM notes
                    WHERE title LIKE ? COLLATE NOCASE OR content LIKE ? COLLATE NOCASE
                    ORDER BY updated_at DESC LIMIT 10""",
@@ -171,7 +171,7 @@ async def search_handler(request: web.Request) -> web.Response:
             ]
             
             # Search goals (title模糊匹配)
-            async with db.execute(
+            async with conn.execute(
                 """SELECT id, title, horizon FROM goals
                    WHERE title LIKE ? COLLATE NOCASE
                    ORDER BY created_at DESC LIMIT 10""",
