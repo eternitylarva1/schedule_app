@@ -255,10 +255,11 @@ async def _handle_event_operation(op, action, user_text, dry_run):
         }
         target_date = op.get("target_date", "").strip() or None
         target_time = op.get("target_time", "09:00").strip() or "09:00"
+        source_date = op.get("source_date", "").strip() or None  # 指定查询哪天的pending事件
         
         if dry_run:
             result = await db.postpone_remaining_events_preview(
-                target_date=target_date, target_time=target_time)
+                today_str=source_date, target_date=target_date, target_time=target_time)
             preview["affected"] = result.get("moved", 0)
             preview["details"] = result.get("details", [])[:3]
             preview["message"] = result.get("message", "")
@@ -266,7 +267,7 @@ async def _handle_event_operation(op, action, user_text, dry_run):
 
         from datetime import date
         result = await db.postpone_remaining_events(
-            target_date=target_date, target_time=target_time)
+            today_str=source_date, target_date=target_date, target_time=target_time)
         return {"preview": {**preview, **result}, "affected": result.get("moved", 0)}
     
     # event_delete / event_complete / event_uncomplete

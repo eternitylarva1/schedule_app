@@ -882,18 +882,23 @@ class LLMService:
         current_date = now.strftime("%Y年%m月%d日")
         current_time = now.strftime("%H:%M")
         tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+        today = now.strftime("%Y-%m-%d")
 
         prompt = f"""用户输入了一条自然语言指令，请解析为可执行操作列表并返回JSON。
 
         当前日期：{current_date} {current_time}
-        明天的日期：{tomorrow}（用户说"明天"/"推到明天"时，target_date用{tomorrow}）
+        昨天日期：{yesterday}
+        今天日期：{today}
+        明天日期：{tomorrow}
+        （用户说"昨天"/"今天"/"明天"时，source_date/target_date 用上述对应日期）
         用户输入：{user_text}
 
         你必须在以下 action 中选择，并指定正确的 domain：
         - event_create: 创建日程/待办
         - event_update: 修改日程/待办的标题/时间/时长
         - event_move: 移动日程到另一天（只改日期，不改时间点）
-        - event_postpone: 将今天所有pending日程顺延（默认推到"现在"；可用target_date推到指定日期，如"明天"用target_date="明日日期"；用target_time指定开始时间如"09:00"）
+        - event_postpone: 将某天所有pending日程顺延。source_date指定"推迟哪天"（如昨天用{yesterday}，不设默认今天）；target_date指定"推到哪天"（如今天用{today}，明天用{tomorrow}）；target_time指定几点开始（默认09:00）
         - event_delete: 删除日程/待办（批量或按标题）
         - event_complete: 完成日程/待办（批量或按标题）
         - event_uncomplete: 撤销完成（批量或按标题）
@@ -951,7 +956,7 @@ class LLMService:
            - event_create: start_time必填（ISO格式）
            - event_update: original_title必填，可同时修改title/start_time/duration_minutes
 - event_move: original_title + 新日期时间
-            - event_postpone: 不需要参数自动推到"现在"；如需推到明天用target_date="明天日期"（如2026-07-01），可配合target_time="09:00"指定早上几点
+            - event_postpone: 不设source_date默认推迟今天；设source_date=昨天日期则推迟昨天的pending；不设target_date推到"当前时间"；设target_date推到指定日期（配合target_time如"09:00"）
             - event_delete/complete/uncomplete: target_title或scope=all
            - event_query: target_title（可选）或date_range（today/week/month/all）
         4) expense操作规则：
@@ -988,8 +993,9 @@ class LLMService:
            - "查看笔记" → domain=note, action=note_query, target_title=""
            - "查看短期目标" → domain=goal, action=goal_query, horizon="short"
             - "查看进行中的目标" → domain=goal, action=goal_query, goal_status="active"
-            - "把今天没做的推到明天早上" → domain=event, action=event_postpone, target_date="明天日期（YYYY-MM-DD）", target_time="09:00"
-            - "把剩下的推迟到现在" → domain=event, action=event_postpone（不设target_date自动推到当前时间）
+            - "把今天没做的推到明天早上" → domain=event, action=event_postpone, target_date="明天日期", target_time="09:00"
+            - "把昨天没完成的推到今天" → domain=event, action=event_postpone, source_date="昨天日期", target_date="今天日期", target_time="09:00"
+            - "把剩下的推迟到现在" → domain=event, action=event_postpone（不设参数，默认推到当前时间）
         """
 
         response = await self.chat([
