@@ -663,8 +663,13 @@ async def move_event_by_title(title: str, new_start_time: datetime) -> int:
         return cursor.rowcount
 
 
-async def postpone_remaining_events_preview(today_str: Optional[str] = None, from_time: Optional[str] = None) -> dict:
+async def postpone_remaining_events_preview(today_str: Optional[str] = None, from_time: Optional[str] = None,
+                                              target_date: Optional[str] = None, target_time: str = "09:00") -> dict:
     """Preview what postpone_remaining_events would do, without modifying the database.
+
+    Args:
+        target_date: If set, push events to this date (YYYY-MM-DD) instead of starting from now.
+        target_time: Starting time on target_date (default 09:00).
 
     Returns:
         {"moved": int, "details": [...], "message": str}
@@ -687,11 +692,17 @@ async def postpone_remaining_events_preview(today_str: Optional[str] = None, fro
         ) as cursor:
             rows = await cursor.fetchall()
 
+    # Calculate anchor time: if target_date is provided, start from that date
+    if target_date:
+        anchor_dt = datetime.fromisoformat(f"{target_date}T{target_time}:00")
+    else:
+        anchor_dt = now
+
     remaining = rows
     if not remaining:
         return {"moved": 0, "details": [], "message": "今天没有待进行的日程"}
 
-    cursor_time = now
+    cursor_time = anchor_dt
     details = []
     for row in remaining:
         event_start = datetime.fromisoformat(row["start_time"]) if isinstance(row["start_time"], str) else row["start_time"]
@@ -715,12 +726,15 @@ async def postpone_remaining_events_preview(today_str: Optional[str] = None, fro
     return {"moved": len(details), "details": details[:3], "message": ""}
 
 
-async def postpone_remaining_events(today_str: Optional[str] = None, from_time: Optional[str] = None) -> dict:
+async def postpone_remaining_events(today_str: Optional[str] = None, from_time: Optional[str] = None,
+                                     target_date: Optional[str] = None, target_time: str = "09:00") -> dict:
     """Postpone all pending events today after 'from_time' to start sequentially from now.
     
     Args:
         today_str: Date string 'YYYY-MM-DD', defaults to today
         from_time: 'HH:MM' to identify which events remain (after this time)
+        target_date: If set, push events to this date instead of starting from now.
+        target_time: Starting time on target_date (default 09:00).
     
     Returns:
         {"moved": int, "details": [...]}
@@ -762,9 +776,14 @@ async def postpone_remaining_events(today_str: Optional[str] = None, from_time: 
         if not has_any:
             return {"moved": 0, "details": [], "message": "今天没有任何日程"}
         return {"moved": 0, "details": [], "message": "今天没有待进行的日程"}
+    # Calculate anchor time: if target_date is specified, start from that date morning
+    if target_date:
+        anchor_dt = datetime.fromisoformat(f"{target_date}T{target_time}:00")
+    else:
+        anchor_dt = now
     
     # Calculate deltas: each event shifts from where its predecessor would end
-    cursor_time = now
+    cursor_time = anchor_dt
     details = []
     moved = 0
     updated_at = datetime.now().isoformat()
