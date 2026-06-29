@@ -1026,6 +1026,109 @@ class LLMService:
 
 
     # ══════════════════════════════════════════════════════════════
+    # Agent Command — 多轮工具调用（复合操作）
+    # ══════════════════════════════════════════════════════════════
+
+    async def agent_command(self, user_text: str, db_instance=None) -> Optional[Dict[str, Any]]:
+        """多轮工具调用：允许 LLM 先查询再操作，如 query → move 的复合操作。
+
+        流程：
+        1. LLM 看到用户指令 + 可用工具列表
+        2. LLM 返回工具调用（JSON）
+        3. 执行工具，结果反馈给 LLM
+        4. LLM 可继续调用工具或返回最终结果
+        5. 最多 3 轮
+        """
+        from .tools import get_tools, execute_tool
+        from datetime import datetime, timedelta
+        import json as _json
+
+        now = datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+        tools = get_tools(categories=["events"])
+        tools_desc = "\n".join(
+            f"{i+1}. {t['name']}: {t['description']}" for i, t in enumerate(tools)
+        )
+
+        system = f"""你是一个任务执行助手。你可以调用以下工具来操作用户的日程：
+
+{tools_desc}
+
+当前日期：今天={today}，明天={tomorrow}，昨天={yesterday}。
+时间格式：ISO 8601，如 {today}T09:00:00。
+
+工作方式：
+- 如果用户让你"推迟"/"移动"等复合操作，先查询（query_events）再操作（move_event/create_event/complete_event/delete_event）
+- 每次调用一个或多个工具，返回 JSON 格式
+- 如果查询结果为空，直接告诉用户没有可操作的日程
+
+返回格式（只返回 JSON，不要任何解释文字）：
+{{
+  "calls": [
+    {{ "tool": "query_events", "args": {{ "date": "today", "status": "pending" }} }},
+    {{ "tool": "move_event", "args": {{ "event_id": 123, "new_start_time": "{tomorrow}T09:00:00" }} }}
+  ]
+}}
+
+如果没有需要调用的工具，返回：
+{{
+  "done": "完成"或说明文字
+}}"""
+
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_text},
+        ]
+
+        results = []
+        max_turns = 3
+
+        for turn in range(max_turns):
+            response = await self.chat(messages, temperature=0.2)
+            if not response:
+                return {"error": "LLM 无响应", "results": results}
+
+            # Parse JSON response
+            try:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                if json_start < 0 or json_end <= json_start:
+                    # No JSON - treat as final answer
+                    return {"done": response.strip(), "results": results}
+                parsed = _json.loads(response[json_start:json_end])
+            except _json.JSONDecodeError:
+                return {"done": response.strip(), "results": results}
+
+            if "done" in parsed:
+                return {"done": parsed["done"], "results": results}
+
+            calls = parsed.get("calls", [])
+            if not calls:
+                return {"done": parsed.get("done", response.strip()), "results": results}
+
+            # Execute all tools in this turn
+            turn_results = []
+            for call in calls:
+                tool_name = call.get("tool", "")
+                args = call.get("args", {})
+                try:
+                    result = await execute_tool(tool_name, db_instance=db_instance, **args)
+                    turn_results.append({"tool": tool_name, "ok": True, "result": result})
+                except Exception as e:
+                    turn_results.append({"tool": tool_name, "ok": False, "error": str(e)})
+
+            results.extend(turn_results)
+
+            # Feed results back to LLM for next turn
+            messages.append({"role": "assistant", "content": response})
+            messages.append({"role": "system", "content": f"工具执行结果：{_json.dumps(turn_results, ensure_ascii=False)}"})
+
+        return {"done": "达到最大轮次", "results": results}
+
+    # ══════════════════════════════════════════════════════════════
     # AI Agent — 两步工具调用
     # ══════════════════════════════════════════════════════════════
 

@@ -492,12 +492,49 @@ async def llm_parse_expense(request: web.Request) -> web.Response:
     })
 
 
+"""POST /api/llm/agent-command - 多轮工具调用（复合操作）"""
+async def llm_agent_command(request: web.Request) -> web.Response:
+    """POST /api/llm/agent-command — 多轮工具调用
+
+    允许 LLM 先查询再操作，如 "把今天没完成的推到明天" →
+    1. query_events(date=today, status=pending) → 得到事件列表
+    2. move_event(id, new_start_time=tomorrow 9am) × N
+
+    Body: {"text": "把今天没完成的推到明天早上去做"}
+    """
+    try:
+        body_bytes = await request.read()
+        try:
+            body_str = body_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            body_str = body_bytes.decode('gbk', errors='replace')
+        data = json.loads(body_str)
+    except Exception:
+        return error_response("无效的JSON数据")
+
+    user_text = (data.get("text", "") or "").strip()
+    if not user_text:
+        return error_response("输入不能为空")
+
+    from ..llm_service import llm_service
+    result = await llm_service.agent_command(user_text, db_instance=db)
+
+    if not result:
+        return error_response(llm_service.last_error_message or "AI 命令执行失败")
+
+    if result.get("error"):
+        return error_response(result["error"])
+
+    return json_response(result)
+
+
 # ============= Route Registration =============
 
 def register_routes(app: web.Application) -> None:
     app.router.add_post("/api/llm/chat", llm_chat)
     app.router.add_post("/api/llm/create", llm_create)
     app.router.add_post("/api/llm/command", llm_command)
+    app.router.add_post("/api/llm/agent-command", llm_agent_command)
     app.router.add_post("/api/llm/breakdown", llm_breakdown)
     app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
     app.router.add_post("/api/llm/chat-agent", llm_agent_chat)
