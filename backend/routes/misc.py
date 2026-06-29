@@ -1,7 +1,9 @@
 """Misc HTTP endpoints (cleanup, errors, test, search)."""
+import aiosqlite
 from aiohttp import web
 from typing import Any
 from .. import db
+from ..db._connection import DB_PATH
 from ._helpers import json_response, error_response
 
 
@@ -138,12 +140,12 @@ async def search_handler(request: web.Request) -> web.Response:
             return json_response({"events": [], "notes": [], "goals": []})
         
         keyword_like = f"%{keyword}%"
-        
-        async with aiosqlite.connect(DB_PATH) as db:
-            db.row_factory = aiosqlite.Row
-            
+
+        async with aiosqlite.connect(DB_PATH) as conn:
+            conn.row_factory = aiosqlite.Row
+
             # Search events (title模糊匹配)
-            async with db.execute(
+            async with conn.execute(
                 """SELECT id, title, start_time, category_id FROM events
                    WHERE title LIKE ? COLLATE NOCASE
                    ORDER BY start_time DESC LIMIT 10""",
