@@ -177,85 +177,44 @@
         const text = request.text;
         state.llmAbortController = new AbortController();
 
-        // Dry run preview first
-        const preview = await executeUnifiedLlmCommand(text, true, state.llmAbortController.signal);
-        if (state.llmCancelRequested) {
-            return false;
-        }
-        if (!preview) {
-            throw new Error('AI解析失败');
-        }
-
-        const operations = Array.isArray(preview.operations) ? preview.operations : [];
-        if (operations.length === 0) {
-            throw new Error('未解析到可执行操作');
-        }
-
-        // Only proceed to execution if we have operations
+        // Single-pass: agent-command does query + act in one call
         const result = await executeUnifiedLlmCommand(text, false, state.llmAbortController.signal);
         if (state.llmCancelRequested) {
             return false;
         }
         if (!result) {
-            throw new Error('执行失败');
+            throw new Error('AI解析失败');
         }
 
-        const stats = result.stats || {};
-        const created = Number(stats.events_created || 0);
-        const updated = Number(stats.events_updated || 0);
-        const moved = Number(stats.events_moved || 0);
-        const deleted = Number(stats.events_deleted || 0);
-        const completed = Number(stats.events_completed || 0);
-        const uncompleted = Number(stats.events_uncompleted || 0);
+        const agentResults = Array.isArray(result.results) ? result.results : [];
+        const doneMsg = result.done || '';
+        let created = 0, moved = 0, completed = 0, deleted = 0;
 
-        // Check for event_postpone operation details from actual execution result
-        const actualOperations = Array.isArray(result.operations) ? result.operations : [];
-        const postponeOp = actualOperations.find(op => op.action === 'event_postpone');
+        for (const r of agentResults) {
+            const res = r.result;
+            if (!res || !res.ok) continue;
+            const tool = r.tool || '';
+            if (tool === 'create_event') created++;
+            else if (tool === 'move_event') moved++;
+            else if (tool === 'complete_event') completed++;
+            else if (tool === 'delete_event') deleted++;
+            else if (tool === 'update_event') {
+                const changes = res.changes || {};
+                if (changes.start_time) moved++;
+                if (changes.status === 'done') completed++;
+            }
+        }
 
-        if (postponeOp && moved > 0) {
-            const details = postponeOp.details || [];
-            let timeStr = '';
-            if (details.length > 0 && details[0].new_start) {
-                const d = new Date(details[0].new_start);
-                timeStr = `，从 ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')} 开始`;
-            }
-            let warning = '';
-            if (details.length > 0 && details[0].new_start) {
-                const lastNewStart = new Date(details[details.length - 1].new_start);
-                if (lastNewStart.getHours() >= 22) warning = ' (部分时间排到深夜)';
-            }
-            // Store undo details
-            const undoDetails = details.map(d => ({ id: d.id, old_start: d.old_start, old_end: d.old_end }));
-            showToastWithUndo(`已推迟 ${moved} 个日程${timeStr}${warning}`, async () => {
-                try {
-                    const undoResult = await apiCall('events/postpone-undo', {
-                        method: 'POST',
-                        body: JSON.stringify({ details: undoDetails }),
-                    });
-                    if (undoResult && undoResult.restored > 0) {
-                        showToast(`已恢复 ${undoResult.restored} 个日程的原时间`);
-                        if (loadData) await loadData();
-                    } else {
-                        showToast('撤销失败，请手动调整');
-                    }
-                } catch (e) {
-                    showToast('撤销失败: ' + (e.message || '网络错误'));
-                }
-            });
-        } else if (postponeOp && moved === 0) {
-            const msg = postponeOp.message || '没有需要推迟的日程';
-            showToast(msg);
-        } else if (deleted > 0 || completed > 0 || uncompleted > 0) {
+        const total = created + moved + completed + deleted;
+        if (total === 0) {
+            showToast(doneMsg || '没有可执行的操作');
+        } else {
             const parts = [];
             if (created > 0) parts.push(`创建${created}`);
-            if (deleted > 0) parts.push(`删除${deleted}`);
+            if (moved > 0) parts.push(`移动${moved}`);
             if (completed > 0) parts.push(`完成${completed}`);
-            if (uncompleted > 0) parts.push(`撤销完成${uncompleted}`);
-            showToast(`✅ 已执行：${parts.join(' / ')}`);
-        } else {
-            if (created > 1) showToast(`✅ ${created}个日程已创建`);
-            else if (created === 1) showToast('✅ 日程已创建');
-            else showToast('✅ 已执行');
+            if (deleted > 0) parts.push(`删除${deleted}`);
+            showToast(`✅ ${parts.join(' / ')}`);
         }
 
         // 成功后清空输入框

@@ -225,9 +225,14 @@
     }
 
     async function executeUnifiedLlmCommand(text, dryRun = false, signal = null) {
-        return await apiCall('llm/command', {
+        // Route to agent-command for compound operations (dry_run is ignored, agent executes in one pass)
+        return await executeAgentCommand(text, signal);
+    }
+
+    async function executeAgentCommand(text, signal = null) {
+        return await apiCall('llm/agent-command', {
             method: 'POST',
-            body: JSON.stringify({ text: text, dry_run: !!dryRun }),
+            body: JSON.stringify({ text: text }),
             signal,
         });
     }
