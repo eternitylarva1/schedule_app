@@ -909,7 +909,7 @@ async def uncomplete_event(event_id: int) -> Optional[Event]:
 
 async def get_task_durations(category: str | None = None, limit: int = 200) -> list:
     """Get task duration records for learning."""
-    from .models import TaskDuration
+    from ..models import TaskDuration
     async with aiosqlite.connect(DB_PATH) as db:
         if category:
             cursor = await db.execute(
@@ -929,7 +929,7 @@ async def record_task_duration(title: str, category_id: str, estimated_minutes: 
                                 actual_minutes: int | None, start_time: datetime, 
                                 completed_at: datetime, status: str) -> TaskDuration:
     """Record a completed task's duration for future learning."""
-    from .models import TaskDuration
+    from ..models import TaskDuration
     async with aiosqlite.connect(DB_PATH) as db:
         now = datetime.now().isoformat()
         cursor = await db.execute(
@@ -947,7 +947,7 @@ async def record_task_duration(title: str, category_id: str, estimated_minutes: 
 
 async def get_learning_patterns() -> list:
     """Get all learning patterns."""
-    from .models import LearningPattern
+    from ..models import LearningPattern
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT * FROM learning_patterns ORDER BY confidence DESC")
         rows = await cursor.fetchall()
@@ -956,7 +956,7 @@ async def get_learning_patterns() -> list:
 
 async def save_learning_pattern(pattern_type: str, pattern_text: str, confidence: float, sample_count: int):
     """Save a new learning pattern."""
-    from .models import LearningPattern
+    from ..models import LearningPattern
     async with aiosqlite.connect(DB_PATH) as db:
         now = datetime.now().isoformat()
         cursor = await db.execute(
