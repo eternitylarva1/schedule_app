@@ -1061,13 +1061,12 @@ class LLMService:
 时间格式：ISO 8601，如 {today}T09:00:00。
 
 工作方式：
-- update_event 是通用修改工具，可修改任意字段组合：start_time/end_time(移动时间)、status(完成/取消)、priority(设优先级)、title(改名)、category_id(改分类)
-- move_event 和 complete_event 是 update_event 的快捷方式，也可直接用
-- 如果用户让你"推迟"/"移动"等复合操作，先查询（query_events）再修改（update_event/move_event）
-- create_event 用于创建新日程，delete_event 用于删除
-- 每次调用一个或多个工具，返回 JSON 格式
-- 如果查询结果为空，直接告诉用户没有可操作的日程
-- 如果移动多个事件到同一日期，请依次排开时间（如8:00、8:30、9:00），避免重叠
+- update_event 是通用修改工具，可修改任意字段组合
+- move_event/complete_event 是快捷方式
+- batch_move 是批量移动工具：传 event_ids 列表 + target_date，自动依次排开时间（推荐用于"全部推迟"场景）
+- 如果用户说"把所有待办推到明天"，用 batch_move（先 query_events 拿到 ID 列表，再 batch_move）
+- 如果用户说"把某一个推迟"，用 move_event 或 update_event
+- create_event 创建新日程，delete_event 删除
 
 返回格式（只返回 JSON，不要任何解释文字）：
 {{

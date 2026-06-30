@@ -73,6 +73,57 @@ async def delete_event(*, db_instance=None, event_id=0, **kwargs):
 
 
 @tool(
+    name="batch_move",
+    description="""批量移动多个事件到指定日期，自动依次排开时间避免重叠。
+参数: event_ids(事件ID列表), target_date(目标日期如2026-07-01), target_time(从几点开始默认09:00)。
+自动按原顺序依次排列，每个事件紧跟上一个结束时间。适用于"把今天所有待办推到明天"这类场景。""",
+    category="events",
+)
+async def batch_move(*, db_instance=None, event_ids=None, target_date="", target_time="09:00", **kwargs):
+    """批量移动事件，自动依次排开"""
+    from datetime import datetime, timedelta
+    if not event_ids or not isinstance(event_ids, list):
+        return {"ok": False, "error": "缺少 event_ids 列表"}
+    if not target_date:
+        return {"ok": False, "error": "缺少 target_date"}
+
+    try:
+        cursor = datetime.fromisoformat(f"{target_date}T{target_time}:00")
+        results = []
+
+        for eid in event_ids:
+            event = await db.get_event(int(eid))
+            if not event:
+                continue
+            old_start = event.start_time
+            old_end = event.end_time
+            duration = timedelta(minutes=30)
+            if old_start and old_end:
+                if isinstance(old_end, str):
+                    old_end = datetime.fromisoformat(old_end)
+                if isinstance(old_start, str):
+                    old_start = datetime.fromisoformat(old_start)
+                duration = old_end - old_start
+
+            new_start = cursor
+            new_end = cursor + duration
+            event.start_time = new_start
+            event.end_time = new_end
+            await db.update_event(int(eid), event)
+            results.append({
+                "ok": True, "event_id": eid, "title": event.title,
+                "old_start": str(old_start),
+                "new_start": new_start.isoformat(),
+                "new_end": new_end.isoformat(),
+            })
+            cursor = new_end
+
+        return {"ok": True, "moved": len(results), "results": results}
+    except Exception as ex:
+        return f"批量移动失败: {ex}"
+
+
+@tool(
     name="update_event",
     description="""修改一个日程的任意字段。参数: event_id(事件ID), changes(要修改的字段字典)。
 
