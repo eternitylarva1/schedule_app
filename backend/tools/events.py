@@ -37,48 +37,22 @@ async def query_events(*, db_instance=None, date="today", status="all", **kwargs
 
 @tool(
     name="move_event",
-    description="移动一个日程到新的开始时间。参数: event_id(事件ID), new_start_time(新开始时间 ISO格式如2026-07-01T09:00:00)",
+    description="移动一个日程到新的开始时间。参数: event_id(事件ID), new_start_time(新开始时间 ISO格式如2026-07-01T09:00:00)。内部调用 update_event。",
     category="events",
 )
 async def move_event(*, db_instance=None, event_id=0, new_start_time="", **kwargs):
-    """移动单个事件到新时间"""
-    try:
-        event = await db.get_event(int(event_id))
-        if not event:
-            return f"事件 {event_id} 不存在"
-        old_start = event.start_time
-        old_end = event.end_time
-        duration = timedelta(minutes=30)
-        if old_start and old_end:
-            duration = old_end - old_start
-        new_start = datetime.fromisoformat(new_start_time)
-        new_end = new_start + duration
-        event.start_time = new_start
-        event.end_time = new_end
-        await db.update_event(event_id, event)
-        return {"ok": True, "event_id": event_id, "title": event.title,
-                "old_start": str(old_start), "new_start": new_start.isoformat(),
-                "new_end": new_end.isoformat()}
-    except Exception as ex:
-        return f"移动事件失败: {ex}"
+    """移动单个事件到新时间 — 内部调用 update_event"""
+    return await update_event_impl(event_id=int(event_id), changes={"start_time": new_start_time, "end_time": None})
 
 
 @tool(
     name="complete_event",
-    description="标记一个日程为已完成。参数: event_id(事件ID)",
+    description="标记一个日程为已完成。参数: event_id(事件ID)。内部调用 update_event。",
     category="events",
 )
 async def complete_event(*, db_instance=None, event_id=0, **kwargs):
-    """完成事件"""
-    try:
-        event = await db.get_event(int(event_id))
-        if not event:
-            return f"事件 {event_id} 不存在"
-        event.status = "done"
-        await db.update_event(event_id, event)
-        return {"ok": True, "event_id": event_id, "title": event.title, "status": "done"}
-    except Exception as ex:
-        return f"完成事件失败: {ex}"
+    """完成事件 — 内部调用 update_event"""
+    return await update_event_impl(event_id=int(event_id), changes={"status": "done"})
 
 
 @tool(
@@ -96,6 +70,86 @@ async def delete_event(*, db_instance=None, event_id=0, **kwargs):
         return {"ok": True, "event_id": event_id, "title": event.title, "deleted": True}
     except Exception as ex:
         return f"删除事件失败: {ex}"
+
+
+@tool(
+    name="update_event",
+    description="""修改一个日程的任意字段。参数: event_id(事件ID), changes(要修改的字段字典)。
+
+可修改字段：
+- title: 标题
+- start_time: 开始时间 (ISO格式如 2026-07-01T09:00:00)
+- end_time: 结束时间 (ISO格式，可选)
+- status: 状态 (pending/done/cancelled)
+- priority: 优先级 (none/low/medium/high)
+- category_id: 分类 (work/life/study/health)
+
+示例: changes={"start_time": "2026-07-01T15:00:00", "priority": "high"}""",
+    category="events",
+)
+async def update_event(*, db_instance=None, event_id=0, changes=None, **kwargs):
+    """通用事件修改工具"""
+    return await update_event_impl(event_id=int(event_id), changes=changes or {})
+
+
+# ========== 内部实现 ==========
+
+async def update_event_impl(event_id: int, changes: dict):
+    """统一的事件更新逻辑，被 move_event/complete_event/update_event 复用"""
+    if not changes:
+        return {"ok": False, "error": "没有指定要修改的字段"}
+
+    try:
+        event = await db.get_event(event_id)
+        if not event:
+            return f"事件 {event_id} 不存在"
+
+        old_values = {}
+        applied = {}
+
+        for field, value in changes.items():
+            if value is None:
+                continue
+            if field == "title":
+                old_values[field] = event.title
+                event.title = str(value)
+                applied[field] = event.title
+            elif field == "start_time":
+                old_values[field] = str(event.start_time) if event.start_time else None
+                from datetime import datetime
+                event.start_time = datetime.fromisoformat(str(value))
+                applied[field] = event.start_time.isoformat()
+            elif field == "end_time":
+                old_values[field] = str(event.end_time) if event.end_time else None
+                from datetime import datetime
+                event.end_time = datetime.fromisoformat(str(value))
+                applied[field] = event.end_time.isoformat()
+            elif field == "status":
+                old_values[field] = event.status
+                event.status = str(value)
+                applied[field] = event.status
+            elif field == "priority":
+                old_values[field] = getattr(event, "priority", "none")
+                event.priority = str(value)
+                applied[field] = event.priority
+            elif field == "category_id":
+                old_values[field] = event.category_id
+                event.category_id = str(value)
+                applied[field] = event.category_id
+
+        if not applied:
+            return {"ok": False, "error": "没有有效字段被修改"}
+
+        await db.update_event(event_id, event)
+        return {
+            "ok": True,
+            "event_id": event_id,
+            "title": event.title,
+            "changes": applied,
+            "old": old_values,
+        }
+    except Exception as ex:
+        return f"修改事件失败: {ex}"
 
 
 @tool(
