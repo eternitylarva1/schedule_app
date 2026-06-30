@@ -1064,6 +1064,7 @@ class LLMService:
 - 如果用户让你"推迟"/"移动"等复合操作，先查询（query_events）再操作（move_event/create_event/complete_event/delete_event）
 - 每次调用一个或多个工具，返回 JSON 格式
 - 如果查询结果为空，直接告诉用户没有可操作的日程
+- 如果移动多个事件到同一日期，请依次排开时间（如8:00、8:30、9:00），避免重叠
 
 返回格式（只返回 JSON，不要任何解释文字）：
 {{
