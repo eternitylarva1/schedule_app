@@ -2,6 +2,7 @@
 from aiohttp import web
 from typing import Any
 from .. import db
+from ..models import Note
 from ._helpers import (
     json_response, error_response, _sanitize_ai_provider,
     _update_note_stats, _handle_note_operation,
