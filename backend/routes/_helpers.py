@@ -156,7 +156,16 @@ async def _handle_event_operation(op, action, user_text, dry_run):
             "duration_minutes": duration_minutes,
             "category_id": category_id,
         }
-        
+
+        # Past-time guard: only reject if BOTH start and end are in the past.
+        # Allow start_time < now if end_time is still in the future (user may already be doing it).
+        if start_time is not None:
+            now = datetime.now()
+            end_time_check = start_time + timedelta(minutes=duration_minutes)
+            if end_time_check < now:
+                preview["past_time_error"] = f"结束时间 {end_time_check.isoformat()} 已在过去（当前 {now.isoformat()}）"
+                return {"preview": preview, "past_time_error": True}
+
         if dry_run:
             return {"preview": preview}
         
@@ -196,13 +205,21 @@ async def _handle_event_operation(op, action, user_text, dry_run):
             "start_time": new_start_time.isoformat() if new_start_time else None,
             "duration_minutes": duration_minutes,
         }
-        
+
+# Past-time guard for start_time change: only reject if more than 24h in past.
+        # Allow updating ongoing or recent past events.
+        if new_start_time is not None:
+            cutoff = datetime.now() - timedelta(hours=24)
+            if new_start_time < cutoff:
+                preview["past_time_error"] = f"开始时间 {new_start_time.isoformat()} 已在过去超过 24 小时"
+                return {"preview": preview, "past_time_error": True}
+
         if dry_run:
             return {"preview": preview}
-        
+
         affected = await db.update_event_by_title(original_title, new_title, new_start_time, duration_minutes)
         return {"preview": preview, "affected": affected}
-    
+     
     # event_move
     if action == "event_move":
         original_title = (op.get("original_title") or "").strip()
@@ -216,10 +233,16 @@ async def _handle_event_operation(op, action, user_text, dry_run):
             "original_title": original_title,
             "start_time": new_start_time.isoformat(),
         }
-        
+
+        # Past-time guard: only reject if more than 24h in past
+        cutoff = datetime.now() - timedelta(hours=24)
+        if new_start_time < cutoff:
+            preview["past_time_error"] = f"开始时间 {new_start_time.isoformat()} 已在过去超过 24 小时"
+            return {"preview": preview, "past_time_error": True}
+
         if dry_run:
             return {"preview": preview}
-        
+
         affected = await db.move_event_by_title(original_title, new_start_time)
         return {"preview": preview, "affected": affected}
     

@@ -90,94 +90,98 @@ async def llm_create(request: web.Request) -> web.Response:
     if not user_text:
         return error_response("输入不能为空")
     
-    from ..llm_service import llm_service
-    from ..db import get_events
-    from datetime import datetime
-    
-    # 获取当天已有事件
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    today_events = await get_events(today_str)
-    existing_events = [
-        {
-            "title": ev.title,
-            "start_time": ev.start_time.isoformat() if ev.start_time else "",
-            "end_time": ev.end_time.isoformat() if ev.end_time else "",
-        }
-        for ev in today_events
-    ] if today_events else []
-    
-    print(f"LLM create request: {user_text}")
-    result = await llm_service.process_schedule_command(user_text, existing_events)
-    print(f"LLM create result: {result}")
-    
-    if not result:
-        return error_response(llm_service.last_error_message or "LLM处理失败，请检查网络连接或稍后重试")
-    
-    # Handle multiple events or single event
-    events_list = []
-    events_data = result.get("events", [])
-    
-    if not events_data:
-        return error_response("LLM未能解析出日程，请尝试更明确的表达")
-    
-    # Ensure it's a list
-    if isinstance(events_data, dict):
-        events_data = [events_data]
-    
-    deadline_dt = _extract_deadline_from_text(user_text)
-    deadline_label = _extract_deadline_label_from_text(user_text)
-    has_explicit_clock_time = _has_explicit_clock_time_in_text(user_text)
-
-    # Get default reminder setting
-    default_reminder = await db.get_setting("default_task_reminder_enabled")
-    default_reminder_enabled = default_reminder and default_reminder.lower() == "true"
-
-    for i, event_data in enumerate(events_data):
-        title = event_data.get("title", user_text)
-        start_time_str = event_data.get("start_time")
-        duration_minutes = event_data.get("duration_minutes", 30)
-        category_id = event_data.get("category_id", "work")
+    try:
+        from ..llm_service import llm_service
+        from ..db import get_events
+        from datetime import datetime
         
-        # Parse start_time
-        start_time = None
-        if start_time_str:
-            start_time = _parse_datetime(start_time_str)
-
-        # Deterministic deadline guard:
-        # For "X月X号前/之前/以前" without explicit clock time, treat as deadline-type todo
-        # (no concrete timeslot) and preserve warning semantics in title.
-        if deadline_dt and not has_explicit_clock_time:
+        # 获取当天已有事件
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        today_events = await get_events(today_str)
+        existing_events = [
+            {
+                "title": ev.title,
+                "start_time": ev.start_time.isoformat() if ev.start_time else "",
+                "end_time": ev.end_time.isoformat() if ev.end_time else "",
+            }
+            for ev in today_events
+        ] if today_events else []
+        
+        print(f"LLM create request: {user_text}")
+        result = await llm_service.process_schedule_command(user_text, existing_events)
+        print(f"LLM create result: {result}")
+        
+        if not result:
+            return error_response(llm_service.last_error_message or "LLM处理失败，请检查网络连接或稍后重试")
+        
+        # Handle multiple events or single event
+        events_list = []
+        events_data = result.get("events", [])
+        
+        if not events_data:
+            return error_response("LLM未能解析出日程，请尝试更明确的表达")
+        
+        # Ensure it's a list
+        if isinstance(events_data, dict):
+            events_data = [events_data]
+        
+        deadline_dt = _extract_deadline_from_text(user_text)
+        deadline_label = _extract_deadline_label_from_text(user_text)
+        has_explicit_clock_time = _has_explicit_clock_time_in_text(user_text)
+    
+        # Get default reminder setting
+        default_reminder = await db.get_setting("default_task_reminder_enabled")
+        default_reminder_enabled = default_reminder and default_reminder.lower() == "true"
+    
+        for i, event_data in enumerate(events_data):
+            title = event_data.get("title", user_text)
+            start_time_str = event_data.get("start_time")
+            duration_minutes = event_data.get("duration_minutes", 30)
+            category_id = event_data.get("category_id", "work")
+            
+            # Parse start_time
             start_time = None
-            if deadline_label:
-                title = _append_deadline_label(title, deadline_label)
-        
-        # Keep no-time/ambiguous-time events as pending-time items.
-        # Only compute end_time when start_time is explicit.
-        end_time = None
-        if start_time:
-            end_time = start_time + timedelta(minutes=duration_minutes)
-        
-        event = Event(
-            title=title,
-            start_time=start_time,
-            end_time=end_time,
-            category_id=category_id,
-            all_day=False,
-            recurrence="none",
-            status="pending",
-            reminder_enabled=default_reminder_enabled,
-        )
-        
-        try:
-            event = await db.create_event(event)
-            events_list.append(event)
-        except Exception as e:
-            print(f"Error creating event {title}: {e}")
+            if start_time_str:
+                start_time = _parse_datetime(start_time_str)
     
-    if not events_list:
-        return error_response(f"创建事件失败")
+            # Deterministic deadline guard
+            if deadline_dt and not has_explicit_clock_time:
+                start_time = None
+                if deadline_label:
+                    title = _append_deadline_label(title, deadline_label)
+            
+            # Only compute end_time when start_time is explicit.
+            end_time = None
+            if start_time:
+                end_time = start_time + timedelta(minutes=duration_minutes)
+            
+            event = Event(
+                title=title,
+                start_time=start_time,
+                end_time=end_time,
+                category_id=category_id,
+                all_day=False,
+                recurrence="none",
+                status="pending",
+                reminder_enabled=default_reminder_enabled,
+            )
+            
+            try:
+                event = await db.create_event(event)
+                events_list.append(event)
+            except Exception as e:
+                print(f"Error creating event {title}: {e}")
+        
+        if not events_list:
+            return error_response(f"创建事件失败")
+        
+        return json_response([e.to_dict() for e in events_list])
     
-    return json_response([e.to_dict() for e in events_list])
+    except Exception as e:
+        print(f"llm_create unexpected error: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        return error_response(f"创建日程失败: {str(e)}")
 
 
 
@@ -210,6 +214,8 @@ async def llm_command(request: web.Request) -> web.Response:
     dry_run = bool(data.get("dry_run", False))
 
     from ..llm_service import llm_service
+    from datetime import datetime
+
     plan = await llm_service.process_unified_command(user_text)
     if not plan:
         return error_response("LLM命令解析失败，请稍后重试")
@@ -218,98 +224,130 @@ async def llm_command(request: web.Request) -> web.Response:
     if not isinstance(operations, list) or not operations:
         return error_response("未解析到可执行操作")
 
-    preview_ops = []
-    created_items = []
-    queried_items = []
-    stats = {
-        "events_created": 0,
-        "events_updated": 0,
-        "events_moved": 0,
-        "events_deleted": 0,
-        "events_completed": 0,
-        "events_uncompleted": 0,
-        "events_queried": 0,
-        "expenses_created": 0,
-        "expenses_updated": 0,
-        "expenses_deleted": 0,
-        "expenses_queried": 0,
-        "notes_created": 0,
-        "notes_updated": 0,
-        "notes_deleted": 0,
-        "notes_queried": 0,
-        "goals_created": 0,
-        "goals_updated": 0,
-        "goals_deleted": 0,
-        "goals_queried": 0,
-    }
+    # Retry loop for past-time errors
+    max_retries = 3
+    original_user_text = user_text
 
-    for op in operations:
-        if not isinstance(op, dict):
-            continue
+    for retry in range(max_retries):
+        preview_ops = []
+        created_items = []
+        queried_items = []
+        stats = {
+            "events_created": 0,
+            "events_updated": 0,
+            "events_moved": 0,
+            "events_deleted": 0,
+            "events_completed": 0,
+            "events_uncompleted": 0,
+            "events_queried": 0,
+            "expenses_created": 0,
+            "expenses_updated": 0,
+            "expenses_deleted": 0,
+            "expenses_queried": 0,
+            "notes_created": 0,
+            "notes_updated": 0,
+            "notes_deleted": 0,
+            "notes_queried": 0,
+            "goals_created": 0,
+            "goals_updated": 0,
+            "goals_deleted": 0,
+            "goals_queried": 0,
+        }
+        past_time_errors = []
 
-        action = str(op.get("action", "")).strip().lower()
-        domain = str(op.get("domain", "")).strip().lower()
-        
-        # Handle event operations
-        if domain == "event":
-            result = await _handle_event_operation(op, action, user_text, dry_run)
-            if result:
-                preview_ops.append(result["preview"])
-                if not dry_run and result.get("affected"):
-                    _update_event_stats(stats, action, result["affected"])
-                if result.get("created"):
-                    created_items.append(result["created"])
-                if result.get("data"):
-                    queried_items.append({"domain": domain, "data": result["data"]})
-            continue
-        
-        # Handle expense operations
-        if domain == "expense":
-            result = await _handle_expense_operation(op, action, user_text, dry_run)
-            if result:
-                preview_ops.append(result["preview"])
-                if not dry_run and result.get("affected"):
-                    _update_expense_stats(stats, action, result["affected"])
-                if result.get("created"):
-                    created_items.append(result["created"])
-                if result.get("data"):
-                    queried_items.append({"domain": domain, "data": result["data"]})
-            continue
-        
-        # Handle note operations
-        if domain == "note":
-            result = await _handle_note_operation(op, action, user_text, dry_run)
-            if result:
-                preview_ops.append(result["preview"])
-                if not dry_run and result.get("affected"):
-                    _update_note_stats(stats, action, result["affected"])
-                if result.get("created"):
-                    created_items.append(result["created"])
-                if result.get("data"):
-                    queried_items.append({"domain": domain, "data": result["data"]})
-            continue
-        
-        # Handle goal operations
-        if domain == "goal":
-            result = await _handle_goal_operation(op, action, user_text, dry_run)
-            if result:
-                preview_ops.append(result["preview"])
-                if not dry_run and result.get("affected"):
-                    _update_goal_stats(stats, action, result["affected"])
-                if result.get("created"):
-                    created_items.append(result["created"])
-                if result.get("data"):
-                    queried_items.append({"domain": domain, "data": result["data"]})
-            continue
+        for op in operations:
+            if not isinstance(op, dict):
+                continue
 
-    return json_response({
-        "dry_run": dry_run,
-        "summary": plan.get("summary", ""),
-        "operations": preview_ops,
-        "stats": stats,
-        "created_items": created_items,
-        "queried_items": queried_items,
-    })
+            action = str(op.get("action", "")).strip().lower()
+            domain = str(op.get("domain", "")).strip().lower()
+
+            # Handle event operations
+            if domain == "event":
+                result = await _handle_event_operation(op, action, user_text, dry_run)
+                if result:
+                    preview_ops.append(result["preview"])
+                    if result.get("past_time_error"):
+                        past_time_errors.append({
+                            "title": result["preview"].get("title", ""),
+                            "proposed_start_time": result["preview"].get("start_time"),
+                            "current_time": datetime.now().isoformat(),
+                            "error_msg": result["preview"].get("past_time_error", "时间已在过去"),
+                        })
+                    if not dry_run and result.get("affected"):
+                        _update_event_stats(stats, action, result["affected"])
+                    if result.get("created"):
+                        created_items.append(result["created"])
+                    if result.get("data"):
+                        queried_items.append({"domain": domain, "data": result["data"]})
+                continue
+
+            # Handle expense operations
+            if domain == "expense":
+                result = await _handle_expense_operation(op, action, user_text, dry_run)
+                if result:
+                    preview_ops.append(result["preview"])
+                    if not dry_run and result.get("affected"):
+                        _update_expense_stats(stats, action, result["affected"])
+                    if result.get("created"):
+                        created_items.append(result["created"])
+                    if result.get("data"):
+                        queried_items.append({"domain": domain, "data": result["data"]})
+                continue
+
+            # Handle note operations
+            if domain == "note":
+                result = await _handle_note_operation(op, action, user_text, dry_run)
+                if result:
+                    preview_ops.append(result["preview"])
+                    if not dry_run and result.get("affected"):
+                        _update_note_stats(stats, action, result["affected"])
+                    if result.get("created"):
+                        created_items.append(result["created"])
+                    if result.get("data"):
+                        queried_items.append({"domain": domain, "data": result["data"]})
+                continue
+
+            # Handle goal operations
+            if domain == "goal":
+                result = await _handle_goal_operation(op, action, user_text, dry_run)
+                if result:
+                    preview_ops.append(result["preview"])
+                    if not dry_run and result.get("affected"):
+                        _update_goal_stats(stats, action, result["affected"])
+                    if result.get("created"):
+                        created_items.append(result["created"])
+                    if result.get("data"):
+                        queried_items.append({"domain": domain, "data": result["data"]})
+                continue
+
+        # Check for past-time errors and retry if needed
+        if past_time_errors and not dry_run and retry < max_retries - 1:
+            print(f"Past-time errors detected, retry {retry + 1}/{max_retries}: {past_time_errors}")
+            new_plan = await llm_service.retry_unified_command_with_errors(original_user_text, past_time_errors)
+            if new_plan:
+                operations = new_plan.get("operations", [])
+                if operations:
+                    continue  # Retry with new operations
+            # If retry failed or returned no operations, break
+            break
+
+        # No past-time errors or dry_run or exhausted retries — return result
+        if past_time_errors and retry >= max_retries - 1 and not dry_run:
+            return web.json_response({
+                "code": -1,
+                "message": "多次重试后仍包含过去时间，请重新输入",
+                "failed_operations": past_time_errors,
+            })
+
+        return json_response({
+            "dry_run": dry_run,
+            "summary": plan.get("summary", ""),
+            "operations": preview_ops,
+            "stats": stats,
+            "created_items": created_items,
+            "queried_items": queried_items,
+        })
 
 
 
@@ -528,6 +566,88 @@ async def llm_agent_command(request: web.Request) -> web.Response:
     return json_response(result)
 
 
+"""POST /api/llm/test - test AI provider connectivity."""
+async def llm_test(request: web.Request) -> web.Response:
+    """POST /api/llm/test - test if an AI provider is reachable and working.
+
+    Body: {"api_base": "...", "model": "...", "api_key": "...", "provider_id": optional}
+    If provider_id is given and api_key is empty, the saved key is used.
+    """
+    try:
+        body_bytes = await request.read()
+        data = json.loads(body_bytes.decode('utf-8'))
+    except Exception:
+        return error_response("无效的JSON数据")
+
+    provider_id = data.get("provider_id")
+    api_base = (data.get("api_base") or "").strip()
+    api_key = (data.get("api_key") or "").strip()
+    model = (data.get("model") or "").strip()
+
+    # If provider_id given and no explicit key, look up saved key
+    if provider_id and not api_key:
+        try:
+            provider = await db.get_ai_provider(int(provider_id))
+            if provider:
+                api_key = (provider.get("api_key") or "").strip()
+                api_base = api_base or (provider.get("api_base") or "").strip()
+                model = model or (provider.get("model") or "").strip()
+        except Exception:
+            pass
+
+    if not api_base or not api_key or not model:
+        return error_response("请填写完整的 API 信息")
+
+    import aiohttp
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{api_base.rstrip('/')}/chat/completions",
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": "Hi"}],
+                    "max_tokens": 5,
+                },
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                resp_text = await resp.text()
+                if resp.status == 200:
+                    try:
+                        resp_data = json.loads(resp_text)
+                        content = resp_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                        return json_response({
+                            "success": True,
+                            "message": f"连接成功！模型 {model} 响应正常",
+                            "sample_response": content[:100] if content else "(空)"
+                        })
+                    except Exception:
+                        return json_response({
+                            "success": True,
+                            "message": f"连接成功！模型 {model} 响应正常",
+                        })
+                elif resp.status == 401:
+                    return error_response(f"API Key 无效（401）")
+                elif resp.status == 404:
+                    return error_response(f"端点不存在（404），请检查 API 地址")
+                else:
+                    try:
+                        err_data = json.loads(resp_text)
+                        err_msg = err_data.get("error", {}).get("message", resp_text[:200])
+                    except Exception:
+                        err_msg = resp_text[:200]
+                    return error_response(f"请求失败 ({resp.status}): {err_msg}")
+    except aiohttp.ClientConnectorError:
+        return error_response("无法连接到 API 服务器，请检查 API 地址是否正确")
+    except aiohttp.ClientTimeoutError:
+        return error_response("连接超时，请检查网络或 API 地址")
+    except Exception as e:
+        return error_response(f"测试失败: {str(e)}")
+
+
 # ============= Route Registration =============
 
 def register_routes(app: web.Application) -> None:
@@ -538,3 +658,4 @@ def register_routes(app: web.Application) -> None:
     app.router.add_post("/api/llm/breakdown", llm_breakdown)
     app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
     app.router.add_post("/api/llm/chat-agent", llm_agent_chat)
+    app.router.add_post("/api/llm/test", llm_test)

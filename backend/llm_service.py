@@ -173,7 +173,7 @@ class LLMService:
 ]
 }}
 
-规则：
+        规则：
 - "今天"就是{current_date}
 - "先去A，30分钟后去B" → 第一个日程从当前时间开始，第二个从第一个结束后开始
 - "上午...下午..." → 上午日程在9:00-12:00，下午在14:00-18:00
@@ -183,6 +183,8 @@ class LLMService:
 - 只提取任务名称，不要时间描述在标题里
 - category推断：工作→work，生活→life，学习→study，运动健康→health
 - 优先根据语义推断时间：看到"吃早餐"、"起床"等词应推断为早晨的时间段
+- 关键：start_time 必须是未来的时间，不能在过去！当前时间是 {current_time}，如果用户说的时间已经过去，必须往后排到下一个合理时段
+- 用户说"今晚"、"晚上"、"X点"时，必须根据当前时间动态推断，不能用固定的映射规则（如"今晚8点"不能机械地等于 20:00，要看现在几点了）
 """
         
         response = await self.chat([
@@ -955,9 +957,9 @@ class LLMService:
         3) event操作规则：
            - event_create: start_time必填（ISO格式）
            - event_update: original_title必填，可同时修改title/start_time/duration_minutes
-- event_move: original_title + 新日期时间
-            - event_postpone: 不设source_date默认推迟今天；设source_date=昨天日期则推迟昨天的pending；不设target_date推到"当前时间"；设target_date推到指定日期（配合target_time如"09:00"）
-            - event_delete/complete/uncomplete: target_title或scope=all
+           - event_move: original_title + 新日期时间
+           - event_postpone: 不设source_date默认推迟今天；设source_date=昨天日期则推迟昨天的pending；不设target_date推到"当前时间"；设target_date推到指定日期（配合target_time如"09:00"）
+           - event_delete/complete/uncomplete: target_title或scope=all
            - event_query: target_title（可选）或date_range（today/week/month/all）
         4) expense操作规则：
            - expense_create: amount（金额）+ expense_category（分类）+ note（备注可选）
@@ -977,10 +979,14 @@ class LLMService:
            - goal_query: target_title或horizon或goal_status
         7) 时间推断规则（event_create）：
            - "8点"、"15:00" → 今天该时间
-           - "今晚8点" → 今天20:00
+           - "今晚8点" → 今天20:00（但必须看现在几点了——如果现在已经是21:00，"今晚8点"应该理解为明天的20:00，而不是今天的20:00）
            - "明天下午3点" → 明天15:00
            - 模糊时间结合上下文推断
-        8) 示例：
+        8) 关键：start_time 必须是未来的时间，不能在过去！
+           - 用户说"今晚"、"晚上"、"X点"时，必须根据当前时间动态推断，不能用固定的映射规则（如"今晚8点"不能机械地等于 20:00，要看现在几点了）
+           - 如果用户说的时间已经在过去，应该往后排到下一个合理时段
+           - 重要：当前时间是 {current_time}，必须确保所有 start_time > 当前时间
+        9) 示例：
            - "今天2点开会" → domain=event, action=event_create, title="开会", start_time=今天2点
            - "花50块买书" → domain=expense, action=expense_create, amount=50, expense_category="shopping", note="买书"
            - "写笔记：明天要做的事" → domain=note, action=note_create, title="明天要做的事"
@@ -1024,6 +1030,94 @@ class LLMService:
 
         return None
 
+    async def retry_unified_command_with_errors(self, user_text: str, failed_operations: list[dict]) -> Optional[Dict[str, Any]]:
+        """Re-prompt LLM after past-time errors.
+
+        failed_operations is a list of dicts with keys like:
+        - title
+        - proposed_start_time (ISO)
+        - current_time (ISO)
+        - error_msg
+        """
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        current_date = now.strftime("%Y年%m月%d日")
+        current_time = now.strftime("%H:%M")
+        tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+        today = now.strftime("%Y-%m-%d")
+
+        # Build error details for the prompt
+        error_lines = []
+        for op in failed_operations:
+            title = op.get("title", "(无标题)")
+            proposed = op.get("proposed_start_time", "未知")
+            current = op.get("current_time", current_time)
+            msg = op.get("error_msg", "时间已在过去")
+            error_lines.append(f"  - 标题：{title}，建议时间：{proposed}，当前时间：{current}，错误：{msg}")
+
+        errors_text = "\n".join(error_lines) if error_lines else "（无详细错误信息）"
+
+        prompt = f"""用户输入了一条自然语言指令，AI 解析后尝试创建日程，但部分日程的结束时间已经在过去被系统拒绝。
+
+原始用户输入：{user_text}
+
+当前日期：{current_date} {current_time}
+今天日期：{today}
+明天日期：{tomorrow}
+
+被拒绝的操作详情：
+{errors_text}
+
+请重新解析用户输入，确保所有 event_create 的 start_time + duration_minutes 严格 > 当前时间（{current_time}）。
+
+规则：
+1. 用户说的"今晚X点"、"晚上Y点"如果已经过去，按以下规则推：
+   - 今天的时间如果已过 → 推到明天同时段
+   - 模糊的"今晚/晚上"且无明确时刻 → 推到明天同义词时段
+2. 不要机械映射（如"今晚8点"≠固定20:00），要根据当前时间动态判断
+3. 只返回JSON，不要任何解释文字
+
+返回格式（与 process_unified_command 相同）：
+{{
+  "operations": [
+    {{
+      "domain": "event",
+      "action": "event_create",
+      "title": "...",
+      "start_time": "ISO格式，start+duration 严格 > 当前时间 {current_time}",
+      "duration_minutes": 30,
+      ...
+    }}
+  ],
+  "summary": "一句话总结"
+}}
+"""
+
+        response = await self.chat([
+            {"role": "system", "content": "你是一个任务执行解析器，只返回严格JSON。当前时间是关键约束：所有 event_create 的 start_time + duration_minutes 必须严格 > 当前时间。"},
+            {"role": "user", "content": prompt}
+        ], temperature=0.2)
+
+        if not response:
+            return None
+
+        try:
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            if json_start >= 0 and json_end > json_start:
+                json_str = response[json_start:json_end]
+                parsed = json.loads(json_str)
+                operations = parsed.get("operations", []) if isinstance(parsed, dict) else []
+                if not isinstance(operations, list):
+                    operations = []
+                return {
+                    "operations": operations,
+                    "summary": parsed.get("summary", "") if isinstance(parsed, dict) else "",
+                }
+        except json.JSONDecodeError:
+            pass
+
+        return None
 
     # ══════════════════════════════════════════════════════════════
     # Agent Command — 多轮工具调用（复合操作）
@@ -1058,6 +1152,7 @@ class LLMService:
 {tools_desc}
 
 当前日期：今天={today}，明天={tomorrow}，昨天={yesterday}。
+当前时间：{now.strftime("%H:%M")}（注意：现在是{now.strftime("%Y年%m月%d日 %H:%M")}，创建日程时 start_time 必须 > 当前时间！）
 时间格式：ISO 8601，如 {today}T09:00:00。
 
 工作方式：
@@ -1067,6 +1162,7 @@ class LLMService:
 - 如果用户说"把所有待办推到明天"，用 batch_move（先 query_events 拿到 ID 列表，再 batch_move）
 - 如果用户说"把某一个推迟"，用 move_event 或 update_event
 - create_event 创建新日程，delete_event 删除
+- 关键规则：start_time 必须是未来的时间！当前时间是 {now.strftime("%H:%M")}，如果用户说的时间（如"今晚8点"）已经在过去，必须往后推到下一个合理时段
 
 返回格式（只返回 JSON，不要任何解释文字）：
 {{
