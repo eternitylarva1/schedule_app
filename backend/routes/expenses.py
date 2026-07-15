@@ -2,6 +2,7 @@
 from aiohttp import web
 from typing import Any
 from .. import db
+from ..models import Expense, EXPENSE_CATEGORIES
 from ._helpers import (
     json_response, error_response, _sanitize_ai_provider,
     _update_expense_stats, _handle_expense_operation,

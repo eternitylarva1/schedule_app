@@ -1,5 +1,6 @@
 """Error logs database operations."""
 import aiosqlite
+from datetime import datetime
 from typing import List
 
 from ..models import ErrorLog

@@ -2,6 +2,7 @@
 from aiohttp import web
 from typing import Any
 from .. import db
+from ..models import Goal, GoalConversation
 from ._helpers import (
     json_response, error_response, _sanitize_ai_provider,
     _handle_goal_operation, _update_goal_stats,

@@ -55,13 +55,85 @@
             return isSameDay(event.start_time, state.currentDate);
         });
 
-        dayEvents.forEach((event) => {
+        // === Overlap Detection & Column Assignment (Interval Partitioning) ===
+        // Sort by start time, then by duration descending (longer events first)
+        dayEvents.sort((a, b) => {
+            const as = new Date(a.start_time).getTime();
+            const bs = new Date(b.start_time).getTime();
+            if (as !== bs) return as - bs;
+            const aEnd = a.end_time ? new Date(a.end_time) : new Date(as + 30 * 60000);
+            const bEnd = b.end_time ? new Date(b.end_time) : new Date(bs + 30 * 60000);
+            return bEnd.getTime() - aEnd.getTime();
+        });
+
+        function getEventEndTime(event) {
+            if (event.end_time) return new Date(event.end_time);
+            return new Date(new Date(event.start_time).getTime() + 30 * 60000);
+        }
+
+        function eventsOverlap(a, b) {
+            const aStart = new Date(a.start_time).getTime();
+            const aEnd = getEventEndTime(a).getTime();
+            const bStart = new Date(b.start_time).getTime();
+            const bEnd = getEventEndTime(b).getTime();
+            return aStart < bEnd && bStart < aEnd;
+        }
+
+        const colEndTimes = [];
+        const eventLayout = new Map();
+
+        for (const evt of dayEvents) {
+            const start = new Date(evt.start_time);
+            const end = getEventEndTime(evt);
+            let col = 0;
+            while (col < colEndTimes.length && start < colEndTimes[col]) col++;
+            if (col < colEndTimes.length) {
+                colEndTimes[col] = end;
+            } else {
+                colEndTimes.push(end);
+            }
+            eventLayout.set(evt.id, { col, totalCols: colEndTimes.length });
+        }
+
+        // Recompute totalCols as actual concurrent overlap count per event
+        for (const evt of dayEvents) {
+            const info = eventLayout.get(evt.id);
+            let maxOverlap = 0;
+            for (const other of dayEvents) {
+                if (other.id !== evt.id && eventsOverlap(evt, other)) {
+                    maxOverlap++;
+                }
+            }
+            info.totalCols = Math.max(maxOverlap + 1, info.totalCols);
+        }
+
+        const MAX_VISIBLE_COLUMNS = 5;
+
+        dayEvents.forEach((event, idx) => {
+            const info = eventLayout.get(event.id);
+            const totalCols = info ? info.totalCols : 1;
+            const col = info ? info.col : 0;
+            const collapsed = totalCols > MAX_VISIBLE_COLUMNS && col >= MAX_VISIBLE_COLUMNS;
+
             const eventEl = document.createElement('div');
             eventEl.className = 'timeline-event';
             eventEl.dataset.eventId = event.id;
             eventEl.style.top = `${getEventTop(event)}px`;
             eventEl.style.height = `${getEventHeight(event)}px`;
             eventEl.style.setProperty('--event-color', getCategoryColor(event.category_id));
+
+            // Apply column layout for overlapping events
+            const visCols = Math.min(totalCols, MAX_VISIBLE_COLUMNS);
+            if (totalCols > 1 && !collapsed) {
+                const share = `calc((100% - 84px) / ${visCols})`;
+                eventEl.style.left = `calc(60px + ${col} * ${share})`;
+                eventEl.style.width = share;
+                eventEl.style.right = 'auto';
+            }
+
+            if (collapsed) {
+                eventEl.style.display = 'none';
+            }
 
             if (event.status === 'done') {
                 eventEl.classList.add('completed');
@@ -107,6 +179,38 @@
             });
             timeline.appendChild(eventEl);
         });
+
+        // Add collapse badge for overloaded groups
+        if (colEndTimes.length > MAX_VISIBLE_COLUMNS) {
+            // Find the first event with max overlap and add badge
+            const firstCollapsed = dayEvents.find(e => {
+                const info = eventLayout.get(e.id);
+                return info && info.totalCols > MAX_VISIBLE_COLUMNS && info.col >= MAX_VISIBLE_COLUMNS;
+            });
+            if (firstCollapsed) {
+                const info = eventLayout.get(firstCollapsed.id);
+                const hiddenCount = info.totalCols - MAX_VISIBLE_COLUMNS;
+                const badgeEl = document.createElement('div');
+                badgeEl.className = 'overlap-reminder';
+                badgeEl.style.top = `${getEventTop(firstCollapsed)}px`;
+                badgeEl.style.right = '4px';
+                badgeEl.textContent = `+${hiddenCount}`;
+                badgeEl.title = `还有${hiddenCount}个被折叠的日程，点击展开`;
+                badgeEl.addEventListener('click', () => {
+                    // Expand: show all hidden events
+                    const hidden = dayEvents.filter(e => {
+                        const i = eventLayout.get(e.id);
+                        return i && i.totalCols > MAX_VISIBLE_COLUMNS && i.col >= MAX_VISIBLE_COLUMNS;
+                    });
+                    for (const evt of hidden) {
+                        const el = timeline.querySelector(`.timeline-event[data-event-id="${evt.id}"]`);
+                        if (el) el.style.display = '';
+                    }
+                    badgeEl.remove();
+                });
+                timeline.appendChild(badgeEl);
+            }
+        }
     }
 
     function updateCurrentTimeLine(deps) {

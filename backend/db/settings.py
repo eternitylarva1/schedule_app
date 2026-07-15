@@ -1,5 +1,6 @@
 """Settings database operations."""
 import aiosqlite
+from datetime import datetime
 from typing import List, Optional
 
 from ._connection import DB_PATH

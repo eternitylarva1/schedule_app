@@ -113,6 +113,7 @@
             if (!type) return;
             const ids = Array.from(getSelectionSet(type));
             if (ids.length === 0) return;
+            exitSelectionMode();  // 立即退出选择模式，避免 render 时重新显示选择栏
             if (type === 'todo') {
                 for (const id of ids) {
                     await deps.completeEvent(id);
@@ -127,7 +128,6 @@
                 deps.showToast(`已完成 ${ids.length} 项目标`);
                 await deps.renderGoalsView();
             }
-            exitSelectionMode();
         });
 
         document.getElementById('selectionDelete')?.addEventListener('click', async () => {
@@ -138,6 +138,7 @@
             if (ids.length === 0) return;
             const ok = await deps.showConfirm(`确定删除选中的 ${ids.length} 项吗？`);
             if (!ok) return;
+            exitSelectionMode();  // 立即退出选择模式
             if (type === 'todo') {
                 for (const id of ids) {
                     await deps.deleteEvent(id);
@@ -152,7 +153,6 @@
                 deps.showToast(`已删除 ${ids.length} 项目标`);
                 await deps.renderGoalsView();
             }
-            exitSelectionMode();
         });
 
         return bar;

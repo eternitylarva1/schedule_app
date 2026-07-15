@@ -35,7 +35,7 @@ from .notes import (
     create_note, get_notes, get_note, update_note, delete_note, search_notes,
     create_note_conversation, get_note_conversations, delete_note_conversations,
     get_notes_by_title, create_note_group, get_note_groups, get_note_group,
-    update_note_group, delete_note_group,
+    update_note_group, delete_note_group, reorder_notes,
 )
 from .expenses import (
     create_expense, get_expenses, get_expense, update_expense, delete_expense,
@@ -90,7 +90,7 @@ __all__ = [
     "create_note", "get_notes", "get_note", "update_note", "delete_note", "search_notes",
     "create_note_conversation", "get_note_conversations", "delete_note_conversations",
     "get_notes_by_title", "create_note_group", "get_note_groups", "get_note_group",
-    "update_note_group", "delete_note_group",
+    "update_note_group", "delete_note_group", "reorder_notes",
     # Expenses
     "create_expense", "get_expenses", "get_expense", "update_expense", "delete_expense",
     "soft_delete_expense", "restore_expense",

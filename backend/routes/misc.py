@@ -3,6 +3,7 @@ import aiosqlite
 from aiohttp import web
 from typing import Any
 from .. import db
+from ..models import ErrorLog
 from ..db._connection import DB_PATH
 from ._helpers import json_response, error_response
 

@@ -2219,6 +2219,7 @@
         elements.aiProviderClose?.addEventListener('click', () => settings?.closeAiProviderModal?.());
         elements.aiProviderCancelBtn?.addEventListener('click', () => settings?.closeAiProviderModal?.());
         elements.aiProviderSaveBtn?.addEventListener('click', () => settings?.saveAiProvider?.());
+        document.getElementById('aiProviderTestBtn')?.addEventListener('click', () => settings?.testAiProvider?.());
         
         // User Context modal events
         elements.userContextAddBtn?.addEventListener('click', () => settings?.openUserContextModal?.());

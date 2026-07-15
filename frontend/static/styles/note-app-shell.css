@@ -115,6 +115,45 @@
     z-index: 2;
 }
 
+/* Drag handle for reordering */
+.note-drag-handle {
+    position: absolute;
+    top: 50%;
+    left: 4px;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 12px;
+    letter-spacing: -2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 2;
+    user-select: none;
+}
+
+.note-item:hover .note-drag-handle,
+.note-item.active .note-drag-handle {
+    opacity: 1;
+}
+
+.note-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* Drag visual states */
+.note-swipe.dragging {
+    opacity: 0.5;
+}
+
+.note-swipe.drag-over {
+    border-top: 2px solid var(--accent-primary);
+}
+
 .note-item:hover .note-item-menu-btn,
 .note-item-menu-btn:focus,
 .note-item.active .note-item-menu-btn {

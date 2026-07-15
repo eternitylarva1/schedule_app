@@ -111,7 +111,7 @@ async def get_notes(include_archived: bool = False) -> list[Note]:
             where_clause = " WHERE " + " AND ".join(conditions)
         
         async with db.execute(
-            f"SELECT id, title, content, group_id, sort_order, is_pinned, color, is_archived, created_at, updated_at FROM notes{where_clause} ORDER BY is_pinned DESC, created_at DESC"
+            f"SELECT id, title, content, group_id, sort_order, is_pinned, color, is_archived, created_at, updated_at FROM notes{where_clause} ORDER BY is_pinned DESC, sort_order ASC, created_at DESC"
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -290,4 +290,15 @@ async def delete_note_group(group_id: int) -> bool:
         cursor = await db.execute("DELETE FROM note_groups WHERE id = ?", (group_id,))
         await db.commit()
         return cursor.rowcount > 0
+
+
+async def reorder_notes(note_ids: list[int]) -> None:
+    """Batch update sort_order for notes based on array position (0-based index)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        for idx, note_id in enumerate(note_ids):
+            await db.execute(
+                "UPDATE notes SET sort_order = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+                (idx, note_id)
+            )
+        await db.commit()
 

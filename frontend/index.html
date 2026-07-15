@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/styles/main.css?v=20260629-01">
+    <link rel="stylesheet" href="/static/styles/main.css?v=20260702-05">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -761,11 +761,16 @@
                             <span class="settings-item-title">API Key</span>
                             <span class="settings-item-desc">API 密钥</span>
                         </div>
-                        <input type="password" id="aiProviderApiKey" class="settings-input" placeholder="sk-...">
+                        <input type="password" id="aiProviderApiKey" class="settings-input" placeholder="请输入 API Key">
+                        <div id="aiProviderKeyStatus" style="margin-top: 6px; font-size: var(--font-size-xs); color: var(--accent-success); display: none;"></div>
                     </div>
                     <div style="margin-top: var(--space-md); display: flex; gap: var(--space-sm);">
                         <button class="btn btn-primary" id="aiProviderSaveBtn" style="flex:1;">保存</button>
                         <button class="btn btn-secondary" id="aiProviderCancelBtn" style="flex:1;">取消</button>
+                    </div>
+                    <div style="margin-top: var(--space-sm);">
+                        <button class="btn btn-secondary" id="aiProviderTestBtn" style="width:100%;">🔌 测试连接</button>
+                        <div id="aiProviderTestResult" style="margin-top: var(--space-sm); font-size: var(--font-size-sm); min-height: 20px;"></div>
                     </div>
                 </div>
             </div>
@@ -941,7 +946,7 @@
         </div>
     </div>
 
-    <script src="/static/js/core/state-elements.js?v=20260629-01"></script>
+    <script src="/static/js/core/state-elements.js?v=20260702-01"></script>
     <script src="/static/js/core/utils.js?v=20260412-04"></script>
     <script src="/static/js/core/api-toast.js?v=20260622-01"></script>
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
@@ -949,15 +954,15 @@
     <script src="/static/js/budget.js?v=20260629-01"></script>
     <script src="/static/js/note-ai.js?v=20260624-03"></script>
     <script src="/static/js/note-editor.js?v=20260629-01"></script>
-    <script src="/static/js/notes-list.js?v=20260623-01"></script>
+    <script src="/static/js/notes-list.js?v=20260702-01"></script>
     <script src="/static/js/expense.js?v=20260622-02"></script>
     <script src="/static/js/notepad.js?v=20260622-02"></script>
-    <script src="/static/js/settings.js?v=20260624-02"></script>
+    <script src="/static/js/settings.js?v=20260702-03"></script>
     <script src="/static/js/llm-queue.js?v=20260624-01"></script>
-    <script src="/static/js/main.js?v=20260629-01"></script>
+    <script src="/static/js/main.js?v=20260702-06"></script>
     <script src="/static/js/goals.js?v=20260624-02"></script>
     <script src="/static/js/selection.js?v=20260425-01"></script>
-    <script src="/static/js/calendar-views.js?v=20260425-01"></script>
+    <script src="/static/js/calendar-views.js?v=20260702-01"></script>
     <script>
         // Hotfix: aggressively disable stale SW/cache to avoid serving old frontend bundles.
         window.addEventListener('load', async () => {

@@ -2,6 +2,7 @@
 from aiohttp import web
 from typing import Any
 from .. import db
+from ..models import Budget
 from ._helpers import json_response, error_response
 
 

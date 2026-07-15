@@ -150,26 +150,8 @@
             return;
         }
 
-        // Task 3: Sort notes before grouping
-        const sortBy = (getState().notesSortBy || 'updated');
-        if (sortBy === 'updated') {
-            notes.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
-        } else if (sortBy === 'created') {
-            notes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        } else if (sortBy === 'title') {
-            notes.sort((a, b) => (a.title || a.content || '').localeCompare(b.title || b.content || ''));
-        }
-
+        // Notes are now ordered by sort_order from backend (free drag reorder)
         let html = '';
-
-        // Task 3: Sort bar
-        html += `
-            <div class="notes-sort-bar" id="notesSortBar">
-                <button class="notes-sort-btn${sortBy === 'updated' ? ' active' : ''}" data-sort="updated">修改时间</button>
-                <button class="notes-sort-btn${sortBy === 'created' ? ' active' : ''}" data-sort="created">创建时间</button>
-                <button class="notes-sort-btn${sortBy === 'title' ? ' active' : ''}" data-sort="title">标题</button>
-            </div>
-        `;
 
         const groupMap = {};
         groups.forEach(g => {
@@ -264,16 +246,6 @@
         container.innerHTML = html;
         container.setAttribute('role', 'listbox');
         container.setAttribute('aria-label', '笔记列表');
-
-        // Task 3: Sort button click handlers
-        document.getElementById('notesSortBar')?.querySelectorAll('.notes-sort-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const sort = btn.dataset.sort;
-                getState().notesSortBy = sort;
-                document.querySelectorAll('.notes-sort-btn').forEach(b => b.classList.toggle('active', b === btn));
-                renderNotesList();
-            });
-        });
 
         // Stage 5: Group inline rename (double-click on group name)
         container.querySelectorAll('.note-group-name').forEach(nameSpan => {
@@ -521,6 +493,7 @@
                 <div class="swipe-action swipe-action-right" data-action="${rightAction}" data-note-id="${note.id}" role="button" tabindex="0">${rightLabel}</div>
                 <div class="swipe-content">
                     <div class="note-item${isPinned ? ' pinned' : ''}" data-note-id="${note.id}"${inlineColor} role="button" tabindex="0">
+                        <span class="note-drag-handle" title="拖拽排序">⋮⋮</span>
                         ${hasTitle
                             ? `<div class="note-item-title">${escapeHtml(note.title)}</div>`
                             : `<div class="note-item-preview no-title">${escapeHtml(truncate2Lines(note.content, 80))}</div>`}
@@ -697,69 +670,108 @@
         });
 
         const noteId = noteDragState.draggedNoteId;
+        const draggedEl = noteDragState.draggedElement;
+        if (!noteId || !draggedEl) return;
+
+        // Determine target group and position
         let targetGroupId = null;
+        let insertAfterNoteId = null;
 
         if (noteDragState.dragOverGroupId) {
             targetGroupId = noteDragState.dragOverGroupId === 'ungrouped' ? null : parseInt(noteDragState.dragOverGroupId);
         } else if (noteDragState.selectedGroupId) {
             targetGroupId = noteDragState.selectedGroupId === -1 ? null : noteDragState.selectedGroupId;
         } else if (noteDragState.dragOverNoteId) {
+            insertAfterNoteId = noteDragState.dragOverNoteId;
             const overSwipe = document.querySelector(`.note-swipe[data-note-id="${noteDragState.dragOverNoteId}"]`);
             if (overSwipe && overSwipe.closest('.note-group')) {
                 targetGroupId = parseInt(overSwipe.closest('.note-group').dataset.groupId);
             }
         }
 
-        noteDragState.selectedGroupId = null;
+        // If no target found, keep in same group
+        if (targetGroupId === noteDragState.sourceGroupId && !insertAfterNoteId) {
+            noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null, selectedGroupId: null };
+            return;
+        }
 
-        if (noteId && targetGroupId !== noteDragState.sourceGroupId) {
-            const { updateNote, showToast } = getUtils();
-            const draggedEl = noteDragState.draggedElement;
-            const sourceGroupId = noteDragState.sourceGroupId;
+        const sourceGroupId = noteDragState.sourceGroupId;
+        const groupChanged = targetGroupId !== sourceGroupId;
 
-            // Stage 5.1 + 5.6: Optimistic update — move DOM element to new group immediately
-            if (draggedEl) {
-                let targetGroupEl = null;
-                if (noteDragState.dragOverGroupId) {
-                    targetGroupEl = document.querySelector(`.note-group[data-group-id="${noteDragState.dragOverGroupId}"] .note-group-content`);
-                } else if (noteDragState.selectedGroupId) {
-                    const gid = noteDragState.selectedGroupId === -1 ? 'ungrouped' : noteDragState.selectedGroupId;
-                    targetGroupEl = document.querySelector(`.note-group[data-group-id="${gid}"] .note-group-content`);
-                } else if (noteDragState.dragOverNoteId) {
-                    const overSwipe = document.querySelector(`.note-swipe[data-note-id="${noteDragState.dragOverNoteId}"]`);
-                    if (overSwipe) targetGroupEl = overSwipe.closest('.note-group-content');
-                }
-                if (targetGroupEl) {
-                    targetGroupEl.appendChild(draggedEl);
+        // === Move DOM element to new position ===
+        let targetContainerEl = null;
+        if (insertAfterNoteId) {
+            // Within-group reorder: insert after the target note
+            const overSwipe = document.querySelector(`.note-swipe[data-note-id="${insertAfterNoteId}"]`);
+            if (overSwipe) {
+                targetContainerEl = overSwipe.closest('.note-group-content');
+                if (targetContainerEl) {
+                    overSwipe.after(draggedEl);
                 }
             }
+        }
+        if (!targetContainerEl && targetGroupId !== null) {
+            // Between-group move: append to end of target group
+            const gid = targetGroupId === null ? 'ungrouped' : String(targetGroupId);
+            targetContainerEl = document.querySelector(`.note-group[data-group-id="${gid}"] .note-group-content`);
+            if (targetContainerEl) {
+                targetContainerEl.appendChild(draggedEl);
+            }
+        }
 
+        // === Save to backend ===
+        let savedOk = true;
+        if (groupChanged) {
+            const { updateNote, showToast } = getUtils();
             showToast('笔记已移动');
-
-            // Background API call
             try {
                 await updateNote(noteId, { group_id: targetGroupId });
-                // Update state.notes so the note's group_id stays consistent
                 const state = getState();
                 const noteInState = state.notes.find(n => n.id === noteId);
                 if (noteInState) noteInState.group_id = targetGroupId;
             } catch (e) {
-                // On failure: show error and revert DOM
                 getUtils().showToast('移动失败');
-                // Move back to original group
-                if (draggedEl) {
-                    let sourceGroupEl = null;
-                    const sgid = sourceGroupId === '__pinned' ? '__pinned' : (sourceGroupId === null || sourceGroupId === 'ungrouped' ? 'ungrouped' : String(sourceGroupId));
-                    sourceGroupEl = document.querySelector(`.note-group[data-group-id="${sgid}"] .note-group-content`);
-                    if (!sourceGroupEl) sourceGroupEl = document.querySelector('.note-group[data-group-id="ungrouped"] .note-group-content');
-                    if (sourceGroupEl && draggedEl.parentElement !== sourceGroupEl) {
-                        sourceGroupEl.appendChild(draggedEl);
-                    }
+                savedOk = false;
+            }
+        }
+
+        // Save new sort order for all affected groups
+        if (savedOk) {
+            await saveGroupOrder(targetContainerEl);
+            if (groupChanged) {
+                const sgid = sourceGroupId === '__pinned' ? '__pinned' : (sourceGroupId === null ? 'ungrouped' : String(sourceGroupId));
+                const sourceGroupEl = document.querySelector(`.note-group[data-group-id="${sgid}"]`);
+                if (sourceGroupEl) {
+                    await saveGroupOrder(sourceGroupEl);
                 }
             }
         }
 
         noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null, selectedGroupId: null };
+    }
+
+    async function saveGroupOrder(groupEl) {
+        if (!groupEl) return;
+        const contentEl = groupEl.querySelector('.note-group-content');
+        if (!contentEl) return;
+
+        const noteIds = [];
+        contentEl.querySelectorAll('.note-swipe').forEach(el => {
+            const id = parseInt(el.dataset.noteId);
+            if (id) noteIds.push(id);
+        });
+
+        if (noteIds.length <= 1) return; // No reordering needed for 0-1 notes
+
+        try {
+            const { apiCall } = getUtils();
+            await apiCall('notes/reorder', {
+                method: 'PUT',
+                body: JSON.stringify({ note_ids: noteIds }),
+            });
+        } catch (e) {
+            console.error('reorder save failed:', e);
+        }
     }
 
     function handleNoteDragEnd(e) {

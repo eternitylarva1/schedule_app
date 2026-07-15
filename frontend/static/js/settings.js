@@ -270,7 +270,22 @@
         elements.aiProviderApiBase.value = provider?.api_base || '';
         elements.aiProviderModel.value = provider?.model || '';
         elements.aiProviderApiKey.value = '';
-        elements.aiProviderApiKey.placeholder = provider?.has_api_key ? (provider.api_key || 'sk-****') : '请输入 API Key';
+        
+        // API Key status display
+        const keyStatus = document.getElementById('aiProviderKeyStatus');
+        if (provider && provider.has_api_key) {
+            elements.aiProviderApiKey.placeholder = '如需更换请重新输入';
+            if (keyStatus) {
+                keyStatus.style.display = 'block';
+                keyStatus.textContent = '🔒 密钥已保存 ' + (provider.api_key || '');
+            }
+        } else {
+            elements.aiProviderApiKey.placeholder = '请输入 API Key';
+            if (keyStatus) {
+                keyStatus.style.display = id ? 'block' : 'none';
+                keyStatus.textContent = id ? '⚠️ 未检测到已保存的密钥' : '';
+            }
+        }
         elements.aiProviderModal.classList.remove('hidden');
     }
 
@@ -321,6 +336,52 @@
         } catch (e) {
             showToast('保存失败');
             console.error(e);
+        }
+    }
+
+    async function testAiProvider() {
+        const elements = getElements();
+        const { apiCall, showToast } = getUtils();
+        const providerId = elements.aiProviderId.value;
+        const apiBase = elements.aiProviderApiBase.value.trim();
+        const model = elements.aiProviderModel.value.trim();
+        const apiKey = elements.aiProviderApiKey.value.trim();
+
+        // Editing existing provider with saved key — use provider_id to fetch stored key
+        if (!apiKey && !providerId) {
+            showToast('请填写 API Key');
+            return;
+        }
+        if (!apiBase || !model) {
+            showToast('请填写 API 地址和模型名称');
+            return;
+        }
+
+        const body = { api_base: apiBase, model, api_key: apiKey };
+        if (providerId && !apiKey) {
+            body.provider_id = parseInt(providerId);
+        }
+
+        const resultEl = document.getElementById('aiProviderTestResult');
+        const btn = document.getElementById('aiProviderTestBtn');
+        if (btn) btn.disabled = true;
+        if (resultEl) resultEl.innerHTML = '<span style="color: var(--accent-warning);">⏳ 正在测试连接...</span>';
+
+        try {
+            const result = await apiCall('llm/test', {
+                method: 'POST',
+                body: JSON.stringify(body),
+            });
+            if (result && result.success) {
+                if (resultEl) resultEl.innerHTML = `<span style="color: var(--accent-success);">✅ ${result.message}</span>`;
+                showToast('连接成功！');
+            } else {
+                if (resultEl) resultEl.innerHTML = `<span style="color: var(--accent-danger);">❌ ${result.message || '测试失败'}</span>`;
+            }
+        } catch (e) {
+            if (resultEl) resultEl.innerHTML = `<span style="color: var(--accent-danger);">❌ ${e.message || '网络错误'}</span>`;
+        } finally {
+            if (btn) btn.disabled = false;
         }
     }
 
@@ -1187,6 +1248,7 @@ async deletePattern(patternId) {
         openAiProviderModal,
         closeAiProviderModal,
         saveAiProvider,
+        testAiProvider,
         activateAiProvider,
         deleteAiProvider,
         renderUserContexts,

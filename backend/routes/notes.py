@@ -1,8 +1,9 @@
 """Note HTTP endpoints."""
+import json
 from aiohttp import web
 from typing import Any
 from .. import db
-from ..models import Note
+from ..models import Note, NoteGroup
 from ._helpers import (
     json_response, error_response, _sanitize_ai_provider,
     _update_note_stats, _handle_note_operation,
@@ -296,7 +297,20 @@ async def delete_note_group(request: web.Request) -> web.Response:
         return error_response(f"删除笔记分组失败: {str(e)}")
 
 
-
+"""PUT /api/notes/reorder - batch reorder notes."""
+async def reorder_notes(request: web.Request) -> web.Response:
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+    note_ids = data.get("note_ids")
+    if not note_ids or not isinstance(note_ids, list):
+        return error_response("缺少 note_ids 数组")
+    try:
+        await db.reorder_notes([int(n) for n in note_ids])
+        return json_response({"success": True, "count": len(note_ids)})
+    except Exception as e:
+        return error_response(f"排序保存失败: {str(e)}")
 
 
 # ============= Route Registration =============
@@ -313,3 +327,4 @@ def register_routes(app: web.Application) -> None:
     app.router.add_post("/api/note-groups", create_note_group)
     app.router.add_put("/api/note-groups/{id}", update_note_group)
     app.router.add_delete("/api/note-groups/{id}", delete_note_group)
+    app.router.add_put("/api/notes/reorder", reorder_notes)
