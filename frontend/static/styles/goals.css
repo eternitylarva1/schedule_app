@@ -85,6 +85,18 @@
     padding: var(--space-md);
 }
 
+/* In-place completed state (without re-render) */
+.goal-card.goal-done {
+    opacity: 0.5;
+}
+.goal-card.goal-done .goal-title {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+.goal-card.goal-done .goal-date-badge {
+    opacity: 0.5;
+}
+
 .goal-card-head {
     display: flex;
     justify-content: space-between;

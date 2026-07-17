@@ -331,7 +331,7 @@
         const state = getState();
         const elements = getElements();
         const utils = getUtils();
-        const { fetchGoals, updateGoal, deleteGoal, showToast, showConfirm, showPrompt } = utils;
+        const { fetchGoals, updateGoal, deleteGoal, showToast, showToastWithUndo, showConfirm, showPrompt } = utils;
 
         let listEl = elements.goalsContainer.querySelector('.goals-list');
         if (!listEl) return;
@@ -818,20 +818,32 @@
                     }
                 } else if (action === 'complete') {
                     const completedGoalId = parseInt(goalId);
-                    await updateGoal(completedGoalId, { status: 'done' });
-                    // Keep parent expanded so user sees the change
-                    const parentCard = btn.closest('.goal-card');
-                    const parentCardId = parentCard ? parseInt(parentCard.dataset.goalId) : null;
-                    if (parentCardId && parentCardId !== completedGoalId) {
-                        state.expandedGoalIds.add(String(parentCardId));
+                    
+                    // In-place DOM update — no full re-render (preserves scroll)
+                    const card = btn.closest('.goal-card');
+                    if (card) {
+                        // Toggle: if already done, undo; else mark done
+                        const wasDone = card.classList.contains('goal-done');
+                        if (wasDone) {
+                            await updateGoal(completedGoalId, { status: 'active' });
+                            card.classList.remove('goal-done');
+                            btn.textContent = '✓';
+                            btn.title = '完成';
+                            showToast?.('已撤销 ↩');
+                        } else {
+                            await updateGoal(completedGoalId, { status: 'done' });
+                            card.classList.add('goal-done');
+                            btn.textContent = '↩';
+                            btn.title = '撤销完成';
+                            showToastWithUndo?.('已完成 ✓', async () => {
+                                await updateGoal(completedGoalId, { status: 'active' });
+                                card.classList.remove('goal-done');
+                                btn.textContent = '✓';
+                                btn.title = '完成';
+                                showToast?.('已撤销 ↩');
+                            });
+                        }
                     }
-                    const { showToastWithUndo } = utils;
-                    showToastWithUndo?.('已完成 ✓', async () => {
-                        await updateGoal(completedGoalId, { status: 'active' });
-                        showToast?.('已撤销 ↩');
-                        await renderGoalsList();
-                    });
-                    await renderGoalsList();
                 } else if (action === 'promote') {
                     const confirmed = await showConfirm('将此子任务升级为独立目标？\n它将从当前父目标中移除，成为顶层目标。');
                     if (confirmed) {
