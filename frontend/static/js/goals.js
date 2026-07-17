@@ -232,11 +232,46 @@
                     </button>
                     <button class="goals-add-btn" id="goalsAddBtn">+ 添加目标</button>
                     <button class="goals-discuss-btn" id="goalsDiscussBtn">💬 AI规划</button>
-                    <button class="goals-export-btn" id="goalsExportBtn" title="复制规划快照">📋 导出</button>
+                    <div class="goals-more-wrap">
+                        <button class="goals-more-btn" id="goalsMoreBtn" title="更多操作">⋯</button>
+                        <div class="goals-more-menu hidden" id="goalsMoreMenu">
+                            <button class="goals-more-item" data-action="export">📋 导出规划</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="goals-reference hidden" id="goalsReference"></div>
             <div class="goals-list"></div>
+            <!-- Export Modal -->
+            <div class="export-modal-backdrop hidden" id="exportModalBackdrop">
+                <div class="export-modal-content" id="exportModalContent">
+                    <div class="export-modal-header">
+                        <span class="export-modal-title">选择性导出</span>
+                        <button class="export-modal-close" id="exportModalClose">✕</button>
+                    </div>
+                    <div class="export-modal-body">
+                        <div class="export-options">
+                            <label class="export-toggle">
+                                <input type="checkbox" id="exportIncludeSubtasks" checked>
+                                <span class="export-toggle-label">包含子任务</span>
+                            </label>
+                            <label class="export-toggle">
+                                <input type="checkbox" id="exportIncludeNotes">
+                                <span class="export-toggle-label">包含笔记</span>
+                            </label>
+                        </div>
+                        <div class="export-goal-list" id="exportGoalList"></div>
+                        <div class="export-preview">
+                            <div class="export-preview-label">预览</div>
+                            <div class="export-preview-content" id="exportPreviewContent"></div>
+                        </div>
+                    </div>
+                    <div class="export-modal-footer">
+                        <button class="export-action-btn primary" id="exportCopyBtn">📋 复制文本</button>
+                        <button class="export-action-btn" id="exportDownloadBtn">⬇ 下载 .txt</button>
+                    </div>
+                </div>
+            </div>
         `;
         
         container.querySelectorAll('.goals-horizon-tab').forEach(tab => {
@@ -261,9 +296,30 @@
             openGoalDiscussModal();
         });
         
-        container.querySelector('#goalsExportBtn').addEventListener('click', () => {
-            exportPlanSnapshot();
-        });
+        // ⋯ more menu toggle
+        const moreBtn = container.querySelector('#goalsMoreBtn');
+        const moreMenu = container.querySelector('#goalsMoreMenu');
+        if (moreBtn && moreMenu) {
+            moreBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                moreMenu.classList.toggle('hidden');
+            });
+            // Close when clicking menu items
+            moreMenu.querySelectorAll('.goals-more-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const action = item.dataset.action;
+                    moreMenu.classList.add('hidden');
+                    if (action === 'export') {
+                        openExportModal();
+                    }
+                });
+            });
+            // Close when clicking outside
+            document.addEventListener('click', () => {
+                moreMenu.classList.add('hidden');
+            }, { once: true });
+        }
         
         container.querySelector('#goalsViewToggleBtn').addEventListener('click', async () => {
             state.goalsViewMode = state.goalsViewMode === 'list' ? 'timeline' : 'list';
@@ -3313,98 +3369,157 @@ function showAddGoalModal() {
         }
     }
 
-    async function exportPlanSnapshot() {
+    // Track export modal state
+    let _exportModalInitialized = false;
+    
+    function initExportModal() {
+        if (_exportModalInitialized) return;
+        _exportModalInitialized = true;
+        
+        const backdrop = document.getElementById('exportModalBackdrop');
+        const closeBtn = document.getElementById('exportModalClose');
+        const includeSubtasks = document.getElementById('exportIncludeSubtasks');
+        const includeNotes = document.getElementById('exportIncludeNotes');
+        const goalList = document.getElementById('exportGoalList');
+        const preview = document.getElementById('exportPreviewContent');
+        const copyBtn = document.getElementById('exportCopyBtn');
+        const downloadBtn = document.getElementById('exportDownloadBtn');
+        
+        if (!backdrop) return;
+        
+        const close = () => { backdrop.classList.add('hidden'); };
+        backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+        closeBtn.addEventListener('click', close);
+        
+        function updatePreview() {
+            const checked = goalList.querySelectorAll('.export-goal-item.selected');
+            const includeSt = includeSubtasks.checked;
+            const includeNt = includeNotes.checked;
+            
+            let text = '';
+            checked.forEach(item => {
+                const goalId = parseInt(item.dataset.goalId);
+                const goal = _exportAllGoals.find(g => g.id === goalId);
+                if (!goal) return;
+                
+                const horizonLabel = goal.horizon === 'short' ? '短期' : goal.horizon === 'semester' ? '学期' : '长期';
+                text += `▸ ${goal.title} (${horizonLabel})\n`;
+                
+                if (includeSt && goal.subtasks) {
+                    goal.subtasks.forEach(st => {
+                        const tag = st.status === 'done' ? ' [done]' : st.status === 'cancelled' ? ' [cancelled]' : '';
+                        text += `  ├─ ${st.title}${tag}\n`;
+                    });
+                }
+                text += '\n';
+            });
+            
+            preview.textContent = text || '(未选择目标)';
+        }
+        
+        function getExportText() {
+            const checked = goalList.querySelectorAll('.export-goal-item.selected');
+            const includeSt = includeSubtasks.checked;
+            const includeNt = includeNotes.checked;
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
+            
+            let text = `【我的规划快照 - ${dateStr}】\n\n`;
+            
+            checked.forEach(item => {
+                const goalId = parseInt(item.dataset.goalId);
+                const goal = _exportAllGoals.find(g => g.id === goalId);
+                if (!goal) return;
+                
+                const horizonLabel = goal.horizon === 'short' ? '短期' : goal.horizon === 'semester' ? '学期' : '长期';
+                text += `▸ ${goal.title} (${horizonLabel})\n`;
+                
+                if (includeSt && goal.subtasks) {
+                    goal.subtasks.forEach((st, i) => {
+                        const isLast = i === goal.subtasks.length - 1;
+                        const prefix = isLast ? '  └─ ' : '  ├─ ';
+                        const tag = st.status === 'done' ? ' [done]' : st.status === 'cancelled' ? ' [cancelled]' : '';
+                        text += `${prefix}${st.title}${tag}\n`;
+                    });
+                }
+                text += '\n';
+            });
+            
+            text += '— 由 Schedule App 导出';
+            return text;
+        }
+        
+        includeSubtasks.addEventListener('change', updatePreview);
+        includeNotes.addEventListener('change', updatePreview);
+        
+        goalList.addEventListener('click', (e) => {
+            const item = e.target.closest('.export-goal-item');
+            if (!item) return;
+            item.classList.toggle('selected');
+            item.querySelector('.export-goal-check').textContent = 
+                item.classList.contains('selected') ? '☑' : '☐';
+            updatePreview();
+        });
+        
+        copyBtn.addEventListener('click', async () => {
+            const text = getExportText();
+            try {
+                await navigator.clipboard.writeText(text);
+                getUtils().showToast?.('已复制 📋');
+            } catch (err) {
+                getUtils().showToast?.('复制失败');
+            }
+        });
+        
+        downloadBtn.addEventListener('click', () => {
+            const text = getExportText();
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `规划快照_${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    }
+    
+    let _exportAllGoals = [];
+    
+    async function openExportModal() {
         const { fetchGoals, showToast } = getUtils();
         
         try {
-            // Fetch all goals across all horizons
             const [shortGoals, semesterGoals, longGoals] = await Promise.all([
                 fetchGoals('short'),
                 fetchGoals('semester'),
                 fetchGoals('long')
             ]);
             
-            const now = new Date();
-            const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
+            _exportAllGoals = [...(shortGoals || []), ...(semesterGoals || []), ...(longGoals || [])];
             
-            let text = `【我的规划快照 - ${dateStr}】\n\n`;
+            const goalList = document.getElementById('exportGoalList');
+            if (!goalList) return;
             
-            const allGroups = {
-                '短期目标': shortGoals || [],
-                '学期目标': semesterGoals || [],
-                '长期目标': longGoals || []
-            };
+            goalList.innerHTML = _exportAllGoals.map(goal => `
+                <div class="export-goal-item selected" data-goal-id="${goal.id}">
+                    <span class="export-goal-check">☑</span>
+                    <span class="export-goal-title">${escapeHtml(goal.title)}<span class="export-goal-horizon">${goal.horizon === 'short' ? '短期' : goal.horizon === 'semester' ? '学期' : '长期'}</span></span>
+                </div>
+            `).join('');
             
-            function countSubtasks(goal) {
-                if (!goal.subtasks || goal.subtasks.length === 0) return 0;
-                let count = goal.subtasks.length;
-                goal.subtasks.forEach(st => { count += countSubtasks(st); });
-                return count;
-            }
+            // Show modal
+            const backdrop = document.getElementById('exportModalBackdrop');
+            backdrop.classList.remove('hidden');
             
-            function countDone(goal) {
-                let done = goal.status === 'done' ? 1 : 0;
-                if (goal.subtasks) {
-                    goal.subtasks.forEach(st => { done += countDone(st); });
-                }
-                return done;
-            }
+            // Init handlers (only once)
+            initExportModal();
             
-            function renderGoal(g, indent = '') {
-                let line = `${indent}${g.title}`;
-                const total = countSubtasks(g);
-                const done = countDone(g);
-                if (total > 0) {
-                    const pct = Math.round(done / (total + 1) * 100);
-                    line += ` [${pct}%]`;
-                } else if (g.status === 'done') {
-                    line += ' [done]';
-                }
-                if (g.description) {
-                    line += ` — ${g.description}`;
-                }
-                text += line + '\n';
-                
-                if (g.subtasks) {
-                    g.subtasks.forEach((st, i) => {
-                        const isLast = i === g.subtasks.length - 1;
-                        const prefix = indent + (isLast ? '└─ ' : '├─ ');
-                        const statusTag = st.status === 'done' ? '[done]' : st.status === 'cancelled' ? '[cancelled]' : '';
-                        text += `${prefix}${st.title} ${statusTag}`.trimEnd() + '\n';
-                        
-                        // One more level
-                        if (st.subtasks) {
-                            st.subtasks.forEach((sst, j) => {
-                                const isLastSst = j === st.subtasks.length - 1;
-                                const sprefix = indent + '   ' + (isLast ? '  ' : '│ ') + (isLastSst ? '└─ ' : '├─ ');
-                                const sstTag = sst.status === 'done' ? '[done]' : sst.status === 'cancelled' ? '[cancelled]' : '';
-                                text += `${sprefix}${sst.title} ${sstTag}`.trimEnd() + '\n';
-                            });
-                        }
-                    });
-                }
-                text += '\n';
-            }
-            
-            let hasContent = false;
-            for (const [label, goals] of Object.entries(allGroups)) {
-                if (!goals || goals.length === 0) continue;
-                hasContent = true;
-                text += `▸ ${label}\n`;
-                goals.forEach(g => renderGoal(g, '  '));
-            }
-            
-            if (!hasContent) {
-                text += '(暂无目标)\n';
-            }
-            
-            text += '— 由 Schedule App 导出';
-            
-            await navigator.clipboard.writeText(text);
-            showToast?.('已复制 📋');
+            // Trigger initial preview
+            const includeSubtasks = document.getElementById('exportIncludeSubtasks');
+            includeSubtasks.dispatchEvent(new Event('change'));
         } catch (err) {
-            console.error('Export error:', err);
-            showToast?.('导出失败');
+            console.error('Export modal error:', err);
+            getUtils().showToast?.('加载失败');
         }
     }
 
