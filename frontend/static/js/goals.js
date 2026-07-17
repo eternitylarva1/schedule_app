@@ -232,6 +232,7 @@
                     </button>
                     <button class="goals-add-btn" id="goalsAddBtn">+ 添加目标</button>
                     <button class="goals-discuss-btn" id="goalsDiscussBtn">💬 AI规划</button>
+                    <button class="goals-export-btn" id="goalsExportBtn" title="复制规划快照">📋 导出</button>
                 </div>
             </div>
             <div class="goals-reference hidden" id="goalsReference"></div>
@@ -258,6 +259,10 @@
         
         container.querySelector('#goalsDiscussBtn').addEventListener('click', () => {
             openGoalDiscussModal();
+        });
+        
+        container.querySelector('#goalsExportBtn').addEventListener('click', () => {
+            exportPlanSnapshot();
         });
         
         container.querySelector('#goalsViewToggleBtn').addEventListener('click', async () => {
@@ -3305,6 +3310,101 @@ function showAddGoalModal() {
             console.error('Error rendering timeline view:', error);
             listEl.innerHTML = '<div class="goals-timeline-error">加载失败</div>';
             showToast?.('加载失败');
+        }
+    }
+
+    async function exportPlanSnapshot() {
+        const { fetchGoals, showToast } = getUtils();
+        
+        try {
+            // Fetch all goals across all horizons
+            const [shortGoals, semesterGoals, longGoals] = await Promise.all([
+                fetchGoals('short'),
+                fetchGoals('semester'),
+                fetchGoals('long')
+            ]);
+            
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
+            
+            let text = `【我的规划快照 - ${dateStr}】\n\n`;
+            
+            const allGroups = {
+                '短期目标': shortGoals || [],
+                '学期目标': semesterGoals || [],
+                '长期目标': longGoals || []
+            };
+            
+            function countSubtasks(goal) {
+                if (!goal.subtasks || goal.subtasks.length === 0) return 0;
+                let count = goal.subtasks.length;
+                goal.subtasks.forEach(st => { count += countSubtasks(st); });
+                return count;
+            }
+            
+            function countDone(goal) {
+                let done = goal.status === 'done' ? 1 : 0;
+                if (goal.subtasks) {
+                    goal.subtasks.forEach(st => { done += countDone(st); });
+                }
+                return done;
+            }
+            
+            function renderGoal(g, indent = '') {
+                let line = `${indent}${g.title}`;
+                const total = countSubtasks(g);
+                const done = countDone(g);
+                if (total > 0) {
+                    const pct = Math.round(done / (total + 1) * 100);
+                    line += ` [${pct}%]`;
+                } else if (g.status === 'done') {
+                    line += ' [done]';
+                }
+                if (g.description) {
+                    line += ` — ${g.description}`;
+                }
+                text += line + '\n';
+                
+                if (g.subtasks) {
+                    g.subtasks.forEach((st, i) => {
+                        const isLast = i === g.subtasks.length - 1;
+                        const prefix = indent + (isLast ? '└─ ' : '├─ ');
+                        const statusTag = st.status === 'done' ? '[done]' : st.status === 'cancelled' ? '[cancelled]' : '';
+                        text += `${prefix}${st.title} ${statusTag}`.trimEnd() + '\n';
+                        
+                        // One more level
+                        if (st.subtasks) {
+                            st.subtasks.forEach((sst, j) => {
+                                const isLastSst = j === st.subtasks.length - 1;
+                                const sprefix = indent + '   ' + (isLast ? '  ' : '│ ') + (isLastSst ? '└─ ' : '├─ ');
+                                const sstTag = sst.status === 'done' ? '[done]' : sst.status === 'cancelled' ? '[cancelled]' : '';
+                                text += `${sprefix}${sst.title} ${sstTag}`.trimEnd() + '\n';
+                            });
+                        }
+                    });
+                }
+                text += '\n';
+            }
+            
+            let hasContent = false;
+            for (const [label, goals] of Object.entries(allGroups)) {
+                if (!goals || goals.length === 0) continue;
+                hasContent = true;
+                text += `▸ ${label}\n`;
+                goals.forEach(g => renderGoal(g, '  '));
+            }
+            
+            if (!hasContent) {
+                text += '(暂无目标)\n';
+            }
+            
+            text += '— 由 Schedule App 导出';
+            
+            await navigator.clipboard.writeText(text);
+            showToast?.('已复制 📋');
+        } catch (err) {
+            console.error('Export error:', err);
+            showToast?.('导出失败');
         }
     }
 

@@ -238,6 +238,21 @@
     cursor: pointer;
 }
 
+.goals-export-btn {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.goals-export-btn:active {
+    background: var(--bg-hover);
+    transform: scale(0.98);
+}
+
 /* Goal children (subtasks container) */
 .goal-children {
     margin-top: var(--space-md);
