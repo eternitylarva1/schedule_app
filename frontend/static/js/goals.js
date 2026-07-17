@@ -315,10 +315,19 @@
                     }
                 });
             });
-            // Close when clicking outside
-            document.addEventListener('click', () => {
-                moreMenu.classList.add('hidden');
-            }, { once: true });
+        }
+        // Global outside-click close (runs once on document, not per render)
+        if (!window._goalsMoreMenuInit) {
+            window._goalsMoreMenuInit = true;
+            document.addEventListener('click', (e) => {
+                const menu = document.getElementById('goalsMoreMenu');
+                const btn = document.getElementById('goalsMoreBtn');
+                if (menu && btn && !menu.classList.contains('hidden')) {
+                    if (!menu.contains(e.target) && e.target !== btn) {
+                        menu.classList.add('hidden');
+                    }
+                }
+            });
         }
         
         container.querySelector('#goalsViewToggleBtn').addEventListener('click', async () => {
@@ -623,6 +632,7 @@
                                 : `<button class="goal-date-badge goal-date-btn goal-date-placeholder" data-action="setDate" data-goal-id="${goal.id}" title="点击设置日期">📅 设置日期</button>`}
                         </div>
                         <div class="goal-actions">
+                            <button class="goal-action-btn copy-goal-btn" data-action="copygoal" data-goal-id="${goal.id}" title="复制此目标">📋</button>
                             <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
                             <button class="goal-action-btn edit-btn" data-action="edit" data-goal-id="${goal.id}" title="编辑">✏️</button>
                             <button class="goal-action-btn history-btn" data-action="history" data-goal-id="${goal.id}" title="历史">🕘</button>
@@ -912,6 +922,13 @@
                         state.expandedGoalIds.delete(String(goalId));
                         showToast?.('已升级为独立目标 ↗️');
                         await renderGoalsList();
+                    }
+                } else if (action === 'copygoal') {
+                    e.stopPropagation();
+                    const gId = parseInt(btn.dataset.goalId);
+                    const goal = findGoalById(goals, gId);
+                    if (goal) {
+                        exportSingleGoal(goal);
                     }
                 } else if (action === 'edit') {
                     const goal = state.goals.find(g => g.id === parseInt(goalId));
@@ -3484,6 +3501,44 @@ function showAddGoalModal() {
     }
     
     let _exportAllGoals = [];
+    
+    async function exportSingleGoal(goal) {
+        const { showToast } = getUtils();
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
+        
+        const horizonLabel = goal.horizon === 'short' ? '短期' : goal.horizon === 'semester' ? '学期' : '长期';
+        let text = `【${goal.title} - ${dateStr}】\n\n`;
+        
+        text += `${goal.title} (${horizonLabel})\n`;
+        if (goal.description) text += `${goal.description}\n`;
+        
+        if (goal.subtasks && goal.subtasks.length > 0) {
+            goal.subtasks.forEach((st, i) => {
+                const isLast = i === goal.subtasks.length - 1;
+                const prefix = isLast ? '└─ ' : '├─ ';
+                const tag = st.status === 'done' ? ' [done]' : st.status === 'cancelled' ? ' [cancelled]' : '';
+                text += `${prefix}${st.title}${tag}\n`;
+                if (st.subtasks) {
+                    st.subtasks.forEach((sst, j) => {
+                        const isLastSst = j === st.subtasks.length - 1;
+                        const sprefix = '   ' + (isLast ? '  ' : '│ ') + (isLastSst ? '└─ ' : '├─ ');
+                        const sstTag = sst.status === 'done' ? ' [done]' : '';
+                        text += `${sprefix}${sst.title}${sstTag}\n`;
+                    });
+                }
+            });
+        }
+        
+        text += '\n— 由 Schedule App 导出';
+        
+        try {
+            await navigator.clipboard.writeText(text);
+            showToast?.('已复制 📋');
+        } catch (err) {
+            showToast?.('复制失败');
+        }
+    }
     
     async function openExportModal() {
         const { fetchGoals, showToast } = getUtils();
