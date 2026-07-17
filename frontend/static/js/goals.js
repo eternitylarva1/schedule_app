@@ -817,9 +817,20 @@
                         state.expandedGoalIds.delete(String(goalId));
                     }
                 } else if (action === 'complete') {
-                    await updateGoal(goalId, { status: 'done' });
-                    state.expandedGoalIds.delete(String(goalId));
-                    showToast?.('已完成 ✓');
+                    const completedGoalId = parseInt(goalId);
+                    await updateGoal(completedGoalId, { status: 'done' });
+                    // Keep parent expanded so user sees the change
+                    const parentCard = btn.closest('.goal-card');
+                    const parentCardId = parentCard ? parseInt(parentCard.dataset.goalId) : null;
+                    if (parentCardId && parentCardId !== completedGoalId) {
+                        state.expandedGoalIds.add(String(parentCardId));
+                    }
+                    const { showToastWithUndo } = utils;
+                    showToastWithUndo?.('已完成 ✓', async () => {
+                        await updateGoal(completedGoalId, { status: 'active' });
+                        showToast?.('已撤销 ↩');
+                        await renderGoalsList();
+                    });
                     await renderGoalsList();
                 } else if (action === 'promote') {
                     const confirmed = await showConfirm('将此子任务升级为独立目标？\n它将从当前父目标中移除，成为顶层目标。');
