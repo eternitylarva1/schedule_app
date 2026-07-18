@@ -169,7 +169,16 @@
                                 if (confirmed) {
                                     await updateGoal(goalId, { status: 'done' });
                                     utils.showToast?.('目标已完成 ✓');
-                                    await renderGoalsList();
+                                    // In-place update — add .goal-done instead of full re-render
+                                    const goalCard = document.querySelector(`[data-goal-id="${goalId}"]`);
+                                    if (goalCard) {
+                                        goalCard.classList.add('goal-done');
+                                        const completeBtn = goalCard.querySelector('.goal-action-btn[data-action="complete"]');
+                                        if (completeBtn) {
+                                            completeBtn.textContent = '↩';
+                                            completeBtn.title = '撤销完成';
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1518,7 +1527,19 @@
             if (result) {
                 showToast('已保存');
                 closeModal();
-                await renderGoalsList();
+                // In-place DOM update — no full re-render
+                const goalCard = document.querySelector(`[data-goal-id="${goal.id}"]`);
+                if (goalCard) {
+                    const titleEl = goalCard.querySelector('.goal-title');
+                    if (titleEl && updates.title) titleEl.textContent = updates.title;
+                    const dateBadge = goalCard.querySelector('.goal-date-badge .date-range');
+                    if (dateBadge) {
+                        if (updates.start_date || updates.end_date) {
+                            dateBadge.textContent = '📅 ' + formatGoalDate(updates.start_date || goal.start_date, updates.end_date || goal.end_date);
+                            goalCard.querySelector('.goal-date-badge')?.classList.remove('goal-date-placeholder');
+                        }
+                    }
+                }
             }
         });
         
