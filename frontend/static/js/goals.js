@@ -597,7 +597,7 @@
         }
         
         function renderSubtasks(subtasks, depth = 1, parentId = null) {
-            if (!subtasks || subtasks.length === 0 || depth > 2) return '';
+            if (!subtasks || subtasks.length === 0) return '';
             return `
                 <div class="goal-subtasks depth-${depth}">
                     ${subtasks.map(st => `
@@ -619,7 +619,7 @@
                                 </div>
                             </div>
                             ${countSubtasks(st) > 0 ? `<div class="goal-children hidden">${renderSubtasks(st.subtasks, depth + 1, st.id)}</div>` : ''}
-                            <button class="goal-add-subtask-btn" data-parent-id="${st.id}" data-depth="${depth}">+ 添加子任务</button>
+                            <button class="goal-add-subtask-btn" data-action="addsubtask" data-parent-id="${st.id}" data-depth="${depth}">+ 添加子任务</button>
                         </div>
                     `).join('')}
                 </div>
@@ -654,7 +654,7 @@
                         ${renderMiniCalendar(goal, goals)}
                         <div class="goal-deliverables-section" id="deliverables-${goal.id}"></div>
                         ${renderSubtasks(goal.subtasks)}
-                        <button class="goal-add-subtask-btn" data-parent-id="${goal.id}">+ 添加子任务</button>
+                        <button class="goal-add-subtask-btn" data-action="addsubtask" data-parent-id="${goal.id}">+ 添加子任务</button>
                     </div>
                 </div>
             `;
@@ -866,286 +866,161 @@
             }
         });
 
-        listEl.querySelectorAll('.goal-action-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
-                const action = btn.dataset.action;
-                const goalId = btn.dataset.goalId;
-                
-                if (action === 'discuss') {
-                    openGoalDiscussModal(goalId);
-                } else if (action === 'history') {
-                    await openGoalHistoryModal(goalId);
-                } else if (action === 'decompose') {
-                    const goal = state.goals.find(g => g.id === parseInt(goalId));
-                    const parentGoal = goal || (() => {
-                        for (const g of state.goals) {
-                            const found = findGoalInTree(g, parseInt(goalId));
-                            if (found) return found;
-                        }
-                        return null;
-                    })();
-                    
-                    function findGoalInTree(g, id) {
-                        if (g.id === id) return g;
-                        if (g.subtasks) {
-                            for (const st of g.subtasks) {
-                                const found = findGoalInTree(st, id);
-                                if (found) return found;
-                            }
-                        }
-                        return null;
-                    }
-                    
-                    if (parentGoal) {
-                        const title = parentGoal.title;
-                        const { apiCall } = utils;
-                        try {
-                            showToast?.('AI 正在细分任务...');
-                            const result = await apiCall('llm/breakdown', {
-                                method: 'POST',
-                                body: JSON.stringify({ text: title, horizon: state.goalsHorizon || 'short' })
-                            });
-                            if (result && result.subtasks) {
-                                const existingSubtasks = (parentGoal && parentGoal.subtasks) || [];
-                                for (let i = 0; i < result.subtasks.length; i++) {
-                                    const st = result.subtasks[i];
-                                    const colorIndex = (existingSubtasks.length + i) % GOAL_COLORS.length;
-                                    await createGoal({
-                                        title: st.title,
-                                        parent_id: parseInt(goalId),
-                                        horizon: state.goalsHorizon || 'short',
-                                        color: GOAL_COLORS[colorIndex]
-                                    });
-                                }
-                                showToast?.(`已添加 ${result.subtasks.length} 个子任务`);
-                                state.expandedGoalIds.add(String(goalId));
-                                await renderGoalsList();
-                            } else {
-                                showToast?.('AI 细分失败');
-                            }
-                        } catch (err) {
-                            console.error('Decompose error:', err);
-                            showToast?.('细分失败');
-                        }
-                    }
-                } else if (action === 'delete') {
-                    const confirmed = await showConfirm('确定删除这个目标吗？');
-                    if (confirmed) {
-                        await deleteGoal(goalId);
-                        state.expandedGoalIds.delete(String(goalId));
-                        showToast?.('已删除');
+        // === Delegated event listener for ALL goal operations ===
+        // Single handler on .goals-list — new DOM from in-place inserts
+        // automatically handled without re-binding.
+        listEl.addEventListener('click', async (e) => {
+            const actionBtn = e.target.closest('[data-action]');
+            if (!actionBtn) return;
+            if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
+            
+            e.stopPropagation();
+            const action = actionBtn.dataset.action;
+            const goalId = actionBtn.dataset.goalId ? parseInt(actionBtn.dataset.goalId) : null;
+            
+            if (action === 'discuss') {
+                openGoalDiscussModal(goalId);
+            } else if (action === 'history') {
+                await openGoalHistoryModal(goalId);
+            
+            } else if (action === 'toggle') {
+                const card = actionBtn.closest('.goal-card');
+                const children = card.querySelector('.goal-children');
+                const expanded = card.classList.toggle('expanded');
+                children.classList.toggle('hidden', !expanded);
+                actionBtn.textContent = expanded ? '▼' : '▶';
+                if (expanded) state.expandedGoalIds.add(String(goalId));
+                else state.expandedGoalIds.delete(String(goalId));
+            
+            } else if (action === 'complete') {
+                const card = actionBtn.closest('.goal-card');
+                const wasDone = card.classList.contains('goal-done');
+                if (wasDone) {
+                    await updateGoal(goalId, { status: 'active' });
+                    card.classList.remove('goal-done');
+                    actionBtn.textContent = '✓';
+                    actionBtn.title = '完成';
+                    showToast?.('已撤销 ↩');
+                } else {
+                    await updateGoal(goalId, { status: 'done' });
+                    card.classList.add('goal-done');
+                    actionBtn.textContent = '↩';
+                    actionBtn.title = '撤销完成';
+                    showToastWithUndo?.('已完成 ✓', async () => {
+                        await updateGoal(goalId, { status: 'active' });
+                        card.classList.remove('goal-done');
+                        actionBtn.textContent = '✓';
+                        actionBtn.title = '完成';
+                        showToast?.('已撤销 ↩');
+                    });
+                }
+            
+            } else if (action === 'delete') {
+                const confirmed = await showConfirm('确定删除这个目标吗？');
+                if (confirmed) {
+                    await deleteGoal(goalId);
+                    state.expandedGoalIds.delete(String(goalId));
+                    actionBtn.closest('.goal-card')?.remove();
+                    showToast?.('已删除');
+                    if (!document.querySelector('.goal-card:not(.goal-completed)')) {
                         await renderGoalsList();
-                    }
-                } else if (action === 'toggle') {
-                    const card = btn.closest('.goal-card');
-                    const children = card.querySelector('.goal-children');
-                    const isExpanded = card.classList.toggle('expanded');
-                    children.classList.toggle('hidden', !isExpanded);
-                    btn.textContent = isExpanded ? '▼' : '▶';
-                    if (isExpanded) {
-                        state.expandedGoalIds.add(String(goalId));
-                    } else {
-                        state.expandedGoalIds.delete(String(goalId));
-                    }
-                } else if (action === 'complete') {
-                    const completedGoalId = parseInt(goalId);
-                    
-                    // In-place DOM update — no full re-render (preserves scroll)
-                    const card = btn.closest('.goal-card');
-                    if (card) {
-                        // Toggle: if already done, undo; else mark done
-                        const wasDone = card.classList.contains('goal-done');
-                        if (wasDone) {
-                            await updateGoal(completedGoalId, { status: 'active' });
-                            card.classList.remove('goal-done');
-                            btn.textContent = '✓';
-                            btn.title = '完成';
-                            showToast?.('已撤销 ↩');
-                        } else {
-                            await updateGoal(completedGoalId, { status: 'done' });
-                            card.classList.add('goal-done');
-                            btn.textContent = '↩';
-                            btn.title = '撤销完成';
-                            showToastWithUndo?.('已完成 ✓', async () => {
-                                await updateGoal(completedGoalId, { status: 'active' });
-                                card.classList.remove('goal-done');
-                                btn.textContent = '✓';
-                                btn.title = '完成';
-                                showToast?.('已撤销 ↩');
-                            });
-                        }
-                    }
-                } else if (action === 'promote') {
-                    const confirmed = await showConfirm('将此子任务升级为独立目标？\n它将从当前父目标中移除，成为顶层目标。');
-                    if (confirmed) {
-                        await updateGoal(parseInt(goalId), { parent_id: null, root_goal_id: null });
-                        state.expandedGoalIds.delete(String(goalId));
-                        showToast?.('已升级为独立目标 ↗️');
-                        await renderGoalsList();
-                    }
-                } else if (action === 'copygoal') {
-                    e.stopPropagation();
-                    const gId = parseInt(btn.dataset.goalId);
-                    const goal = findGoalById(goals, gId);
-                    if (goal) {
-                        exportSingleGoal(goal);
-                    }
-                } else if (action === 'edit') {
-                    const goal = state.goals.find(g => g.id === parseInt(goalId));
-                    if (goal) {
-                        await openGoalEditModal(goal);
                     }
                 }
-            });
-        });
-        
-        listEl.querySelectorAll('.goal-add-subtask-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
-                const parentId = parseInt(btn.dataset.parentId);
-                const utils = getUtils();
-                const { showPrompt } = utils;
-                const title = await showPrompt('输入子任务名称：', { placeholder: '例如：完成第一章复习' });
-                if (title && title.trim()) {
-                    try {
-                        // auto-assign color based on existing sibling count
-                        let color = '';
-                        const parentG = findGoalById(goals, parentId);
-                        if (parentG) {
-                            const existingCount = (parentG.subtasks || []).length;
-                            color = GOAL_COLORS[existingCount % GOAL_COLORS.length];
-                        }
-                        const result = await createGoal({
-                            title: title.trim(),
-                            parent_id: parentId,
-                            horizon: state.goalsHorizon,
-                            color: color
+            
+            } else if (action === 'promote') {
+                const confirmed = await showConfirm('将此子任务升级为独立目标？\n它将从当前父目标中移除，成为顶层目标。');
+                if (confirmed) {
+                    await updateGoal(goalId, { parent_id: null, root_goal_id: null });
+                    showToast?.('已升级为独立目标 ↗️');
+                    await renderGoalsList();
+                }
+            
+            } else if (action === 'edit') {
+                const goal = (state.goals || goals).find(g => g.id === goalId);
+                if (goal) await openGoalEditModal(goal);
+            
+            } else if (action === 'copygoal') {
+                const goal = findGoalById(goals, goalId);
+                if (goal) exportSingleGoal(goal);
+            
+            } else if (action === 'decompose') {
+                const { apiCall } = getUtils();
+                showToast?.('AI 正在细分任务...');
+                const titleEl = actionBtn.closest('.goal-card')?.querySelector('.goal-title');
+                const targetTitle = (titleEl?.textContent || '').replace(/^└ /, '');
+                const result = await apiCall('llm/breakdown', {
+                    method: 'POST',
+                    body: JSON.stringify({ text: targetTitle, horizon: state.goalsHorizon || 'short' })
+                });
+                if (result?.subtasks) {
+                    for (let i = 0; i < result.subtasks.length; i++) {
+                        await createGoal({
+                            title: result.subtasks[i].title,
+                            parent_id: goalId,
+                            horizon: state.goalsHorizon || 'short',
+                            color: GOAL_COLORS[(i + 1) % GOAL_COLORS.length]
                         });
-                        showToast?.('子任务已添加');
-                        
-                        // In-place DOM insert — no full re-render
-                        const newGoalId = result?.data?.id;
-                        if (newGoalId) {
-                            const subHtml = `
-                                <div class="goal-card goal-subtask" data-goal-id="${newGoalId}" style="border-left: 4px solid ${color}">
-                                    <div class="goal-card-head">
-                                        <div class="goal-title-wrap">
-                                            <div class="goal-title">${escapeHtml(title.trim())}</div>
-                                        </div>
-                                        <div class="goal-actions">
-                                            <button class="goal-action-btn promote-btn" data-action="promote" data-goal-id="${newGoalId}" title="升级为独立目标">↗️</button>
-                                            <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${newGoalId}" title="AI细分">📋</button>
-                                            <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="${newGoalId}" title="完成">✓</button>
-                                            <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${newGoalId}" title="删除">🗑️</button>
-                                        </div>
-                                    </div>
-                                    <button class="goal-add-subtask-btn" data-parent-id="${newGoalId}" data-depth="${parseInt(btn.dataset.depth || '0') + 1}">+ 添加子任务</button>
-                                </div>
-                            `;
-                            
-                            const parentCard = btn.closest('.goal-card');
-                            // Find or create subtask container
-                            let childrenContainer = parentCard.querySelector('.goal-children');
-                            if (!childrenContainer) {
-                                childrenContainer = document.createElement('div');
-                                childrenContainer.className = 'goal-children';
-                                // Also need a subtasks wrapper
-                                const subtasksWrap = document.createElement('div');
-                                subtasksWrap.className = 'goal-subtasks depth-1';
-                                childrenContainer.appendChild(subtasksWrap);
-                                btn.parentNode.insertBefore(childrenContainer, btn);
-                            }
-                            let subtasksWrap = childrenContainer.querySelector('.goal-subtasks');
-                            if (!subtasksWrap) {
-                                subtasksWrap = document.createElement('div');
-                                subtasksWrap.className = 'goal-subtasks depth-1';
-                                childrenContainer.appendChild(subtasksWrap);
-                            }
-                            subtasksWrap.insertAdjacentHTML('beforeend', subHtml);
-                            childrenContainer.classList.remove('hidden');
-                            parentCard.classList.add('expanded');
-                            
-                            // Bind action handlers to new buttons
-                            subtasksWrap.querySelectorAll('.goal-action-btn').forEach(newBtn => {
-                                newBtn.addEventListener('click', async (ev) => {
-                                    ev.stopPropagation();
-                                    const act = newBtn.dataset.action;
-                                    const gId = newBtn.dataset.goalId;
-                                    if (act === 'promote') {
-                                        const confirmed = await showConfirm?.('将此子任务升级为独立目标？');
-                                        if (confirmed) {
-                                            await updateGoal(parseInt(gId), { parent_id: null, root_goal_id: null });
-                                            showToast?.('已升级 ↗️');
-                                            await renderGoalsList();
-                                        }
-                                    } else if (act === 'decompose') {
-                                        const { apiCall } = utils;
-                                        showToast?.('AI 正在细分任务...');
-                                        const r = await apiCall('llm/breakdown', {
-                                            method: 'POST', body: JSON.stringify({ text: title.trim(), horizon: state.goalsHorizon || 'short' })
-                                        });
-                                        if (r?.subtasks) {
-                                            for (const st of r.subtasks) {
-                                                await createGoal({ title: st.title, parent_id: parseInt(gId), horizon: state.goalsHorizon || 'short', color: GOAL_COLORS[(r.subtasks.indexOf(st)+1) % GOAL_COLORS.length] });
-                                            }
-                                            showToast?.(`已添加 ${r.subtasks.length} 个子任务`);
-                                            await renderGoalsList();
-                                        }
-                                    } else if (act === 'complete') {
-                                        await updateGoal(parseInt(gId), { status: 'done' });
-                                        const card = newBtn.closest('.goal-card');
-                                        card.classList.add('goal-done');
-                                        newBtn.textContent = '↩';
-                                        newBtn.title = '撤销完成';
-                                        newBtn.addEventListener('click', async () => {
-                                            await updateGoal(parseInt(gId), { status: 'active' });
-                                            card.classList.remove('goal-done');
-                                            newBtn.textContent = '✓';
-                                            newBtn.title = '完成';
-                                        });
-                                    } else if (act === 'delete') {
-                                        const confirmed = await showConfirm?.('确定删除？');
-                                        if (confirmed) {
-                                            await deleteGoal(parseInt(gId));
-                                            newBtn.closest('.goal-card').remove();
-                                        }
-                                    }
-                                });
-                            });
-                            
-                            // Bind add-subtask button on newly inserted card
-                            subtasksWrap.querySelectorAll('.goal-add-subtask-btn').forEach(addBtn => {
-                                addBtn.addEventListener('click', async (ev) => {
-                                    ev.stopPropagation();
-                                    if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
-                                    const parentId = parseInt(addBtn.dataset.parentId);
-                                    const subtaskTitle = await showPrompt?.('输入子任务名称：');
-                                    if (!subtaskTitle?.trim()) return;
-                                    const color = GOAL_COLORS[Math.floor(Math.random() * GOAL_COLORS.length)];
-                                    const result = await createGoal({
-                                        title: subtaskTitle.trim(),
-                                        parent_id: parentId,
-                                        horizon: state.goalsHorizon,
-                                        color
-                                    });
-                                    showToast?.('子任务已添加');
-                                    if (result?.data?.id) {
-                                        // Simplest fallback: re-render for deep nesting
-                                        await renderGoalsList();
-                                    }
-                                });
-                            });
-                        }
-                        // Don't call renderGoalsList — preserves scroll
-                    } catch (err) {
-                        console.error(err);
-                        showToast?.('添加失败');
                     }
+                    showToast?.(`已添加 ${result.subtasks.length} 个子任务`);
+                    await renderGoalsList();
                 }
-            });
-        });
+            
+            } else if (action === 'addsubtask') {
+                const parentId = parseInt(actionBtn.dataset.parentId);
+                const depth = parseInt(actionBtn.dataset.depth || '0');
+                const title = await showPrompt('输入子任务名称：', { placeholder: '例如：完成第一章复习' });
+                if (!title?.trim()) return;
+                try {
+                    const color = GOAL_COLORS[Math.floor(Math.random() * GOAL_COLORS.length)];
+                    const result = await createGoal({ title: title.trim(), parent_id: parentId, horizon: state.goalsHorizon, color });
+                    showToast?.('子任务已添加');
+                    const newId = result?.data?.id;
+                    if (newId) {
+                        const subHtml = [
+                            '<div class="goal-card goal-subtask" data-goal-id="' + newId + '" style="border-left: 4px solid ' + color + '">',
+                            '  <div class="goal-card-head">',
+                            '    <div class="goal-title-wrap">',
+                            '      <div class="goal-title">' + escapeHtml(title.trim()) + '</div>',
+                            '    </div>',
+                            '    <div class="goal-actions">',
+                            '      <button class="goal-action-btn promote-btn" data-action="promote" data-goal-id="' + newId + '" title="升级为独立目标">↗️</button>',
+                            '      <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="' + newId + '" title="AI细分">📋</button>',
+                            '      <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="' + newId + '" title="完成">✓</button>',
+                            '      <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="' + newId + '" title="删除">🗑️</button>',
+                            '    </div>',
+                            '  </div>',
+                            '  <button class="goal-add-subtask-btn" data-action="addsubtask" data-parent-id="' + newId + '" data-depth="' + (depth + 1) + '">+ 添加子任务</button>',
+                            '</div>'
+                        ].join('\n');
+                        
+                        const parentCard = document.querySelector('[data-goal-id="' + parentId + '"]');
+                        if (parentCard) {
+                            let children = parentCard.querySelector('.goal-children');
+                            if (!children) {
+                                children = document.createElement('div');
+                                children.className = 'goal-children';
+                                const addBtn = parentCard.querySelector('.goal-add-subtask-btn');
+                                if (addBtn) addBtn.before(children);
+                                else parentCard.appendChild(children);
+                            }
+                            let wrap = children.querySelector('.goal-subtasks');
+                            if (!wrap) {
+                                wrap = document.createElement('div');
+                                wrap.className = 'goal-subtasks depth-' + (depth + 1);
+                                children.appendChild(wrap);
+                            }
+                            wrap.insertAdjacentHTML('beforeend', subHtml);
+                            children.classList.remove('hidden');
+                            parentCard.classList.add('expanded');
+                        }
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast?.('添加失败');
+                }
+            }
+
+});
 
         // Load and render deliverables for each goal
         for (const goal of goals) {
