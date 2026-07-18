@@ -845,6 +845,19 @@
                         subtasksWrap.insertAdjacentHTML('beforeend', subHtml);
                         childrenContainer.classList.remove('hidden');
                         parentCard.classList.add('expanded');
+                        
+                        // Bind add-subtask button on new calendar-inserted card
+                        subtasksWrap.querySelectorAll('.goal-add-subtask-btn').forEach(addBtn => {
+                            addBtn.addEventListener('click', async (ev) => {
+                                ev.stopPropagation();
+                                const pId = parseInt(addBtn.dataset.parentId);
+                                const stTitle = await showPrompt?.('输入子任务名称：');
+                                if (!stTitle?.trim()) return;
+                                await createGoal({ title: stTitle.trim(), parent_id: pId, horizon: state.goalsHorizon, color: GOAL_COLORS[Math.floor(Math.random() * GOAL_COLORS.length)] });
+                                showToast?.('子任务已添加');
+                                await renderGoalsList(); // fallback re-render for deep nesting
+                            });
+                        });
                     }
                 }
             } catch (err) {
@@ -1098,6 +1111,29 @@
                                             await deleteGoal(parseInt(gId));
                                             newBtn.closest('.goal-card').remove();
                                         }
+                                    }
+                                });
+                            });
+                            
+                            // Bind add-subtask button on newly inserted card
+                            subtasksWrap.querySelectorAll('.goal-add-subtask-btn').forEach(addBtn => {
+                                addBtn.addEventListener('click', async (ev) => {
+                                    ev.stopPropagation();
+                                    if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
+                                    const parentId = parseInt(addBtn.dataset.parentId);
+                                    const subtaskTitle = await showPrompt?.('输入子任务名称：');
+                                    if (!subtaskTitle?.trim()) return;
+                                    const color = GOAL_COLORS[Math.floor(Math.random() * GOAL_COLORS.length)];
+                                    const result = await createGoal({
+                                        title: subtaskTitle.trim(),
+                                        parent_id: parentId,
+                                        horizon: state.goalsHorizon,
+                                        color
+                                    });
+                                    showToast?.('子任务已添加');
+                                    if (result?.data?.id) {
+                                        // Simplest fallback: re-render for deep nesting
+                                        await renderGoalsList();
                                     }
                                 });
                             });
@@ -3603,11 +3639,18 @@ function showAddGoalModal() {
                 text += `▸ ${goal.title} (${horizonLabel})\n`;
                 
                 if (includeSt && goal.subtasks) {
+                    function renderSub(g, indent, isLastSibling, prevIndent) {
+                        const tag = g.status === 'done' ? ' [done]' : g.status === 'cancelled' ? ' [cancelled]' : '';
+                        text += prevIndent + (isLastSibling ? '└─ ' : '├─ ') + g.title + tag + '\n';
+                        if (g.subtasks && g.subtasks.length > 0) {
+                            const newIndent = prevIndent + (isLastSibling ? '   ' : '│  ');
+                            g.subtasks.forEach((sst, j) => {
+                                renderSub(sst, j, j === g.subtasks.length - 1, newIndent);
+                            });
+                        }
+                    }
                     goal.subtasks.forEach((st, i) => {
-                        const isLast = i === goal.subtasks.length - 1;
-                        const prefix = isLast ? '  └─ ' : '  ├─ ';
-                        const tag = st.status === 'done' ? ' [done]' : st.status === 'cancelled' ? ' [cancelled]' : '';
-                        text += `${prefix}${st.title}${tag}\n`;
+                        renderSub(st, i, i === goal.subtasks.length - 1, '  ');
                     });
                 }
                 text += '\n';
@@ -3674,7 +3717,7 @@ function showAddGoalModal() {
                     st.subtasks.forEach((sst, j) => {
                         const isLastSst = j === st.subtasks.length - 1;
                         const sprefix = '   ' + (isLast ? '  ' : '│ ') + (isLastSst ? '└─ ' : '├─ ');
-                        const sstTag = sst.status === 'done' ? ' [done]' : '';
+                        const sstTag = sst.status === 'done' ? ' [done]' : sst.status === 'cancelled' ? ' [cancelled]' : '';
                         text += `${sprefix}${sst.title}${sstTag}\n`;
                     });
                 }
