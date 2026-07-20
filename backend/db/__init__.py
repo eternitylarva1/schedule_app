@@ -49,6 +49,7 @@ from .expenses import (
 from .cleanup import cleanup_test_entries
 from .error_logs import create_error_log, get_error_logs, delete_error_logs
 from .budgets import (
+    BudgetTemplate,
     create_budget, get_budget, get_budgets, update_budget, delete_budget,
     get_budget_spent, get_next_period_start, check_and_reset_budget_period,
     get_budget_with_stats, get_budgets_with_stats, get_expenses_by_budget,
@@ -107,6 +108,7 @@ __all__ = [
     # Error logs
     "create_error_log", "get_error_logs", "delete_error_logs",
     # Budgets
+    "BudgetTemplate",
     "create_budget", "get_budget", "get_budgets", "update_budget", "delete_budget",
     "get_budget_spent", "get_next_period_start", "check_and_reset_budget_period",
     "get_budget_with_stats", "get_budgets_with_stats", "get_expenses_by_budget",

@@ -10,17 +10,18 @@ from typing import Optional, Dict, Any, List
 class LLMService:
     """OpenAI-compatible LLM service."""
     
-    def __init__(self):
+    def __init__(self, db_path: str = None):
         # 使用环境变量作为兜底配置（不再使用硬编码密钥）
         self.api_base = os.getenv("LLM_API_BASE", "https://open.cherryin.net/v1")
         self.api_key = os.getenv("LLM_API_KEY", "")
         self.model = os.getenv("LLM_MODEL", "minimax/minimax-m2.5-highspeed")
-        self._db_path = None  # Will be set when app initializes
+        self._db_path = db_path
         self.last_error_message: Optional[str] = None
     
     def set_db_path(self, db_path: str):
         """Set database path for runtime configuration."""
-        self._db_path = db_path
+        if not self._db_path:  # Only set if not already set in __init__
+            self._db_path = db_path
     
     async def _load_settings_from_db(self):
         """Load LLM settings from ai_providers table - use active provider."""
@@ -1562,6 +1563,11 @@ class LLMService:
         ], temperature=0.7)
         
         return response
+
+
+def create_llm_service(db_path: str = None) -> LLMService:
+    """Create a new LLMService instance (useful for testing)."""
+    return LLMService(db_path=db_path)
 
 
 # Global instance

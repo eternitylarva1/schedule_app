@@ -11,12 +11,15 @@ def json_response(data: Any, code: int = 0) -> web.Response:
     })
 
 
-def error_response(message: str, code: int = 1) -> web.Response:
-    """Create error JSON response."""
-    return web.json_response({
-        "code": code,
-        "message": message,
-    })
+def error_response(message: str, code: int = 400, error_type: str = None, details: dict = None) -> web.Response:
+    """Create error JSON response with optional structured error fields."""
+    body = {"code": code, "message": message}
+    if error_type:
+        body["error_type"] = error_type
+    if details:
+        body["details"] = details
+    status = code if 100 <= code < 600 else 400
+    return web.json_response(body, status=status)
 
 
 def _sanitize_ai_provider(provider: dict) -> dict:

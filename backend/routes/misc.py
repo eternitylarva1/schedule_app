@@ -127,9 +127,9 @@ async def test_qq_channel(request: web.Request) -> web.Response:
         if result and result.get('status') == 'ok':
             return json_response({"code": 0, "message": "测试消息已发送"})
         else:
-            return json_response({"code": -1, "message": result.get('message', '发送失败')})
+            return error_response(result.get('message', '发送失败'), code=500)
     except Exception as e:
-        return json_response({"code": -1, "message": str(e)})
+        return error_response(str(e), code=500)
 
 
 """GET /api/search - search across events, notes, and goals."""
