@@ -596,9 +596,19 @@
 
         const swipeItem = e.target.closest('.note-swipe');
         const groupHeader = e.target.closest('.note-group-header');
+        const groupContent = e.target.closest('.note-group-content');
+        const groupEl = e.target.closest('.note-group');
 
         if (groupHeader) {
             noteDragState.dragOverGroupId = groupHeader.closest('.note-group')?.dataset.groupId || null;
+            noteDragState.dragOverNoteId = null;
+            return;
+        }
+
+        if (groupContent || groupEl) {
+            // Dropping on group content area or anywhere in the group — accept as group drop
+            const targetGroup = groupEl || groupContent?.closest('.note-group');
+            noteDragState.dragOverGroupId = targetGroup?.dataset.groupId || null;
             noteDragState.dragOverNoteId = null;
             return;
         }
@@ -612,16 +622,18 @@
     function handleNoteDragEnter(e) {
         const swipeItem = e.target.closest('.note-swipe');
         const groupHeader = e.target.closest('.note-group-header');
+        const groupContent = e.target.closest('.note-group-content');
+        const groupEl = e.target.closest('.note-group');
 
-        if (groupHeader) {
+        if (groupHeader || groupContent || groupEl) {
             document.querySelectorAll('.note-group.drag-over').forEach(el => {
                 el.classList.remove('drag-over');
             });
-            const groupEl = groupHeader.closest('.note-group');
-            if (groupEl) {
-                groupEl.classList.add('drag-over');
+            const targetGroup = groupEl || groupHeader?.closest('.note-group') || groupContent?.closest('.note-group');
+            if (targetGroup) {
+                targetGroup.classList.add('drag-over');
             }
-            noteDragState.dragOverGroupId = groupEl?.dataset.groupId || null;
+            noteDragState.dragOverGroupId = targetGroup?.dataset.groupId || null;
             noteDragState.dragOverNoteId = null;
             return;
         }
@@ -713,6 +725,9 @@
             const gid = targetGroupId === null ? 'ungrouped' : String(targetGroupId);
             targetContainerEl = document.querySelector(`.note-group[data-group-id="${gid}"] .note-group-content`);
             if (targetContainerEl) {
+                // Remove empty placeholder before appending note
+                const placeholder = targetContainerEl.querySelector('.note-group-empty');
+                if (placeholder) placeholder.remove();
                 targetContainerEl.appendChild(draggedEl);
             }
         }
@@ -741,6 +756,11 @@
                 const sourceGroupEl = document.querySelector(`.note-group[data-group-id="${sgid}"]`);
                 if (sourceGroupEl) {
                     await saveGroupOrder(sourceGroupEl);
+                    // Add placeholder back if source group is now empty
+                    const srcContent = sourceGroupEl.querySelector('.note-group-content');
+                    if (srcContent && srcContent.children.length === 0) {
+                        srcContent.insertAdjacentHTML('beforeend', '<div class="note-group-empty">暂无笔记</div>');
+                    }
                 }
             }
         }
