@@ -117,6 +117,16 @@ class LLMService:
             print(f"LLM request failed: {type(e).__name__}: {e}")
             self.last_error_message = "AI 服务请求失败，请检查网络或 API 配置。"
             return None
+
+    async def _get_prompt(self, key: str, default: str) -> str:
+        """Load prompt from DB settings, fallback to default."""
+        try:
+            from .db.settings import get_setting
+            val = await get_setting(f"prompt_{key}")
+            return val if val else default
+        except Exception as e:
+            print(f"_get_prompt failed for {key}: {e}")
+            return default
     
     async def process_schedule_command(self, user_text: str, existing_events: list = None) -> Optional[Dict[str, Any]]:
         """Process natural language schedule command.
@@ -148,7 +158,7 @@ class LLMService:
                     existing_lines.append(f"- {ev_title}")
             existing_info = "\n\n## 当天已有日程（不能冲突）\n" + "\n".join(existing_lines) + "\n\n**必须避开上述时间段，为新日程选择空闲时间。**"
         
-        prompt = f"""用户想要创建日程，请解析并返回JSON数组格式。
+        default_prompt = f"""用户想要创建日程，请解析并返回JSON数组格式。
 
 当前日期：{current_date} {current_time}
 用户输入：{user_text}
@@ -186,6 +196,7 @@ class LLMService:
 - 关键：start_time 必须是未来的时间，不能在过去！当前时间是 {current_time}，如果用户说的时间已经过去，必须往后排到下一个合理时段
 - 用户说"今晚"、"晚上"、"X点"时，必须根据当前时间动态推断，不能用固定的映射规则（如"今晚8点"不能机械地等于 20:00，要看现在几点了）
 """
+        prompt = await self._get_prompt("schedule_command", default_prompt)
         
         response = await self.chat([
             {"role": "system", "content": "你是一个日程管理助手，帮助用户解析自然语言并创建多个日程。"},
@@ -241,7 +252,7 @@ class LLMService:
 
 """
 
-        prompt = f"""用户想要将一个复杂任务分解为多个子任务，请分析并返回JSON格式。
+        default_prompt = f"""用户想要将一个复杂任务分解为多个子任务，请分析并返回JSON格式。
 
 当前日期：{current_date} {current_time}
 规划层级：{horizon_hint}
@@ -273,6 +284,7 @@ class LLMService:
 - 注意日期不应全部相同，应根据任务自然分布到不同天
 - category推断：工作→work，生活→life，学习→study，运动健康→health
 """
+        prompt = await self._get_prompt("breakdown_task", default_prompt)
         
         response = await self.chat([
             {"role": "system", "content": "你是一个任务分解专家，帮助用户将复杂任务分解为简单的可执行步骤。"},
@@ -340,23 +352,24 @@ class LLMService:
         # Build user message
         if goal_content and not user_input:
             # First message - user just shared their goal
-            user_message = f"""用户的初步目标：{goal_content}
+            default_user_message = f"""用户的初步目标：{goal_content}
 
-请先判断信息是否足够给每个子任务分配“具体日期+开始时间+结束时间”。
+请先判断信息是否足够给每个子任务分配"具体日期+开始时间+结束时间"。
 如果不够（例如缺截止日、每日可投入时段、是否固定空档），先提出1-2个关键问题。
 如果足够，直接返回可导入日程的子任务JSON。
 
 回复格式：
 - 如果需要提问：直接问问题，不要其他内容
 - 如果直接拆解：返回JSON格式的子任务列表"""
+            user_message = await self._get_prompt("discuss_goal_user", default_user_message)
         else:
             # User is responding to a question
-            user_message = f"""用户的初步目标：{goal_content}
+            default_user_message = f"""用户的初步目标：{goal_content}
 
 用户回答：{user_input}
 
 请根据用户回答继续判断：
-1) 是否已经足够进行“按天+按时段”的任务分配
+1) 是否已经足够进行"按天+按时段"的任务分配
 2) 如果还不够，只再问1个关键问题
 3) 如果足够，返回可直接导入日程的子任务JSON
 
@@ -380,8 +393,9 @@ class LLMService:
     "summary": "整体计划总结"
 }}
 """
+            user_message = await self._get_prompt("discuss_goal_followup", default_user_message)
         
-        system_prompt = """你是一个任务规划助手，通过友好对话帮助用户拆解目标并分配具体时间。
+        default_system_prompt = """你是一个任务规划助手，通过友好对话帮助用户拆解目标并分配具体时间。
 
 你的工作方式：
 1. 先通过1-2个关键问题了解用户的目标背景
@@ -402,9 +416,10 @@ class LLMService:
 - date 使用 YYYY-MM-DD；start_time/end_time 使用 HH:MM（24小时制）
 - 时间分配要跨天合理分布，不要全部同一天
 - 子任务之间时间不得重叠
-- 尽量避开“本周日程”里已存在的时间段
+- 尽量避开"本周日程"里已存在的时间段
 - 若用户给了可投入时段（如工作日20:00-23:00、周末14:00-20:00），必须遵循"""
-
+        system_prompt = await self._get_prompt("discuss_goal_system", default_system_prompt)
+        
         response = await self.chat([
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": context},
@@ -448,7 +463,7 @@ class LLMService:
 
                     if normalized and not _has_complete_time_fields(normalized):
                         # Second-pass scheduling: force concrete date/time assignment
-                        scheduling_prompt = f"""请将下列子任务补全为可直接导入日程的时间化任务。
+                        default_scheduling_prompt = f"""请将下列子任务补全为可直接导入日程的时间化任务。
 
 当前时间：{current_date} {current_time}
 目标：{goal_content}
@@ -480,9 +495,12 @@ class LLMService:
 3) 子任务之间时间不得重叠，且尽量避开本周已存在日程。
 3) 若用户给了可投入时段，必须优先遵循。
 4) 只返回JSON，不要解释。"""
+                        scheduling_prompt = await self._get_prompt("discuss_goal_scheduling", default_scheduling_prompt)
 
+                        default_scheduling_system = "你是任务排程助手，只返回严格JSON。"
+                        scheduling_system = await self._get_prompt("discuss_goal_scheduling_system", default_scheduling_system)
                         scheduled_response = await self.chat([
-                            {"role": "system", "content": "你是任务排程助手，只返回严格JSON。"},
+                            {"role": "system", "content": scheduling_system},
                             {"role": "user", "content": scheduling_prompt}
                         ], temperature=0.3)
 
@@ -570,7 +588,7 @@ class LLMService:
 {history_context if history_context else "（暂无对话历史）"}
 """
         
-        prompt = f"""用户已经有了一个初步的任务拆解方案，请从全局角度重新审视并优化时间分配。
+        default_prompt = f"""用户已经有了一个初步的任务拆解方案，请从全局角度重新审视并优化时间分配。
 
 ## 目标
 {goal_content if goal_content else "（未提供具体目标）"}
@@ -610,9 +628,12 @@ class LLMService:
 - 如果时间分配明显不合理（如深夜安排任务），必须调整
 - 如果用户有明确的可用时段限制（如工作日20:00-23:00），必须遵循
 - 不要随意删除或合并任务，只调整时间和日期"""
+        prompt = await self._get_prompt("reschedule_goal", default_prompt)
 
+        default_system_prompt = "你是一个任务规划优化专家，负责从全局角度优化已有任务的时间分配。"
+        system_prompt = await self._get_prompt("reschedule_goal_system", default_system_prompt)
         response = await self.chat([
-            {"role": "system", "content": "你是一个任务规划优化专家，负责从全局角度优化已有任务的时间分配。"},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": context},
             {"role": "user", "content": prompt}
         ], temperature=0.5)
@@ -674,7 +695,7 @@ class LLMService:
             "subtasks": current_subtasks
         }
 
-    async def learn_from_task_history(task_durations: list[dict], existing_patterns: list[dict]) -> dict:
+    async def learn_from_task_history(self, task_durations: list[dict], existing_patterns: list[dict]) -> dict:
         """Analyze task history to generate learning patterns.
         
         Args:
@@ -684,7 +705,7 @@ class LLMService:
         Returns:
             {"patterns": [{"type": str, "text": str, "confidence": float, "sample_count": int}]}
         """
-        prompt = f"""你是一个个人时间管理分析师。基于用户的历史任务数据，分析其时间估算和完成任务模式的规律。
+        default_prompt = f"""你是一个个人时间管理分析师。基于用户的历史任务数据，分析其时间估算和完成任务模式的规律。
 
 ## 现有规律（供参考，避免重复）:
 {chr(10).join([f"- [{p['pattern_type']}] {p['pattern_text']} (置信度: {p['confidence']:.1%})" for p in existing_patterns]) or "无"}
@@ -704,6 +725,7 @@ class LLMService:
   {{"type": "category_pattern", "text": "work类任务周五下午经常超时", "confidence": 0.65, "sample_count": 8}}
 ]}}
 """
+        prompt = await self._get_prompt("learn_from_tasks", default_prompt)
         messages = [{"role": "user", "content": prompt}]
         response = await self.chat(messages)
         
@@ -754,7 +776,7 @@ class LLMService:
         else:
             budgets_context = "\n\n（暂无预算列表，budget_id固定为null）"
         
-        prompt = f"""用户想要记录支出，请解析并返回JSON格式。支持同时记录多笔支出，用逗号、顿号、或"和"连接多个支出描述。
+        default_prompt = f"""用户想要记录支出，请解析并返回JSON格式。支持同时记录多笔支出，用逗号、顿号、或"和"连接多个支出描述。
 
 当前日期：{current_date} {current_time}
 用户输入：{user_text}
@@ -794,9 +816,12 @@ class LLMService:
 - 如果用户没明确金额，给一个合理推断值
 - 如果描述中包含多个独立支出项，必须全部解析出来
 - 每笔支出单独一个对象，不要合并"""
-        
+        prompt = await self._get_prompt("parse_expense", default_prompt)
+
+        default_system_prompt = "你是一个记账助手，帮助用户将口语化的消费描述转换为结构化的记账数据。支持批量记录多笔支出。"
+        system_prompt = await self._get_prompt("parse_expense_system", default_system_prompt)
         response = await self.chat([
-            {"role": "system", "content": "你是一个记账助手，帮助用户将口语化的消费描述转换为结构化的记账数据。支持批量记录多笔支出。"},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ], temperature=0.3)
         
@@ -855,16 +880,19 @@ class LLMService:
 {conversation_history}
 """
         
-        prompt = f"""{context}
+        default_prompt = f"""{context}
 
 用户的问题：{user_message}
 
 请根据笔记内容回答用户的问题。如果用户选中了特定文本，重点针对该文本回答。
 回答要简洁、有帮助。如果笔记内容与问题无关，请如实说明。
 注意：使用纯文本格式，不要使用 Markdown 语法（不要使用 **、#、- 等符号）。"""
-        
+        prompt = await self._get_prompt("chat_note", default_prompt)
+
+        default_system_prompt = "你是一个笔记助手，帮助用户理解和整理笔记内容。回答要简洁、有条理。输出纯文本，不要 Markdown 格式。"
+        system_prompt = await self._get_prompt("chat_note_system", default_system_prompt)
         response = await self.chat([
-            {"role": "system", "content": "你是一个笔记助手，帮助用户理解和整理笔记内容。回答要简洁、有条理。输出纯文本，不要 Markdown 格式。"},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ], temperature=0.7)
         
@@ -892,7 +920,7 @@ class LLMService:
         yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
         today = now.strftime("%Y-%m-%d")
 
-        prompt = f"""用户输入了一条自然语言指令，请解析为可执行操作列表并返回JSON。
+        default_prompt = f"""用户输入了一条自然语言指令，请解析为可执行操作列表并返回JSON。
 
         当前日期：{current_date} {current_time}
         昨天日期：{yesterday}
@@ -1016,9 +1044,12 @@ class LLMService:
              - "把洗漱、报道、体检按时间顺延，从9点开始" → 3个event_create：洗漱(9:00-9:30)、报道(9:30-10:00)、体检(10:00-10:30)，category按上下文推断
              - "帮我把A和B向后顺延一小时" → 如果A和B不存在，则用event_create创建（当前时间+1小时后开始）
         """
+        prompt = await self._get_prompt("unified_command", default_prompt)
 
+        default_system_prompt = "你是一个任务执行解析器，只返回严格JSON。"
+        system_prompt = await self._get_prompt("unified_command_system", default_system_prompt)
         response = await self.chat([
-            {"role": "system", "content": "你是一个任务执行解析器，只返回严格JSON。"},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ], temperature=0.2)
 
@@ -1070,7 +1101,7 @@ class LLMService:
 
         errors_text = "\n".join(error_lines) if error_lines else "（无详细错误信息）"
 
-        prompt = f"""用户输入了一条自然语言指令，AI 解析后尝试创建日程，但部分日程的结束时间已经在过去被系统拒绝。
+        default_prompt = f"""用户输入了一条自然语言指令，AI 解析后尝试创建日程，但部分日程的结束时间已经在过去被系统拒绝。
 
 原始用户输入：{user_text}
 
@@ -1105,9 +1136,12 @@ class LLMService:
   "summary": "一句话总结"
 }}
 """
+        prompt = await self._get_prompt("unified_retry", default_prompt)
 
+        default_system_prompt = "你是一个任务执行解析器，只返回严格JSON。当前时间是关键约束：所有 event_create 的 start_time + duration_minutes 必须严格 > 当前时间。"
+        system_prompt = await self._get_prompt("unified_retry_system", default_system_prompt)
         response = await self.chat([
-            {"role": "system", "content": "你是一个任务执行解析器，只返回严格JSON。当前时间是关键约束：所有 event_create 的 start_time + duration_minutes 必须严格 > 当前时间。"},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ], temperature=0.2)
 
@@ -1160,7 +1194,7 @@ class LLMService:
             f"{i+1}. {t['name']}: {t['description']}" for i, t in enumerate(tools)
         )
 
-        system = f"""你是一个日程任务执行助手，专门操作用户的日程。你可以调用以下工具：
+        default_system = f"""你是一个日程任务执行助手，专门操作用户的日程。你可以调用以下工具：
 
 {tools_desc}
 
@@ -1195,6 +1229,7 @@ class LLMService:
 {{
   "done": "说明"
 }}"""
+        system = await self._get_prompt("agent_system", default_system)
 
         messages = [
             {"role": "system", "content": system},
@@ -1405,7 +1440,7 @@ class LLMService:
         tools_desc = "\n".join(
             f"- {t['name']}: {t['description']}" for t in tools
         )
-        prompt = f"""你是一个智能助手，需要判断回答用户问题需要哪些工具。
+        default_prompt = f"""你是一个智能助手，需要判断回答用户问题需要哪些工具。
 
 可用工具：
 {tools_desc if tools else "（当前没有可用工具）"}
@@ -1419,9 +1454,12 @@ class LLMService:
 - 如果涉及笔记内容操作（润色/扩写/改写/翻译），必须包含 get_note_content
 - 如果同时涉及多个领域（如预算+目标），可以选多个
 - 只返回 JSON，不要额外文字"""
-        
+        prompt = await self._get_prompt("determine_tools", default_prompt)
+
+        default_system_prompt = "你是一个工具选择器，返回 JSON 数组。"
+        system_prompt = await self._get_prompt("determine_tools_system", default_system_prompt)
         response = await self.chat([
-            {"role": "system", "content": "你是一个工具选择器，返回 JSON 数组。"},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ], temperature=0.1)
         
@@ -1491,8 +1529,24 @@ class LLMService:
 - 简洁有条理，使用纯文本格式，不要 Markdown 语法
 - 如果用户要求修改笔记内容（润色/扩写/改写），在数据中找到笔记内容并直接输出修改后的版本（纯文本，不需额外修饰）"""
 
+        default_prompt = f"""{intro}
+
+{context_str}
+
+用户的问题：{message}
+
+回答要求：
+- 基于数据回答，不要编造
+- 如果数据不足以完全回答，如实告知并提供已有信息
+- 涉及数字时简要说明来源
+- 简洁有条理，使用纯文本格式，不要 Markdown 语法
+- 如果用户要求修改笔记内容（润色/扩写/改写），在数据中找到笔记内容并直接输出修改后的版本（纯文本，不需额外修饰）"""
+        prompt = await self._get_prompt("answer_with_context", default_prompt)
+
+        default_system_prompt = "你是一个日程管理助手，回答简洁准确。只输出纯文本，不要 Markdown 格式。"
+        system_prompt = await self._get_prompt("answer_with_context_system", default_system_prompt)
         response = await self.chat([
-            {"role": "system", "content": "你是一个日程管理助手，回答简洁准确。只输出纯文本，不要 Markdown 格式。"},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ], temperature=0.7)
         

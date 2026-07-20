@@ -58,6 +58,9 @@
 
         // Render backup section
         await renderBackupSection();
+
+        // Render prompt tuning section
+        await renderPromptTuningSection();
     }
 
     function closeSettingsView() {
@@ -1469,6 +1472,124 @@ async deletePattern(patternId) {
         `;
     }
 
+    // ============= Prompt Tuning Section =============
+
+    const PROMPT_TUNING_KEYS = [
+        { key: 'schedule_command', label: 'schedule_command', desc: '日程解析' },
+        { key: 'breakdown_task', label: 'breakdown_task', desc: '任务拆解' },
+        { key: 'unified_command', label: 'unified_command', desc: '统一指令' },
+        { key: 'chat_note', label: 'chat_note', desc: '笔记对话' },
+        { key: 'reschedule_goal', label: 'reschedule_goal', desc: '目标排程' },
+        { key: 'agent_system', label: 'agent_system', desc: 'AI助手' },
+    ];
+
+    let cachedPrompts = {};
+
+    async function loadPromptTemplates() {
+        try {
+            const resp = await fetch('/api/settings/prompt');
+            const json = await resp.json();
+            if (json.code === 0) {
+                cachedPrompts = json.data || {};
+            }
+        } catch (e) {
+            console.error('Failed to load prompts:', e);
+            cachedPrompts = {};
+        }
+    }
+
+    async function savePromptTemplate(key, value) {
+        try {
+            const resp = await fetch('/api/settings/prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, value }),
+            });
+            const json = await resp.json();
+            return json.code === 0;
+        } catch (e) {
+            console.error('Failed to save prompt:', e);
+            return false;
+        }
+    }
+
+    async function renderPromptTuningSection() {
+        const container = document.getElementById('promptTuningSection');
+        if (!container) return;
+
+        await loadPromptTemplates();
+
+        container.innerHTML = `
+            <div class="settings-section">
+                <h3 class="settings-section-title" onclick="ScheduleAppSettings.togglePromptTuning()" style="cursor:pointer;">
+                    🔧 提示词模板 <span id="promptTuningToggle" style="font-size:12px;color:var(--text-muted);">▼</span>
+                </h3>
+                <p style="font-size:12px;color:var(--text-muted);">修改后立即生效，留空恢复默认</p>
+                <div id="promptTuningContent" style="display:none;">
+                    ${PROMPT_TUNING_KEYS.map(item => `
+                        <div class="prompt-item" style="margin-bottom:16px;padding:12px;background:var(--bg-secondary);border-radius:8px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                <label style="font-weight:600;font-size:13px;">${escapeHtml(item.desc)}</label>
+                                <button class="btn btn-secondary" style="font-size:11px;padding:2px 8px;"
+                                    onclick="ScheduleAppSettings.resetPrompt('${item.key}')">
+                                    重置为默认
+                                </button>
+                            </div>
+                            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${escapeHtml(item.key)}</div>
+                            <textarea
+                                id="prompt_${item.key}"
+                                rows="4"
+                                style="width:100%;padding:8px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-primary);color:var(--text-primary);font-size:12px;resize:vertical;"
+                                placeholder="使用默认模板..."
+                            >${escapeHtml(cachedPrompts[item.key] || '')}</textarea>
+                            <button class="btn btn-primary" style="margin-top:6px;width:100%;"
+                                onclick="ScheduleAppSettings.savePrompt('${item.key}')">
+                                保存
+                            </button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    function togglePromptTuning() {
+        const content = document.getElementById('promptTuningContent');
+        const toggle = document.getElementById('promptTuningToggle');
+        if (content) {
+            const isHidden = content.style.display === 'none';
+            content.style.display = isHidden ? 'block' : 'none';
+            if (toggle) toggle.textContent = isHidden ? '▲' : '▼';
+        }
+    }
+
+    async function savePrompt(key) {
+        const textarea = document.getElementById('prompt_' + key);
+        if (!textarea) return;
+        const value = textarea.value;
+        const { showToast } = getUtils();
+        const ok = await savePromptTemplate(key, value);
+        if (ok) {
+            showToast('保存成功');
+            cachedPrompts[key] = value;
+        } else {
+            showToast('保存失败');
+        }
+    }
+
+    async function resetPrompt(key) {
+        const textarea = document.getElementById('prompt_' + key);
+        if (!textarea) return;
+        const { showToast } = getUtils();
+        const ok = await savePromptTemplate(key, '');
+        if (ok) {
+            textarea.value = '';
+            showToast('已重置为默认');
+        } else {
+            showToast('重置失败');
+        }
+    }
+
     window.ScheduleAppSettings = {
         openSettingsView,
         closeSettingsView,
@@ -1522,6 +1643,13 @@ async deletePattern(patternId) {
         handleBackupIntervalChange,
         handleBackupMaxCountChange,
         renderBackupSection,
+        // Prompt tuning
+        renderPromptTuningSection,
+        loadPromptTemplates,
+        savePromptTemplate,
+        savePrompt,
+        resetPrompt,
+        togglePromptTuning,
     };
 
     // Expose to global scope for inline onclick handlers (legacy compatibility)

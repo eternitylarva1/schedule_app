@@ -250,6 +250,56 @@ async def reorder_user_contexts(request: web.Request) -> web.Response:
 
 
 
+# ============ Prompt Templates Endpoints ============
+
+PROMPT_KEYS = [
+    "schedule_command", "breakdown_task",
+    "discuss_goal_user", "discuss_goal_followup", "discuss_goal_system",
+    "discuss_goal_scheduling", "discuss_goal_scheduling_system",
+    "reschedule_goal", "reschedule_goal_system",
+    "learn_from_tasks",
+    "parse_expense", "parse_expense_system",
+    "chat_note", "chat_note_system",
+    "unified_command", "unified_command_system",
+    "unified_retry", "unified_retry_system",
+    "agent_system",
+    "determine_tools", "determine_tools_system",
+    "answer_with_context", "answer_with_context_system",
+]
+
+
+async def get_prompts(request: web.Request) -> web.Response:
+    """GET /api/settings/prompt - get all saved prompts."""
+    try:
+        prompts = {}
+        for key in PROMPT_KEYS:
+            val = await db.get_setting(f"prompt_{key}")
+            prompts[key] = val or ""
+        return json_response(prompts)
+    except Exception as e:
+        return error_response(str(e))
+
+
+async def save_prompt(request: web.Request) -> web.Response:
+    """POST /api/settings/prompt - save a prompt template."""
+    try:
+        body = await request.json()
+        key = body.get("key", "")
+        value = body.get("value", "")
+        if not key:
+            return error_response("缺少 key 参数")
+        if key not in PROMPT_KEYS:
+            return error_response(f"未知的 prompt key: {key}")
+        await db.set_setting(f"prompt_{key}", value)
+        return json_response({"key": key, "saved": True})
+    except Exception as e:
+        return error_response(str(e))
+
+
+# ============ Note Conversations Endpoints (AI Chat) ============
+
+
+
 
 # ============= Route Registration =============
 
@@ -266,3 +316,5 @@ def register_routes(app: web.Application) -> None:
     app.router.add_put("/api/user-contexts/{id}", update_user_context)
     app.router.add_delete("/api/user-contexts/{id}", delete_user_context)
     app.router.add_put("/api/user-contexts/reorder", reorder_user_contexts)
+    app.router.add_get("/api/settings/prompt", get_prompts)
+    app.router.add_post("/api/settings/prompt", save_prompt)
