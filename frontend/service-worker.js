@@ -14,7 +14,8 @@ const STATIC_ASSETS = [
   '/index.html',
 
   // Core JS
-  '/static/js/core/state-elements.js?v=20260702-01',
+  '/static/js/core/state.js?v=20260720-02',
+  '/static/js/core/elements.js?v=20260720-02',
   '/static/js/core/utils.js?v=20260412-04',
   '/static/js/core/api-toast.js?v=20260622-01',
   '/static/js/core/drag.js?v=20260412-05',
@@ -30,7 +31,11 @@ const STATIC_ASSETS = [
   '/static/js/settings.js?v=20260702-03',
   '/static/js/llm-queue.js?v=20260624-01',
   '/static/js/main.js?v=20260702-06',
-  '/static/js/goals.js?v=20260624-02',
+  '/static/js/goal-core.js?v=20260720-02',
+  '/static/js/goal-ai.js?v=20260720-02',
+  '/static/js/goal-list.js?v=20260720-02',
+  '/static/js/goal-timeline.js?v=20260720-02',
+  '/static/js/goals.js?v=20260720-02',
   '/static/js/selection.js?v=20260425-01',
   '/static/js/calendar-views.js?v=20260702-01',
 
