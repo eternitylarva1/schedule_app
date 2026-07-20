@@ -12,12 +12,7 @@
     calendarSubview: 'day',
     todoSubview: 'all',
     events: [],
-    categories: [
-      { id: 'work', name: '工作', color: '#4285F4' },
-      { id: 'life', name: '生活', color: '#34A853' },
-      { id: 'study', name: '学习', color: '#FBBC04' },
-      { id: 'health', name: '健康', color: '#EA4335' }
-    ],
+    categories: [],
     stats: { total: 0, completed: 0, pending: 0, completion_rate: 0 },
     selectedCategory: 'work',
     selectedEvent: null,
@@ -78,18 +73,30 @@
       startX: 0,
       startY: 0,
     },
-    expenseCategories: [
-      { id: 'food', name: '餐饮', color: '#F97316' },
-      { id: 'transport', name: '交通', color: '#3B82F6' },
-      { id: 'shopping', name: '购物', color: '#EC4899' },
-      { id: 'other', name: '其他', color: '#6B7280' }
-    ],
+    expenseCategories: [],
     expenseStats: { total: 0, by_category: {} },
     budgets: [],
     budgetView: 'cards',
     selectedNote: null,
     notepadSwipeGlobalBound: false,
   };
+
+  // Load categories from API
+  async function loadCategories() {
+    try {
+      const response = await fetch('/api/categories');
+      const json = await response.json();
+      if (json && json.code === 0 && Array.isArray(json.data)) {
+        state.categories = json.data.filter(c => c.type === 'event');
+        state.expenseCategories = json.data.filter(c => c.type === 'expense');
+      }
+    } catch(e) {
+      console.warn('Failed to load categories, using defaults', e);
+    }
+  }
+
+  // Initialize categories on load
+  loadCategories();
 
   const elements = {
     app: document.getElementById('app'),

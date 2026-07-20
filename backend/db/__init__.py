@@ -55,6 +55,9 @@ from .budgets import (
     create_budget_template, get_budget_templates, delete_budget_template,
 )
 from .backup import export_all_data, import_all_data
+from .categories import (
+    get_categories, create_category, update_category, delete_category,
+)
 
 __all__ = [
     # Connection
@@ -110,4 +113,6 @@ __all__ = [
     "create_budget_template", "get_budget_templates", "delete_budget_template",
     # Backup
     "export_all_data", "import_all_data",
+    # Categories
+    "get_categories", "create_category", "update_category", "delete_category",
 ]

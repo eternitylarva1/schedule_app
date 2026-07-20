@@ -104,8 +104,12 @@
 
 
     function getCategoryColor(categoryId) {
-        const category = state.categories.find(c => c.id === categoryId);
-        return category ? category.color : '#4285F4';
+        if (!categoryId) return '#4285F4';
+        const cat = (state.categories || []).find(c => c.id === categoryId);
+        if (cat) return cat.color;
+        const expCat = (state.expenseCategories || []).find(c => c.id === categoryId);
+        if (expCat) return expCat.color;
+        return '#4285F4';
     }
 
 

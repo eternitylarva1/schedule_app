@@ -107,8 +107,9 @@
 
     async function fetchCategories() {
         const data = await apiCall('categories');
-        if (data) {
-            state.categories = data;
+        if (data && Array.isArray(data)) {
+            state.categories = data.filter(c => c.type === 'event');
+            state.expenseCategories = data.filter(c => c.type === 'expense');
             return data;
         }
         return state.categories;

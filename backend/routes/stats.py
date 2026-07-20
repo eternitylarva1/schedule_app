@@ -2,7 +2,6 @@
 from aiohttp import web
 from typing import Any
 from .. import db
-from ..models import CATEGORIES
 from ._helpers import json_response, error_response
 
 
@@ -25,16 +24,7 @@ async def get_stats(request: web.Request) -> web.Response:
 
 
 
-"""GET /api/categories - get categories."""
-async def get_categories(request: web.Request) -> web.Response:
-    """GET /api/categories - list categories."""
-    return json_response(CATEGORIES)
-
-
-
-
 # ============= Route Registration =============
 
 def register_routes(app: web.Application) -> None:
     app.router.add_get("/api/stats", get_stats)
-    app.router.add_get("/api/categories", get_categories)
