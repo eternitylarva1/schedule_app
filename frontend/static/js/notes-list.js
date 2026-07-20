@@ -192,8 +192,6 @@
             const unpinnedNotes = groupData.notes.filter(n => !n.is_pinned);
             const noteCount = unpinnedNotes.length;
 
-            if (noteCount === 0 && groupData.notes.filter(n => n.is_pinned).length === 0) return; // skip empty groups (pinned notes moved to pinned group)
-
             html += `
                 <details class="note-group" data-group-id="${group.id}" ${isExpanded ? 'open' : ''}>
                     <summary class="note-group-header" data-group-id="${group.id}">
