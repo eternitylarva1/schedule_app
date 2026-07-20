@@ -281,12 +281,17 @@ class LLMService:
         
         if not response:
             return None
-        
+
+        # Strip think tags for Minimax models
+        import re as _re
+        clean = _re.sub(r'<think>.*?</think>\s*', '', response, flags=_re.DOTALL).strip()
+
         try:
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
+            # Try to find JSON — use clean version without think tags
+            json_start = clean.find('{')
+            json_end = clean.rfind('}') + 1
             if json_start >= 0 and json_end > json_start:
-                json_str = response[json_start:json_end]
+                json_str = clean[json_start:json_end]
                 return json.loads(json_str)
         except json.JSONDecodeError:
             pass
@@ -901,7 +906,7 @@ class LLMService:
         - event_update: 修改日程/待办的标题/时间/时长
         - event_move: 移动日程到另一天（只改日期，不改时间点）
         - event_postpone: 将某天所有pending日程顺延。source_date指定"推迟哪天"（如昨天用{yesterday}，不设默认今天）；target_date指定"推到哪天"（如今天用{today}，明天用{tomorrow}）；target_time指定几点开始（默认09:00）
-        - event_delete: 删除日程/待办（批量或按标题）
+        - event_delete: 删除/取消日程/待办（批量或按标题）。用户说"取消X"也是这个操作
         - event_complete: 完成日程/待办（批量或按标题）
         - event_uncomplete: 撤销完成（批量或按标题）
         - event_query: 查询日程（按标题或日期范围查询）
@@ -985,14 +990,20 @@ class LLMService:
         8) 关键：start_time 必须是未来的时间，不能在过去！
            - 用户说"今晚"、"晚上"、"X点"时，必须根据当前时间动态推断，不能用固定的映射规则（如"今晚8点"不能机械地等于 20:00，要看现在几点了）
            - 如果用户说的时间已经在过去，应该往后排到下一个合理时段
-           - 重要：当前时间是 {current_time}，必须确保所有 start_time > 当前时间
-        9) 示例：
+            - 重要：当前时间是 {current_time}，必须确保所有 start_time > 当前时间
+         10) event_create vs event_postpone 判断规则（非常重要）:
+            - event_postpone 仅用于"把某天所有未完成日程整体推迟"的批量场景（用户说"把剩下的推迟"、"把今天没做的推到明天"），不指定具体事件标题
+            - 当用户提到具体事件标题（如"把A、B顺延"、"向后顺延A和B"、"A、B、C从X点开始顺延"），且这些事件在当前日期不存在时：必须用 event_create 按时间顺序依次创建
+            - "顺延"在中文中也可表示"按时间顺序依次排列"——如果用户说是"洗漱、报道、体检按时间顺延"，理解为依次创建三个事件
+            - 判断标准：如果用户给的是具体的事件名称列表，用 event_create；如果用户说"所有"、"剩下的"、"没做的"等概括性词汇，用 event_postpone
+         11) 示例：
            - "今天2点开会" → domain=event, action=event_create, title="开会", start_time=今天2点
            - "花50块买书" → domain=expense, action=expense_create, amount=50, expense_category="shopping", note="买书"
            - "写笔记：明天要做的事" → domain=note, action=note_create, title="明天要做的事"
            - "创建短期目标：减肥" → domain=goal, action=goal_create, title="减肥", horizon="short"
-           - "完成开会" → domain=event, action=event_complete, target_title="开会"
-           - "删除买书的账单" → domain=expense, action=expense_delete, target_title="买书"
+            - "完成开会" → domain=event, action=event_complete, target_title="开会"
+            - "取消开会" → domain=event, action=event_delete, target_title="开会"
+            - "删除买书的账单" → domain=expense, action=expense_delete, target_title="买书"
            - "查看今天的日程" → domain=event, action=event_query, date_range="today"
            - "查看所有待办" → domain=event, action=event_query, scope="all"
            - "搜索记账记录" → domain=expense, action=expense_query, target_title=""
@@ -1000,8 +1011,10 @@ class LLMService:
            - "查看短期目标" → domain=goal, action=goal_query, horizon="short"
             - "查看进行中的目标" → domain=goal, action=goal_query, goal_status="active"
             - "把今天没做的推到明天早上" → domain=event, action=event_postpone, target_date="明天日期", target_time="09:00"
-            - "把昨天没完成的推到今天" → domain=event, action=event_postpone, source_date="昨天日期", target_date="今天日期", target_time="09:00"
-            - "把剩下的推迟到现在" → domain=event, action=event_postpone（不设参数，默认推到当前时间）
+             - "把昨天没完成的推到今天" → domain=event, action=event_postpone, source_date="昨天日期", target_date="今天日期", target_time="09:00"
+             - "把剩下的推迟到现在" → domain=event, action=event_postpone（不设参数，默认推到当前时间）
+             - "把洗漱、报道、体检按时间顺延，从9点开始" → 3个event_create：洗漱(9:00-9:30)、报道(9:30-10:00)、体检(10:00-10:30)，category按上下文推断
+             - "帮我把A和B向后顺延一小时" → 如果A和B不存在，则用event_create创建（当前时间+1小时后开始）
         """
 
         response = await self.chat([
@@ -1147,13 +1160,19 @@ class LLMService:
             f"{i+1}. {t['name']}: {t['description']}" for i, t in enumerate(tools)
         )
 
-        system = f"""你是一个任务执行助手。你可以调用以下工具来操作用户的日程：
+        system = f"""你是一个日程任务执行助手，专门操作用户的日程。你可以调用以下工具：
 
 {tools_desc}
 
 当前日期：今天={today}，明天={tomorrow}，昨天={yesterday}。
 当前时间：{now.strftime("%H:%M")}（注意：现在是{now.strftime("%Y年%m月%d日 %H:%M")}，创建日程时 start_time 必须 > 当前时间！）
 时间格式：ISO 8601，如 {today}T09:00:00。
+
+【核心原则 — 必须遵守】
+你是执行者，不是聊天助手。用户的所有输入都是要你执行的操作。
+即使用户表述随意（如"我打算..."、"我想..."、"我准备..."、"我要..."），也必须理解为执行指令。
+如果用户提到任何时间 + 动作（如"明天八点起床"、"下午开会"、"今晚做..."），必须调用 create_event。
+【禁止仅回复文字而不执行任何操作】。除非用户输入完全不涉及日程（如"你好"、"谢谢"），否则必须调用工具。
 
 工作方式：
 - update_event 是通用修改工具，可修改任意字段组合
@@ -1172,9 +1191,9 @@ class LLMService:
   ]
 }}
 
-如果没有需要调用的工具，返回：
+只在用户输入完全不涉及日程操作时（如纯问候），才返回：
 {{
-  "done": "完成"或说明文字
+  "done": "说明"
 }}"""
 
         messages = [
@@ -1189,34 +1208,58 @@ class LLMService:
             response = await self.chat(messages, temperature=0.2)
             if not response:
                 return {"error": "LLM 无响应", "results": results}
+            # Strip leading/trailing whitespace and clean up think tags for done messages
+            response = response.strip()
+            clean_response = re.sub(r'<think>.*?</think>\s*', '', response, flags=re.DOTALL).strip()
 
-            # Parse JSON response — handle both objects and arrays
+            # Parse response — handle Minimax XML tool_call, JSON objects, and JSON arrays
+            calls = []
             try:
-                # Try array first
-                arr_start = response.find('[')
-                arr_end = response.rfind(']') + 1
-                if arr_start >= 0 and arr_end > arr_start:
-                    parsed = _json.loads(response[arr_start:arr_end])
-                    if isinstance(parsed, list):
-                        # LLM returned array of tool calls directly
-                        calls = parsed
-                    else:
-                        calls = parsed.get("calls", []) if isinstance(parsed, dict) else []
+                # 1) Try Minimax XML tool_call format: <invoke name="tool"><parameter name="x">v</parameter></invoke>
+                xml_matches = list(re.finditer(
+                    r'<invoke\s+name="(\w+)"[^>]*>(.*?)</invoke>',
+                    response, re.DOTALL
+                ))
+                if xml_matches:
+                    for match in xml_matches:
+                        tool_name = match.group(1)
+                        params_str = match.group(2)
+                        args = {}
+                        for pm in re.finditer(
+                            r'<parameter\s+name="(\w+)"[^>]*>(.*?)</parameter>',
+                            params_str, re.DOTALL
+                        ):
+                            args[pm.group(1)] = pm.group(2).strip()
+                        calls.append({"tool": tool_name, "args": args})
                 else:
-                    # Try object
-                    json_start = response.find('{')
-                    json_end = response.rfind('}') + 1
-                    if json_start >= 0 and json_end > json_start:
-                        parsed = _json.loads(response[json_start:json_end])
-                        if "done" in parsed:
-                            return {"done": parsed["done"], "results": results}
-                        calls = parsed.get("calls", []) if isinstance(parsed, dict) else []
+                    # 2) Try JSON array
+                    arr_start = clean_response.find('[')
+                    arr_end = clean_response.rfind(']') + 1
+                    if arr_start >= 0 and arr_end > arr_start:
+                        parsed = _json.loads(clean_response[arr_start:arr_end])
+                        if isinstance(parsed, list):
+                            calls = parsed
+                        else:
+                            calls = parsed.get("calls", []) if isinstance(parsed, dict) else []
                     else:
-                        return {"done": response.strip(), "results": results}
+                        # 3) Try JSON object
+                        json_start = clean_response.find('{')
+                        json_end = clean_response.rfind('}') + 1
+                        if json_start >= 0 and json_end > json_start:
+                            parsed = _json.loads(clean_response[json_start:json_end])
+                            if "done" in parsed:
+                                return await self._done_or_fallback(parsed["done"], user_text, results, db_instance)
+                            calls = parsed.get("calls", []) if isinstance(parsed, dict) else []
+                        else:
+                            return await self._done_or_fallback(clean_response or response.strip(), user_text, results, db_instance)
             except _json.JSONDecodeError:
-                return {"done": response.strip(), "results": results}
+                return await self._done_or_fallback(clean_response or response.strip(), user_text, results, db_instance)
+            
             if not calls:
-                return {"done": parsed.get("done", response.strip()), "results": results}
+                fallback_msg = clean_response or response.strip()
+                if 'parsed' in dir():
+                    fallback_msg = parsed.get("done", fallback_msg)
+                return await self._done_or_fallback(fallback_msg, user_text, results, db_instance)
 
             # Execute all tools in this turn
             turn_results = []
@@ -1236,6 +1279,63 @@ class LLMService:
             messages.append({"role": "system", "content": f"工具执行结果：{_json.dumps(turn_results, ensure_ascii=False)}"})
 
         return {"done": "达到最大轮次", "results": results}
+
+    @staticmethod
+    def _has_schedule_intent(text: str) -> bool:
+        """检测用户输入是否包含日程意图"""
+        keywords = [
+            "明天", "今天", "后天", "下周", "下个月",
+            "早上", "上午", "中午", "下午", "晚上",
+            "今晚", "明早", "明晚", "点", "号", "星期",
+            "打算", "准备", "要", "想",
+            "起床", "开会", "吃饭", "睡觉", "安排", "日程", "计划",
+        ]
+        return any(kw in text for kw in keywords)
+
+    async def _done_or_fallback(self, done_msg: str, user_text: str,
+                                 results: list, db_instance=None) -> Dict[str, Any]:
+        """如果 LLM 返回 done 但没有执行任何操作，且输入明显是日程意图，
+        则兜底调用 process_schedule_command 强制创建日程。"""
+        if results:
+            return {"done": done_msg, "results": results}
+        if not self._has_schedule_intent(user_text):
+            return {"done": done_msg, "results": results}
+
+        # 兜底：用专门的日程解析器强制创建
+        try:
+            from datetime import datetime as dt, timedelta as td
+            from .models import Event
+
+            events_data = await self.process_schedule_command(user_text)
+            if not events_data or not events_data.get("events"):
+                return {"done": done_msg, "results": results}
+
+            created_count = 0
+            for ev in events_data["events"]:
+                start = dt.fromisoformat(ev["start_time"]) if ev.get("start_time") else None
+                end = None
+                if start and ev.get("duration_minutes"):
+                    end = start + td(minutes=ev["duration_minutes"])
+                if db_instance:
+                    event_obj = Event(
+                        title=ev["title"],
+                        start_time=start,
+                        end_time=end,
+                        category_id=ev.get("category_id", "work"),
+                        status="pending",
+                    )
+                    created = await db_instance.create_event(event_obj)
+                    results.append({
+                        "tool": "create_event", "ok": True,
+                        "result": {"ok": True, "event_id": created.id, "title": created.title}
+                    })
+                    created_count += 1
+
+            return {"done": f"已创建 {created_count} 个日程", "results": results}
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            return {"done": done_msg, "results": results}
 
     # ══════════════════════════════════════════════════════════════
     # AI Agent — 两步工具调用

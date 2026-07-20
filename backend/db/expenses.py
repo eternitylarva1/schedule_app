@@ -1,6 +1,6 @@
 """Expenses database operations."""
 import aiosqlite
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, List, Optional
 
 from ..models import Expense
