@@ -1318,14 +1318,25 @@ class LLMService:
     @staticmethod
     def _has_schedule_intent(text: str) -> bool:
         """检测用户输入是否包含日程意图"""
-        keywords = [
+        time_keywords = [
             "明天", "今天", "后天", "下周", "下个月",
             "早上", "上午", "中午", "下午", "晚上",
-            "今晚", "明早", "明晚", "点", "号", "星期",
-            "打算", "准备", "要", "想",
-            "起床", "开会", "吃饭", "睡觉", "安排", "日程", "计划",
+            "今晚", "明早", "明晚",
         ]
-        return any(kw in text for kw in keywords)
+        action_keywords = [
+            "打算", "准备", "安排", "日程", "计划",
+            "起床", "开会", "吃饭", "睡觉",
+        ]
+        # Time keywords are strong signals
+        if any(kw in text for kw in time_keywords):
+            return True
+        # Action keywords + time-like pattern (X点/X号/X月X日)
+        import re
+        has_time_pattern = bool(re.search(r'\d+[点号]\b|\d+月\d+[日号]?', text))
+        if has_time_pattern and any(kw in text for kw in action_keywords):
+            return True
+        # Pure action keyword without time context — too weak, skip
+        return False
 
     async def _done_or_fallback(self, done_msg: str, user_text: str,
                                  results: list, db_instance=None) -> Dict[str, Any]:

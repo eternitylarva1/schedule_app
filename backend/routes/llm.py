@@ -1,5 +1,7 @@
 """LLM HTTP endpoints."""
 import json
+import re
+from datetime import datetime, timedelta
 from aiohttp import web
 from typing import Any
 from .. import db
@@ -90,6 +92,10 @@ async def llm_create(request: web.Request) -> web.Response:
     if not user_text:
         return error_response("输入不能为空")
     
+    # 前置检查：输入是否包含时间/日程意图，避免非日程文本浪费 LLM 调用
+    if not _has_schedule_input(user_text):
+        return error_response("未识别到时间或日程信息，请包含具体时间（如'明天下午3点'）")
+    
     try:
         from ..llm_service import llm_service
         from ..db import get_events
@@ -167,6 +173,18 @@ async def llm_create(request: web.Request) -> web.Response:
             )
             
             try:
+                # 去重：跳过 30 秒内相同标题的待创建事件
+                import aiosqlite
+                from ..db._connection import DB_PATH
+                async with aiosqlite.connect(DB_PATH) as dup_db:
+                    async with dup_db.execute(
+                        "SELECT id FROM events WHERE title = ? AND created_at > datetime('now', '-30 seconds') LIMIT 1",
+                        (event.title,)
+                    ) as cursor:
+                        dup_row = await cursor.fetchone()
+                if dup_row:
+                    print(f"Skip duplicate event within 30s: {title} (existing id={dup_row[0]})")
+                    continue
                 event = await db.create_event(event)
                 events_list.append(event)
             except Exception as e:
@@ -646,6 +664,27 @@ async def llm_test(request: web.Request) -> web.Response:
         return error_response("连接超时，请检查网络或 API 地址")
     except Exception as e:
         return error_response(f"测试失败: {str(e)}")
+
+
+# ============= Helpers =============
+
+def _has_schedule_input(text: str) -> bool:
+    """检查输入是否包含时间或日程信息，避免对纯对话文本调用 LLM 创建日程。"""
+    time_patterns = [
+        r'(今天|明天|后天|下周|下个月|上午|下午|晚上|今晚|明早|明晚)',
+        r'\d{1,2}[点时]\d{0,2}',
+        r'\d+月\d+[日号]?',
+        r'星期[一二三四五六日天]',
+    ]
+    if any(re.search(p, text) for p in time_patterns):
+        return True
+    # 日程动作词
+    action_patterns = [
+        r'(安排|计划|日程|开会|起床|吃饭|睡觉|准备|打算)',
+    ]
+    if any(re.search(p, text) for p in action_patterns):
+        return True
+    return False
 
 
 # ============= Route Registration =============

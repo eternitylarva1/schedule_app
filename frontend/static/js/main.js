@@ -1497,13 +1497,18 @@
     }
 
     async function saveEvent() {
-        if (state.isSavingEvent) {
+        // 立即加锁，防止双击/重复触发
+        if (state.isSavingEvent || elements.saveEventBtn.disabled) {
             return;
         }
+        state.isSavingEvent = true;
+        elements.saveEventBtn.disabled = true;
 
         const title = elements.eventTitle.value.trim();
         if (!title) {
             showToast('请输入日程内容');
+            state.isSavingEvent = false;
+            elements.saveEventBtn.disabled = false;
             return;
         }
         
@@ -1513,6 +1518,8 @@
         const endTime = isPendingTime ? '' : elements.endTime.value;
         if (startTime && endTime && new Date(endTime) < new Date(startTime)) {
             showToast('结束时间不能早于开始时间');
+            state.isSavingEvent = false;
+            elements.saveEventBtn.disabled = false;
             return;
         }
         
@@ -1528,9 +1535,6 @@
             recurrence: elements.recurrenceSelect ? elements.recurrenceSelect.value : 'none',
             priority: elements.prioritySelect ? elements.prioritySelect.value : 'none',
         };
-        
-        state.isSavingEvent = true;
-        elements.saveEventBtn.disabled = true;
 
         try {
             let result;
