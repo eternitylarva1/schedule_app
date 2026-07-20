@@ -55,6 +55,9 @@
         if (window.SettingsLearningUI) {
             await window.SettingsLearningUI.init();
         }
+
+        // Render backup section
+        await renderBackupSection();
     }
 
     function closeSettingsView() {
@@ -1235,6 +1238,237 @@ async deletePattern(patternId) {
         }
     };
 
+    // ----------------------------------------------------------------
+    // Auto-Backup Management
+    // ----------------------------------------------------------------
+
+    let backupConfig = {
+        enabled: true,
+        max_count: 5,
+        interval_minutes: 60
+    };
+
+    async function loadBackupConfig() {
+        const { apiCall } = getUtils();
+        try {
+            const resp = await apiCall('backup/config');
+            if (resp && resp.data) {
+                backupConfig = resp.data;
+            }
+        } catch (e) {
+            console.error('Failed to load backup config', e);
+        }
+    }
+
+    async function loadBackupList() {
+        const { apiCall } = getUtils();
+        try {
+            const resp = await apiCall('backup/list');
+            return (resp && resp.data) || [];
+        } catch (e) {
+            console.error('Failed to load backup list', e);
+            return [];
+        }
+    }
+
+    async function createBackup() {
+        const { apiCall, showToast } = getUtils();
+        try {
+            showToast('正在创建备份...');
+            const resp = await apiCall('backup/create', { method: 'POST' });
+            if (resp && !resp.error) {
+                showToast('备份已创建');
+                await renderBackupSection();
+            } else {
+                showToast(resp?.message || '创建备份失败');
+            }
+        } catch (e) {
+            console.error('Failed to create backup', e);
+            showToast('创建备份失败');
+        }
+    }
+
+    async function restoreBackup(filename) {
+        const { apiCall, showToast, showConfirm } = getUtils();
+        const confirmed = await showConfirm(`确定要从 ${filename} 恢复数据吗？当前数据将自动备份。`);
+        if (!confirmed) return;
+
+        try {
+            const resp = await apiCall('backup/restore', {
+                method: 'POST',
+                body: JSON.stringify({ filename })
+            });
+            if (resp && !resp.error) {
+                showToast('恢复成功，请刷新页面');
+            } else {
+                showToast(resp?.message || '恢复失败');
+            }
+        } catch (e) {
+            console.error('Failed to restore backup', e);
+            showToast('恢复失败');
+        }
+    }
+
+    async function deleteBackup(filename) {
+        const { apiCall, showToast, showConfirm } = getUtils();
+        const confirmed = await showConfirm(`确定要删除 ${filename} 吗？此操作不可恢复。`);
+        if (!confirmed) return;
+
+        try {
+            const resp = await apiCall('backup/delete', {
+                method: 'POST',
+                body: JSON.stringify({ filename })
+            });
+            if (resp && !resp.error) {
+                showToast('备份已删除');
+                await renderBackupSection();
+            } else {
+                showToast(resp?.message || '删除失败');
+            }
+        } catch (e) {
+            console.error('Failed to delete backup', e);
+            showToast('删除失败');
+        }
+    }
+
+    async function handleBackupEnabledChange(e) {
+        const { updateSetting, showToast } = getUtils();
+        const enabled = e.target.checked;
+        backupConfig.enabled = enabled;
+        await updateSetting('backup_enabled', enabled ? '1' : '0');
+        showToast(enabled ? '自动备份已开启' : '自动备份已关闭');
+    }
+
+    async function handleBackupIntervalChange(e) {
+        const { updateSetting, showToast } = getUtils();
+        const interval = parseInt(e.target.value) || 60;
+        backupConfig.interval_minutes = interval;
+        await updateSetting('backup_interval_minutes', String(interval));
+        showToast('备份间隔已更新');
+    }
+
+    async function handleBackupMaxCountChange(e) {
+        const { updateSetting, showToast } = getUtils();
+        const maxCount = parseInt(e.target.value) || 5;
+        if (maxCount < 1 || maxCount > 20) {
+            showToast('保留份数应在 1-20 之间');
+            return;
+        }
+        backupConfig.max_count = maxCount;
+        await updateSetting('backup_max_count', String(maxCount));
+        showToast('最大保留数已更新');
+    }
+
+    function formatFileSize(bytes) {
+        if (!bytes) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        let i = 0;
+        while (bytes >= 1024 && i < units.length - 1) {
+            bytes /= 1024;
+            i++;
+        }
+        return bytes.toFixed(1) + ' ' + units[i];
+    }
+
+    function formatDate(isoString) {
+        if (!isoString) return '';
+        const d = new Date(isoString);
+        return d.toLocaleString('zh-CN', {
+            month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+
+    async function renderBackupSection() {
+        const container = document.getElementById('backupSection');
+        if (!container) return;
+
+        // Load fresh config and list
+        await loadBackupConfig();
+        const backups = await loadBackupList();
+
+        const intervalOptions = [
+            { value: 30, label: '30分钟' },
+            { value: 60, label: '1小时' },
+            { value: 120, label: '2小时' },
+            { value: 360, label: '6小时' },
+            { value: 720, label: '12小时' },
+            { value: 1440, label: '24小时' }
+        ];
+
+        container.innerHTML = `
+            <div class="settings-section">
+                <h3 class="settings-section-title">📦 数据备份</h3>
+
+                <div class="settings-item">
+                    <label class="settings-label">
+                        <input type="checkbox" id="backupEnabled"
+                            ${backupConfig.enabled ? 'checked' : ''}
+                            onchange="ScheduleAppSettings.handleBackupEnabledChange(event)">
+                        自动备份
+                    </label>
+                </div>
+
+                <div class="settings-item">
+                    <label class="settings-label">备份间隔:</label>
+                    <select id="backupInterval" class="settings-select"
+                        onchange="ScheduleAppSettings.handleBackupIntervalChange(event)">
+                        ${intervalOptions.map(opt => `
+                            <option value="${opt.value}"
+                                ${backupConfig.interval_minutes == opt.value ? 'selected' : ''}>
+                                ${opt.label}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+
+                <div class="settings-item">
+                    <label class="settings-label">最大保留:</label>
+                    <input type="number" id="backupMaxCount" class="settings-input"
+                        value="${backupConfig.max_count}" min="1" max="20"
+                        style="width:60px;"
+                        onchange="ScheduleAppSettings.handleBackupMaxCountChange(event)">
+                    <span style="margin-left:4px;">份</span>
+                </div>
+
+                <div class="settings-item">
+                    <button class="btn btn-primary" onclick="ScheduleAppSettings.createBackup()">
+                        立即备份
+                    </button>
+                </div>
+
+                <div class="settings-item" style="margin-top:12px;">
+                    <div class="settings-label">备份列表:</div>
+                    <div class="backup-list" id="backupList">
+                        ${backups.length === 0
+                            ? '<div style="color:var(--text-muted);font-size:12px;">暂无备份</div>'
+                            : backups.map(b => `
+                                <div class="backup-item" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-color);">
+                                    <div>
+                                        <div style="font-size:12px;">${escapeHtml(b.name)}</div>
+                                        <div style="font-size:11px;color:var(--text-muted);">
+                                            ${formatFileSize(b.size)} · ${formatDate(b.created_at)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <button class="btn btn-secondary" style="font-size:11px;padding:2px 8px;margin-right:4px;"
+                                            onclick="ScheduleAppSettings.restoreBackup('${escapeHtml(b.name)}')">
+                                            恢复
+                                        </button>
+                                        <button class="btn btn-danger" style="font-size:11px;padding:2px 8px;"
+                                            onclick="ScheduleAppSettings.deleteBackup('${escapeHtml(b.name)}')">
+                                            删除
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')
+                        }
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     window.ScheduleAppSettings = {
         openSettingsView,
         closeSettingsView,
@@ -1278,6 +1512,16 @@ async deletePattern(patternId) {
         undoExpenseOperation,
         loadDeletedExpenses,
         restoreDeletedExpense,
+        // Backup management
+        loadBackupConfig,
+        loadBackupList,
+        createBackup,
+        restoreBackup,
+        deleteBackup,
+        handleBackupEnabledChange,
+        handleBackupIntervalChange,
+        handleBackupMaxCountChange,
+        renderBackupSection,
     };
 
     // Expose to global scope for inline onclick handlers (legacy compatibility)

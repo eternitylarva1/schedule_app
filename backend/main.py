@@ -100,11 +100,17 @@ async def init_app() -> web.Application:
     # Register reminder service lifecycle hooks (must run on web.run_app event loop)
     app["reminder_service"] = ReminderService(app)
 
+    # Register backup scheduler
+    from .db.backup_manager import BackupScheduler
+    app["backup_scheduler"] = BackupScheduler()
+
     async def _on_startup(_: web.Application) -> None:
         app["reminder_service"].start()
+        await app["backup_scheduler"].start()
 
     async def _on_cleanup(_: web.Application) -> None:
         await app["reminder_service"].stop()
+        await app["backup_scheduler"].stop()
 
     app.on_startup.append(_on_startup)
     app.on_cleanup.append(_on_cleanup)
