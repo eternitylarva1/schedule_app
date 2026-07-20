@@ -627,15 +627,15 @@
 }
 
 .notes-list-scroll .note-item.active {
-    background: var(--bg-elevated);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 1px 3px rgba(0,0,0,0.5);
+    background: var(--bg-elevated) !important;
+    box-shadow: var(--shadow-inset), var(--shadow-card);
 }
 
 .notes-list-scroll .note-item.active::before {
-    background: var(--accent-primary);
+    background: var(--note-color, var(--accent-primary));
 }
 
-/* Left color stripe */
+/* Left color stripe — only visible when --note-color is set */
 .notes-list-scroll .note-item::before {
     content: '';
     position: absolute;
@@ -648,8 +648,34 @@
     transition: background 0.15s;
 }
 
+/* Pinned group — stand out with golden background */
+.notes-list-scroll .note-group[data-group-id="__pinned"] {
+    border-bottom: 2px solid rgba(245, 158, 11, 0.15) !important;
+}
+.notes-list-scroll .note-group[data-group-id="__pinned"] .note-group-header {
+    background: rgba(245, 158, 11, 0.08) !important;
+    margin: 4px 6px;
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+}
+.notes-list-scroll .note-group[data-group-id="__pinned"] .note-group-toggle {
+    color: var(--accent-warning);
+    font-weight: 700;
+}
+.notes-list-scroll .note-group[data-group-id="__pinned"] .note-group-name {
+    color: var(--accent-warning);
+    font-weight: 700;
+}
+
+/* Color bar — wider and with shadow for visibility */
 .notes-list-scroll .note-item[style*="--note-color"]::before {
     background: var(--note-color);
+    width: 4px;
+    box-shadow: 0 0 3px var(--note-color);
+    opacity: 1;
+}
+.notes-list-scroll .note-item[style*="--note-color"]:hover::before {
+    width: 6px;
 }
 
 /* Pinned — subtle dot */
@@ -673,8 +699,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    margin-bottom: 2px;
-    line-height: 1.3;
+    margin-bottom: 3px;
+    line-height: 1.4;
 }
 
 .notes-list-scroll .note-item-preview {
@@ -698,25 +724,32 @@
     color: var(--text-muted);
 }
 
-/* Desktop: hide swipe actions & drag handle */
+/* Desktop: hide edit/delete buttons and drag handle */
 @media (min-width: 700px) {
     .notes-list-scroll .swipe-action {
         display: none !important;
     }
 
-    .notes-list-scroll .note-swipe .drag-handle {
-        display: none;
+    .notes-list-scroll .note-item {
+        /* Remove left padding for swipe actions on desktop */
+        padding-left: 32px;
     }
 
-    .notes-list-scroll .note-item {
-        padding-left: 32px;
+    /* Hide drag handle on desktop */
+    .notes-list-scroll .note-item .drag-handle,
+    .note-swipe .drag-handle {
+        display: none;
     }
 }
 
-/* Mobile: swipe actions visible */
+/* Mobile: swipe actions remain */
 @media (max-width: 699px) {
+    .swipe-action {
+        display: flex !important;
+    }
+    /* Fix: mobile note-item padding (overrides designer CSS that comes after mobile rule) */
     .notes-list-scroll .note-item {
-        padding-left: 36px;
+        padding: 10px 14px 10px 36px;
     }
 }
 

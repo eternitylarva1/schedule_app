@@ -31,15 +31,7 @@
         const utils = getUtils();
         const { showToast, fetchExpenseCategories } = utils;
 
-        // Default expense categories
-        if (!state.expenseCategories) {
-            state.expenseCategories = [
-                { id: 'food', name: '餐饮', color: '#F97316' },
-                { id: 'transport', name: '交通', color: '#3B82F6' },
-                { id: 'shopping', name: '购物', color: '#EC4899' },
-                { id: 'other', name: '其他', color: '#6B7280' },
-            ];
-        }
+
 
         // URL hash sync
         const hash = window.location.hash;

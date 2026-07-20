@@ -109,7 +109,13 @@
         if (cat) return cat.color;
         const expCat = (state.expenseCategories || []).find(c => c.id === categoryId);
         if (expCat) return expCat.color;
-        return '#4285F4';
+        const fallbacks = {
+            'work': '#4285F4', 'life': '#34A853', 'study': '#FBBC04', 'health': '#EA4335'
+        };
+        const budgetFallbacks = {
+            'food': '#F97316', 'transport': '#3B82F6', 'shopping': '#EC4899', 'other': '#6B7280'
+        };
+        return fallbacks[categoryId] || budgetFallbacks[categoryId] || '#4285F4';
     }
 
 
