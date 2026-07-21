@@ -1255,8 +1255,8 @@ async deletePattern(patternId) {
         const { apiCall } = getUtils();
         try {
             const resp = await apiCall('backup/config');
-            if (resp && resp.data) {
-                backupConfig = resp.data;
+            if (resp && resp.enabled !== undefined) {
+                backupConfig = resp;
             }
         } catch (e) {
             console.error('Failed to load backup config', e);
@@ -1267,7 +1267,7 @@ async deletePattern(patternId) {
         const { apiCall } = getUtils();
         try {
             const resp = await apiCall('backup/list');
-            return (resp && resp.data) || [];
+            return Array.isArray(resp) ? resp : [];
         } catch (e) {
             console.error('Failed to load backup list', e);
             return [];
