@@ -1331,7 +1331,112 @@
             }
         }
 
+        function _updateOverlayFromImage() {
+            if (!_resizeOverlay) return;
+            const r = _resizeOverlay._img.getBoundingClientRect();
+            const er = contentEl.getBoundingClientRect();
+            _resizeOverlay.style.left = (r.left - er.left) + 'px';
+            _resizeOverlay.style.top = (r.top - er.top) + 'px';
+            _resizeOverlay.style.width = r.width + 'px';
+            _resizeOverlay.style.height = r.height + 'px';
+        }
+
+        function _startResize(corner, ev) {
+            const img = _resizeOverlay._img;
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            const startX = ev.clientX;
+            const startY = ev.clientY;
+            const startW = img.width;
+            const startH = img.height;
+            const ratio = (img.naturalWidth || img.width) / (img.naturalHeight || img.height);
+
+            // Ensure image behaves as inline-block so margin shifts work for NW/NE/SW
+            if (img.style.display !== 'inline-block') {
+                img.style.display = 'inline-block';
+            }
+
+            // Clear any prior margin shifts so we start from clean state
+            const baseMarginLeft = parseFloat(img.style.marginLeft) || 0;
+            const baseMarginTop = parseFloat(img.style.marginTop) || 0;
+
+            const onMove = (me) => {
+                const dx = me.clientX - startX;
+                const dy = me.clientY - startY;
+                let newW = startW;
+                let newH = startH;
+                let newMarginLeft = baseMarginLeft;
+                let newMarginTop = baseMarginTop;
+
+                if (corner === 'se') {
+                    newW = Math.max(50, startW + dx);
+                    newH = newW / ratio;
+                    if (dy !== 0 && Math.abs(dy / dx) > 0.3) {
+                        newH = Math.max(50, startH + dy);
+                        newW = newH * ratio;
+                    }
+                } else if (corner === 'sw') {
+                    newW = Math.max(50, startW - dx);
+                    newH = newW / ratio;
+                    if (dy !== 0 && Math.abs(dy / -dx) > 0.3) {
+                        newH = Math.max(50, startH + dy);
+                        newW = newH * ratio;
+                    }
+                    // Anchor: top-right corner stays fixed
+                    newMarginLeft = baseMarginLeft - (newW - startW);
+                } else if (corner === 'ne') {
+                    newW = Math.max(50, startW + dx);
+                    newH = newW / ratio;
+                    if (dy !== 0 && Math.abs(dy / dx) > 0.3) {
+                        newH = Math.max(50, startH - dy);
+                        newW = newH * ratio;
+                    }
+                    // Anchor: bottom-left corner stays fixed
+                    newMarginTop = baseMarginTop - (newH - startH);
+                } else if (corner === 'nw') {
+                    newW = Math.max(50, startW - dx);
+                    newH = newW / ratio;
+                    if (dy !== 0 && Math.abs(dy / -dx) > 0.3) {
+                        newH = Math.max(50, startH - dy);
+                        newW = newH * ratio;
+                    }
+                    // Anchor: bottom-right corner stays fixed
+                    newMarginLeft = baseMarginLeft - (newW - startW);
+                    newMarginTop = baseMarginTop - (newH - startH);
+                }
+
+                img.style.width = Math.round(newW) + 'px';
+                img.style.height = Math.round(newH) + 'px';
+                img.style.marginLeft = Math.round(newMarginLeft) + 'px';
+                img.style.marginTop = Math.round(newMarginTop) + 'px';
+                _updateOverlayFromImage();
+            };
+
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                _isResizing = false;
+                scheduleAutoSave(note);
+            };
+
+            _isResizing = true;
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        }
+
+        let _isResizing = false;
+
         contentEl.addEventListener('click', (e) => {
+            // Don't dismiss overlay while user is resizing
+            if (_isResizing) return;
+
+            const handle = e.target.closest('.img-resize-handle');
+            if (handle) {
+                // Clicks on handles should not re-create the overlay; just ignore
+                return;
+            }
+
             const img = e.target.closest('img');
             _removeResizeOverlay();
             if (!img || !contentEl.contains(img)) return;
@@ -1339,6 +1444,7 @@
 
             const overlay = document.createElement('div');
             overlay.className = 'img-resize-overlay';
+            overlay._img = img; // store reference for resize math
             const pos = img.getBoundingClientRect();
             const editorRect = contentEl.getBoundingClientRect();
             overlay.style.left = (pos.left - editorRect.left) + 'px';
@@ -1347,57 +1453,14 @@
             overlay.style.height = pos.height + 'px';
             contentEl.appendChild(overlay);
 
-            // Create 4 corner handles
+            // Create 4 corner handles, all wired up
             const corners = ['nw', 'ne', 'sw', 'se'];
             corners.forEach(c => {
                 const handle = document.createElement('div');
                 handle.className = 'img-resize-handle img-resize-' + c;
+                handle.addEventListener('mousedown', (ev) => _startResize(c, ev));
                 overlay.appendChild(handle);
             });
-
-            // Track resize via SE handle (bottom-right)
-            let startX, startY, startW, startH;
-            const seHandle = overlay.querySelector('.img-resize-se');
-            if (seHandle) {
-                seHandle.addEventListener('mousedown', (ev) => {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    startX = ev.clientX;
-                    startY = ev.clientY;
-                    startW = img.width;
-                    startH = img.height;
-
-                    const onMove = (me) => {
-                        const dx = me.clientX - startX;
-                        const dy = me.clientY - startY;
-                        const nw = img.naturalWidth || img.width;
-                        const nh = img.naturalHeight || img.height;
-                        const ratio = nw / nh;
-                        let newW = Math.max(50, startW + dx);
-                        let newH = newW / ratio;
-                        if (dy !== 0 && Math.abs(dy / dx) > 0.3) {
-                            newH = Math.max(50, startH + dy);
-                            newW = newH * ratio;
-                        }
-                        img.style.width = Math.round(newW) + 'px';
-                        img.style.height = Math.round(newH) + 'px';
-                        // Update overlay
-                        const r2 = img.getBoundingClientRect();
-                        const er2 = contentEl.getBoundingClientRect();
-                        overlay.style.left = (r2.left - er2.left) + 'px';
-                        overlay.style.top = (r2.top - er2.top) + 'px';
-                        overlay.style.width = r2.width + 'px';
-                        overlay.style.height = r2.height + 'px';
-                    };
-                    const onUp = () => {
-                        document.removeEventListener('mousemove', onMove);
-                        document.removeEventListener('mouseup', onUp);
-                        scheduleAutoSave(note);
-                    };
-                    document.addEventListener('mousemove', onMove);
-                    document.addEventListener('mouseup', onUp);
-                });
-            }
 
             _resizeOverlay = overlay;
         });
