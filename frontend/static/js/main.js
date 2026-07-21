@@ -2626,7 +2626,7 @@
 
         try {
             const resp = await apiCall(`search?q=${encodeURIComponent(q)}`);
-            const data = resp.data || { events: [], notes: [], goals: [] };
+            const data = resp || { events: [], notes: [], goals: [] };
             renderSearchResults(data, q);
         } catch (e) {
             resultsEl.innerHTML = '<div style="text-align: center; padding: 24px; color: var(--color-danger, #dc2626);">搜索失败</div>';

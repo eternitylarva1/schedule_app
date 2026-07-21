@@ -1046,15 +1046,15 @@
             const { apiCall } = getUtils();
             try {
                 const resp = await apiCall('ai/stats');
-                if (resp && resp.data) {
+                if (resp && resp.total_records !== undefined) {
                     if (this.statsEl) {
-                        this.statsEl.textContent = resp.data.total_records || 0;
+                        this.statsEl.textContent = resp.total_records || 0;
                     }
                     if (this.patternCountEl) {
-                        this.patternCountEl.textContent = resp.data.total_patterns || 0;
+                        this.patternCountEl.textContent = resp.total_patterns || 0;
                     }
                     if (this.avgDurationEl) {
-                        const avg = resp.data.avg_actual_duration;
+                        const avg = resp.avg_actual_duration;
                         this.avgDurationEl.textContent = avg ? `${avg}分钟` : '-';
                     }
                 }
@@ -1114,7 +1114,7 @@
 
             try {
                 const resp = await apiCall('ai/patterns');
-                const patterns = (resp && resp.data) || [];
+                const patterns = (resp && resp.patterns) || [];
 
                 if (patterns.length === 0) {
                     this.patternsEl.innerHTML = '<div class="learning-pattern-empty" style="text-align:center;color:var(--text-muted);font-size:var(--font-sm);padding:var(--space-md);">暂无学习到的规律<br>点击上方按钮开始分析</div>';
@@ -1189,7 +1189,7 @@ async deletePattern(patternId) {
                     showToast('导出失败');
                     return;
                 }
-                const data = resp.data || resp;
+                const data = resp || {};
                 const json = JSON.stringify(data, null, 2);
                 const blob = new Blob([json], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
