@@ -890,7 +890,8 @@
     align-items: center;
     gap: 0;
     padding: 0;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    column-gap: 6px;
 }
 
 /* Group container */
@@ -898,6 +899,7 @@
     display: flex;
     align-items: center;
     gap: 2px;
+    flex-wrap: wrap;
 }
 
 /* Separator between groups */
@@ -989,5 +991,14 @@
 .note-inline-content li { margin: 2px 0; }
 .note-inline-content b, .note-inline-content strong { font-weight: 600; }
 .note-inline-content i, .note-inline-content em { font-style: italic; }
+
+/* Save button flash effect on manual save */
+.tb-btn.tb-flash {
+    animation: tb-flash-anim 0.4s ease-out;
+}
+@keyframes tb-flash-anim {
+    0% { background: var(--accent-success, #10b981); color: white; transform: scale(1.1); }
+    100% { background: transparent; transform: scale(1); }
+}
 
 /* ===== /a Command — floating prompt ===== */

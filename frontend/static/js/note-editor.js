@@ -168,32 +168,25 @@
                 });
             },
         },
-        // ── Edit group ─────────────────────────────────────────
-        {
-            id: 'undo',
-            group: 'edit',
-            order: 1,
-            render() {
-                return `<button type="button" class="tb-btn" id="noteUndoBtn" data-tb-action="undo" title="撤回 (Ctrl+Z)" disabled>↶</button>`;
-            },
-            bind() {
-                const btn = document.getElementById('noteUndoBtn');
-                if (btn) btn.addEventListener('click', _undo);
-            },
-        },
-        {
-            id: 'redo',
-            group: 'edit',
-            order: 2,
-            render() {
-                return `<button type="button" class="tb-btn" id="noteRedoBtn" data-tb-action="redo" title="重做 (Ctrl+Y)" disabled>↷</button>`;
-            },
-            bind() {
-                const btn = document.getElementById('noteRedoBtn');
-                if (btn) btn.addEventListener('click', _redo);
-            },
-        },
         // ── Note group ──────────────────────────────────────────
+        {
+            id: 'save',
+            group: 'note',
+            order: 1.5,
+            render() {
+                return `<button type="button" class="tb-btn" id="noteInlineSaveBtn" data-tb-action="save" title="立即保存并同步">💾</button>`;
+            },
+            bind(note) {
+                const btn = document.getElementById('noteInlineSaveBtn');
+                if (btn) {
+                    btn.addEventListener('click', async () => {
+                        await flushAutoSave(note);
+                        btn.classList.add('tb-flash');
+                        setTimeout(() => btn.classList.remove('tb-flash'), 400);
+                    });
+                }
+            },
+        },
         {
             id: 'pin',
             group: 'note',
@@ -1826,6 +1819,8 @@
         closeAllModals,
         NOTE_COLORS,
         insertAIBlock,
+        undo: _undo,
+        redo: _redo,
     };
 
 })();

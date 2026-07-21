@@ -24,8 +24,8 @@ const STATIC_ASSETS = [
   '/static/js/utils2.js?v=20260425-01',
   '/static/js/budget.js?v=20260629-01',
   '/static/js/note-ai.js?v=20260624-03',
-  '/static/js/note-editor.js?v=20260705-01',
-  '/static/js/notes-list.js?v=20260702-01',
+  '/static/js/note-editor.js?v=20260721-01',
+  '/static/js/notes-list.js?v=20260721-01',
   '/static/js/expense.js?v=20260622-02',
   '/static/js/notepad.js?v=20260622-02',
   '/static/js/settings.js?v=20260702-03',
@@ -40,7 +40,7 @@ const STATIC_ASSETS = [
   '/static/js/calendar-views.js?v=20260702-01',
 
   // CSS
-  '/static/styles/main.css?v=20260702-05',
+  '/static/styles/main.css?v=20260721-01',
 
   // Other
   '/manifest.json',

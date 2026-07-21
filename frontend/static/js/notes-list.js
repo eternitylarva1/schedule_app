@@ -1414,6 +1414,15 @@
                 </button>
             </div>
             <div class="note-menu-divider"></div>
+            <button class="note-menu-item" data-action="undo">
+                <span class="note-menu-icon">↶</span>
+                <span class="note-menu-label">撤销 (Ctrl+Z)</span>
+            </button>
+            <button class="note-menu-item" data-action="redo">
+                <span class="note-menu-icon">↷</span>
+                <span class="note-menu-label">重做 (Ctrl+Y)</span>
+            </button>
+            <div class="note-menu-divider"></div>
             ${isTrash ? `
                 <button class="note-menu-item" data-action="restore">
                     <span class="note-menu-icon">↩️</span>
@@ -1614,6 +1623,12 @@
             }
         } else if (action === 'export-md' || action === 'export-txt') {
             _exportNote(note, action === 'export-md' ? 'md' : 'txt');
+        } else if (action === 'undo' || action === 'redo') {
+            const ed = window.ScheduleAppNoteEditor;
+            if (ed) {
+                if (action === 'undo' && typeof ed.undo === 'function') ed.undo();
+                else if (action === 'redo' && typeof ed.redo === 'function') ed.redo();
+            }
         } else if (action === 'archive') {
             const swipeEl = document.querySelector(`.note-swipe[data-note-id="${note.id}"]`);
             if (swipeEl) swipeEl.style.display = 'none';
