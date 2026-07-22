@@ -1402,6 +1402,10 @@
                 <span class="note-menu-icon">📋</span>
                 <span class="note-menu-label">复制笔记</span>
             </button>
+            <button class="note-menu-item" data-action="copy-full">
+                <span class="note-menu-icon">📄</span>
+                <span class="note-menu-label">复制全文</span>
+            </button>
             <div class="note-menu-section">
                 <div class="note-menu-section-title">导出为</div>
                 <button class="note-menu-item" data-action="export-md">
@@ -1529,6 +1533,50 @@
         });
     }
 
+    function _copyNoteToClipboard(note) {
+        const { showToast } = getUtils();
+        const title = (note.title || '').trim();
+        const content = (note.content || '').trim();
+        // Format: title with optional blank line, then content
+        const text = title
+            ? `${title}\n\n${content}`
+            : content;
+
+        // Prefer async Clipboard API; fall back to hidden textarea + execCommand
+        const fallbackCopy = (text) => {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            document.body.removeChild(ta);
+            return ok;
+        };
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(
+                    () => showToast('已复制全文到剪贴板'),
+                    () => {
+                        if (fallbackCopy(text)) showToast('已复制全文到剪贴板');
+                        else showToast('复制失败，请手动选择');
+                    }
+                );
+            } else {
+                if (fallbackCopy(text)) showToast('已复制全文到剪贴板');
+                else showToast('复制失败，请手动选择');
+            }
+        } catch (e) {
+            if (fallbackCopy(text)) showToast('已复制全文到剪贴板');
+            else showToast('复制失败，请手动选择');
+        }
+    }
+
     function _exportNote(note, format) {
         const { showToast } = getUtils();
         try {
@@ -1621,6 +1669,8 @@
             } catch (e) {
                 showToast('复制失败');
             }
+        } else if (action === 'copy-full') {
+            await _copyNoteToClipboard(note);
         } else if (action === 'export-md' || action === 'export-txt') {
             _exportNote(note, action === 'export-md' ? 'md' : 'txt');
         } else if (action === 'undo' || action === 'redo') {
