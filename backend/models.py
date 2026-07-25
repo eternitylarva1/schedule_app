@@ -24,6 +24,8 @@ class Event:
     is_test: bool = False
     goal_id: int | None = None
     completed_at: datetime | None = None
+    importance: int = 0  # 0=unset, 1=important, 2=not important (Eisenhower)
+    urgency: int = 0    # 0=unset, 1=urgent, 2=not urgent (Eisenhower)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""

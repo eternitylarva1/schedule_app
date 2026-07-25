@@ -48,6 +48,9 @@
 
 
     const markEventDoneQuick = (...args) => window.ScheduleAppSelection?.markEventDoneQuick?.(...args);
+    const applyRecurrenceUI = (...args) => window.ScheduleAppRecurrenceUI?.applyRecurrenceUI?.(...args);
+    const collectRecurrenceFromUI = (...args) => window.ScheduleAppRecurrenceUI?.collectRecurrenceFromUI?.(...args);
+    const formatRecurrenceDisplay = (...args) => window.ScheduleAppRecurrenceUI?.formatRecurrenceDisplay?.(...args);
     const getSelectionSet = (...args) => window.ScheduleAppSelection?.getSelectionSet?.(...args);
     const exitSelectionMode = (...args) => window.ScheduleAppSelection?.exitSelectionMode?.(...args);
     const enterSelectionMode = (...args) => window.ScheduleAppSelection?.enterSelectionMode?.(...args);
@@ -203,6 +206,86 @@
         return window.ScheduleAppCalendarViews?.renderMonthView?.(getCalendarViewDeps());
     }
 
+    /**
+     * Render the four-quadrant (Eisenhower) view.
+     * Groups events by importance (1=重要, 2=不重要) and urgency (1=紧急, 2=不紧急).
+     * Events without importance/urgency are placed in an "unclassified" pseudo-quadrant
+     * hidden behind the empty-state if all events are unclassified.
+     */
+    function renderQuadrantView(container, events) {
+        // Filter out unclassified (importance=0 or urgency=0). Hide them gracefully.
+        const classified = events.filter(e => e.importance && e.urgency);
+        const unclassified = events.filter(e => !e.importance || !e.urgency);
+
+        const buckets = {
+            iu: [],  // important (1) + urgent (1) — Top-left, do first
+            in: [],  // important (1) + not urgent (2) — Top-right, schedule
+            nu: [],  // not important (2) + urgent (1) — Bottom-left, delegate
+            nn: [],  // not important (2) + not urgent (2) — Bottom-right, eliminate
+        };
+        classified.forEach(e => {
+            const imp = e.importance === 1 ? 'i' : 'n';
+            const urg = e.urgency === 1 ? 'u' : 'n';
+            buckets[imp + urg].push(e);
+        });
+
+        // Stable ordering within a cell: pending first, then by start time
+        Object.keys(buckets).forEach(k => {
+            buckets[k].sort((a, b) => {
+                if ((a.status === 'done') !== (b.status === 'done')) {
+                    return a.status === 'done' ? 1 : -1;
+                }
+                return new Date(a.start_time || 0) - new Date(b.start_time || 0);
+            });
+        });
+
+        const renderCard = (e) => `
+            <div class="quadrant-card ${e.status === 'done' ? 'completed' : ''}" data-event-id="${e.id}">
+                ${escapeHtml(e.title || '(无标题)')}
+            </div>
+        `;
+
+        const renderCell = (key, label) => `
+            <div class="quadrant-cell" data-quadrant="${key}">
+                <div class="quadrant-cell-title">
+                    <span>${label}</span>
+                    <span class="quadrant-cell-count">${buckets[key].length}</span>
+                </div>
+                ${buckets[key].length === 0
+                    ? '<div class="quadrant-empty">空空如也</div>'
+                    : buckets[key].map(renderCard).join('')}
+            </div>
+        `;
+
+        const html = `
+            <div class="quadrant-header">
+                ↑ 重要 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                重要
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 不重要 ↑
+            </div>
+            ${renderCell('iu', '🔴 重要 + 紧急 (立即做)')}
+            ${renderCell('in', '🟡 重要 + 不紧急 (计划做)')}
+            ${renderCell('nu', '🔵 不重要 + 紧急 (委托/快速做)')}
+            ${renderCell('nn', '⚪ 不重要 + 不紧急 (考虑删除)')}
+            ${unclassified.length > 0 ? `
+                <div style="grid-column: 1 / span 2; padding: 8px; text-align: center; color: var(--text-muted); font-size: 12px;">
+                    还有 ${unclassified.length} 条未分类（在事件详情设置 importance/urgency 即可显示在这里）
+                </div>
+            ` : ''}
+        `;
+
+        container.innerHTML = `<div class="quadrant-grid">${html}</div>`;
+
+        // Click handler — open event detail
+        container.querySelectorAll('.quadrant-card').forEach(card => {
+            const id = parseInt(card.dataset.eventId, 10);
+            card.addEventListener('click', () => {
+                const event = events.find(e => e.id === id);
+                if (event) showEventDetail(event);
+            });
+        });
+    }
+
     async function renderTodoView() {
         const container = elements.todoContainer;
         // 保存滚动位置
@@ -258,6 +341,13 @@
                 </div>
             `;
             // 恢复滚动位置
+            if (scrollParent) scrollParent.scrollTop = scrollTop;
+            return;
+        }
+
+        // Quadrant view branch — render four-quadrant grid and return early
+        if (state.todoViewMode === 'quadrant') {
+            renderQuadrantView(container, data);
             if (scrollParent) scrollParent.scrollTop = scrollTop;
             return;
         }
@@ -1417,6 +1507,7 @@
     // ============================================
     // Modal Functions
     // ============================================
+
     function openEventModal(event = null) {
         state.selectedEvent = event;
         state.selectedCategory = event ? event.category_id : 'work';
@@ -1461,10 +1552,13 @@
         // Recurrence
         if (elements.recurrenceSelect) {
             elements.recurrenceSelect.value = event ? (event.recurrence || 'none') : 'none';
+            applyRecurrenceUI(event ? (event.recurrence || 'none') : 'none');
         }
         // Priority
         if (elements.prioritySelect) {
             elements.prioritySelect.value = event ? (event.priority || 'none') : 'none';
+            if (elements.importanceSelect) elements.importanceSelect.value = String(event ? (event.importance || 0) : 0);
+            if (elements.urgencySelect) elements.urgencySelect.value = String(event ? (event.urgency || 0) : 0);
         }
         
         // Reset reminder fields
@@ -1532,8 +1626,10 @@
             status: state.selectedEvent?.status || 'pending',
             reminder_enabled: elements.reminderEnabled.checked,
             reminder_minutes: elements.reminderEnabled.checked ? 1 : 0,
-            recurrence: elements.recurrenceSelect ? elements.recurrenceSelect.value : 'none',
+            recurrence: collectRecurrenceFromUI(),
             priority: elements.prioritySelect ? elements.prioritySelect.value : 'none',
+            importance: elements.importanceSelect ? parseInt(elements.importanceSelect.value, 10) || 0 : 0,
+            urgency: elements.urgencySelect ? parseInt(elements.urgencySelect.value, 10) || 0 : 0,
         };
 
         try {
@@ -1594,6 +1690,10 @@
             <div class="detail-row">
                 <span class="detail-label">状态</span>
                 <span class="detail-value">${event.status === 'done' ? '已完成' : '待完成'}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">重复</span>
+                <span class="detail-value">${formatRecurrenceDisplay(event.recurrence)}</span>
             </div>
             <div class="detail-row">
                 <span class="detail-label">提醒开关</span>
@@ -2331,6 +2431,17 @@
             await renderTodoView();
         });
 
+        // Todo view mode switcher (list / quadrant)
+        document.getElementById('todoViewMode')?.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.todo-view-mode-btn');
+            if (!btn) return;
+            state.todoViewMode = btn.dataset.mode;
+            document.querySelectorAll('#todoViewMode .todo-view-mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === state.todoViewMode);
+            });
+            await renderTodoView();
+        });
+
         // Floating add button (content area, visible in day/todo)
         elements.contentAddBtn.addEventListener('click', async () => {
             if (state.currentView === 'notepad') {
@@ -2350,6 +2461,9 @@
         elements.cancelEventBtn.addEventListener('click', closeEventModal);
         elements.saveEventBtn.addEventListener('click', saveEvent);
         elements.pendingTimeCheck.addEventListener('change', syncPendingTimeState);
+        if (elements.recurrenceSelect) {
+            elements.recurrenceSelect.addEventListener('change', (e) => window.ScheduleAppRecurrenceUI?.applyRecurrenceUI?.(e.target.value));
+        }
         
         // Detail modal
         elements.detailBackdrop.addEventListener('click', closeDetailModal);

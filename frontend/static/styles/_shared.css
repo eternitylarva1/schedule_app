@@ -233,6 +233,28 @@
     flex: 1;
 }
 
+/* Weekday chip selector (recurrence) */
+.weekday-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-full);
+    background: var(--bg-card);
+    cursor: pointer;
+    font-size: 13px;
+    user-select: none;
+    transition: all 0.15s;
+}
+.weekday-chip:hover { background: var(--bg-hover); }
+.weekday-chip:has(input:checked) {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #fff;
+}
+.weekday-chip input { margin: 0; accent-color: var(--accent-primary); }
+
 /* Category selector */
 .category-selector {
     display: flex;

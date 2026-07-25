@@ -70,6 +70,8 @@ async def create_event(request: web.Request) -> web.Response:
             reminder_sent=data.get("reminder_sent", False),
             priority=data.get("priority", "none"),
             is_test=bool(data.get("is_test", False)),
+            importance=int(data.get("importance", 0) or 0),
+            urgency=int(data.get("urgency", 0) or 0),
         )
 
         # Idempotency guard: if exact same pending event exists, return it directly
@@ -143,6 +145,8 @@ async def update_event(request: web.Request) -> web.Response:
             reminder_minutes=data.get("reminder_minutes", existing.reminder_minutes),
             reminder_sent=data.get("reminder_sent", existing.reminder_sent),
             priority=data.get("priority", existing.priority),
+            importance=int(data.get("importance", existing.importance) or 0),
+            urgency=int(data.get("urgency", existing.urgency) or 0),
         )
 
         updated = await db.update_event(event_id, event)

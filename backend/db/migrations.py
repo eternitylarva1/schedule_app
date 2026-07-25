@@ -114,6 +114,12 @@ async def migration_add_expense_recurring(db, conn):
     await _add_column_if_not_exists(db, 'expenses', 'recurrence_period', 'TEXT DEFAULT \'monthly\'')
 
 
+async def migration_add_event_quadrant(db, conn):
+    """v2: Add importance/urgency columns to events for four-quadrant view (Eisenhower matrix)."""
+    await _add_column_if_not_exists(db, 'events', 'importance', 'INTEGER DEFAULT 0')
+    await _add_column_if_not_exists(db, 'events', 'urgency', 'INTEGER DEFAULT 0')
+
+
 # =============================================================================
 # Migration registry
 # =============================================================================
@@ -132,6 +138,8 @@ MIGRATIONS: List[Tuple[int, str, Callable]] = [
     (1, "Add period, auto_reset, rollover, rollover_limit, rollover_amount, period_start to budgets", migration_add_budget_period),
     (1, "Add is_test to budgets and expenses", migration_add_is_test),
     (1, "Add is_recurring and recurrence_period to expenses", migration_add_expense_recurring),
+    # v2 migration - four-quadrant (Eisenhower matrix)
+    (2, "Add importance/urgency to events for four-quadrant view", migration_add_event_quadrant),
 ]
 
 

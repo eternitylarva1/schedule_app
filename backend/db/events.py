@@ -12,8 +12,8 @@ async def create_event(event: Event) -> Event:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
             """INSERT INTO events 
-               (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at, reminder_enabled, reminder_minutes, reminder_sent, priority, is_test)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at, reminder_enabled, reminder_minutes, reminder_sent, priority, is_test, importance, urgency)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 event.title,
                 event.start_time.isoformat() if event.start_time else None,
@@ -29,6 +29,8 @@ async def create_event(event: Event) -> Event:
                 1 if event.reminder_sent else 0,
                 event.priority,
                 1 if event.is_test else 0,
+                event.importance,
+                event.urgency,
             ),
         )
         await db.commit()
@@ -104,9 +106,13 @@ async def get_events(date_filter: str = "today") -> List[Event]:
 
     # Include no-time items in month-style queries (used by todo list)
     include_no_time = (date_filter == "month") or (date_filter == "all") or bool(re.match(r'^\d{4}-\d{2}$', date_filter))
-    
+
     # For "all" filter, don't apply date filtering
     is_all_filter = (date_filter == "all")
+
+    # We need to fetch recurring events whose first occurrence is BEFORE the range end
+    # so we can expand them into instances within the range. The "all" case returns
+    # everything anyway and skips expansion.
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -117,20 +123,23 @@ async def get_events(date_filter: str = "today") -> List[Event]:
                 rows = await cursor.fetchall()
         elif include_no_time:
             query = """SELECT * FROM events
-                       WHERE (start_time >= ? AND start_time < ?) OR start_time IS NULL
+                       WHERE (start_time >= ? AND start_time < ?)
+                          OR start_time IS NULL
+                          OR (recurrence != 'none' AND start_time < ? AND start_time IS NOT NULL)
                        ORDER BY CASE WHEN start_time IS NULL THEN 1 ELSE 0 END, start_time"""
             async with db.execute(
                 query,
-                (start.isoformat(), end.isoformat()),
+                (start.isoformat(), end.isoformat(), end.isoformat()),
             ) as cursor:
                 rows = await cursor.fetchall()
         else:
             query = """SELECT * FROM events
-                       WHERE start_time >= ? AND start_time < ?
+                       WHERE (start_time >= ? AND start_time < ?)
+                          OR (recurrence != 'none' AND start_time < ? AND start_time IS NOT NULL)
                        ORDER BY start_time"""
             async with db.execute(
                 query,
-                (start.isoformat(), end.isoformat()),
+                (start.isoformat(), end.isoformat(), end.isoformat()),
             ) as cursor:
                 rows = await cursor.fetchall()
         events = []
@@ -152,8 +161,16 @@ async def get_events(date_filter: str = "today") -> List[Event]:
                 reminder_sent=bool(row["reminder_sent"]) if "reminder_sent" in row_keys and row["reminder_sent"] is not None else False,
                 priority=row["priority"] if "priority" in row_keys else "none",
                 is_test=bool(row["is_test"]) if "is_test" in row_keys and row["is_test"] is not None else False,
+                importance=int(row["importance"]) if "importance" in row_keys and row["importance"] is not None else 0,
+                urgency=int(row["urgency"]) if "urgency" in row_keys and row["urgency"] is not None else 0,
             ))
-    return events
+
+    # Apply recurrence expansion for non-"all" queries
+    if is_all_filter:
+        return events
+
+    from ..recurrence import expand_events
+    return expand_events(events, start.date(), end.date())
 
 
 async def get_event(event_id: int) -> Optional[Event]:
@@ -197,6 +214,7 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
                title = ?, start_time = ?, end_time = ?, category_id = ?, 
                all_day = ?, recurrence = ?, status = ?, updated_at = ?,
                reminder_enabled = ?, reminder_minutes = ?, reminder_sent = ?, priority = ?, is_test = ?,
+               importance = ?, urgency = ?,
                completed_at = ?
                WHERE id = ?""",
             (
@@ -213,6 +231,8 @@ async def update_event(event_id: int, event: Event) -> Optional[Event]:
                 1 if event.reminder_sent else 0,
                 event.priority,
                 1 if event.is_test else 0,
+                event.importance,
+                event.urgency,
                 event.completed_at.isoformat() if event.completed_at else None,
                 event_id,
             ),
@@ -314,6 +334,8 @@ async def restore_deleted_event(deleted_id: int) -> Optional[Event]:
                 reminder_minutes=row_dict['reminder_minutes'],
                 is_test=bool(row_dict['is_test']),
                 goal_id=row_dict['goal_id'],
+                importance=int(row_dict.get('importance', 0) or 0),
+                urgency=int(row_dict.get('urgency', 0) or 0),
             )
             
             created = await create_event(event)

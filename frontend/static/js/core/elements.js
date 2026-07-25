@@ -68,6 +68,8 @@
     allDayCheck: document.getElementById('allDayCheck'),
     recurrenceSelect: document.getElementById('recurrenceSelect'),
     prioritySelect: document.getElementById('prioritySelect'),
+    importanceSelect: document.getElementById('importanceSelect'),
+    urgencySelect: document.getElementById('urgencySelect'),
     categorySelector: document.getElementById('categorySelector'),
     cancelEventBtn: document.getElementById('cancelEventBtn'),
     saveEventBtn: document.getElementById('saveEventBtn'),

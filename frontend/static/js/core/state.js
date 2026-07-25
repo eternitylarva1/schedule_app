@@ -11,6 +11,7 @@
     currentView: 'day',
     calendarSubview: 'day',
     todoSubview: 'all',
+    todoViewMode: 'list',  // 'list' | 'quadrant'
     events: [],
     categories: [],
     stats: { total: 0, completed: 0, pending: 0, completion_rate: 0 },
