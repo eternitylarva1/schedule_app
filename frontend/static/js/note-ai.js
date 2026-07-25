@@ -198,17 +198,21 @@
         clearTimeout(_selectionTimer);
         _selectionTimer = setTimeout(() => {
             const sel = window.getSelection();
-            if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+            // Only update quote when the selection is INSIDE the note content.
+            // Clicking the AI input or anything else shifts selection focus
+            // away from the note — in that case, keep the existing quote.
+            const contentEl = document.getElementById('noteInlineContent');
+            const inNoteContent = contentEl && sel && sel.anchorNode && contentEl.contains(sel.anchorNode);
+            if (!inNoteContent) return;
+
+            if (sel.isCollapsed || !sel.toString().trim()) {
+                // Selection collapsed inside the note → clear quote
                 aiState.selectedText = '';
                 _updateQuoteDisplay();
                 return;
             }
-            // Only capture selection if it's inside the note content
-            const contentEl = document.getElementById('noteInlineContent');
-            if (contentEl && contentEl.contains(sel.anchorNode)) {
-                aiState.selectedText = sel.toString().trim();
-                _updateQuoteDisplay();
-            }
+            aiState.selectedText = sel.toString().trim();
+            _updateQuoteDisplay();
         }, 200);
     }
 
