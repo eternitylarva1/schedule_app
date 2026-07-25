@@ -51,6 +51,15 @@ async def create_event(request: web.Request) -> web.Response:
                 if time_result[1]:
                     data["end_time"] = time_result[1].isoformat()
 
+        # Parse-only mode: return parsed start_time/end_time without saving
+        # Frontend uses this for auto-parsing as user types in the title field
+        if data.get("_parse") is True:
+            return json_response({
+                "parsed": True,
+                "start_time": data.get("start_time"),
+                "end_time": data.get("end_time"),
+            })
+
         # Get default reminder setting
         default_reminder = await db.get_setting("default_task_reminder_enabled")
         default_reminder_enabled = default_reminder and default_reminder.lower() == "true"
