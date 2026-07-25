@@ -297,10 +297,10 @@ class RefactorTester:
         await self._click("#contentAddBtn")  # 打开
         await asyncio.sleep(0.3)
         # 查找关闭按钮或背景
-        if await self._exists("#eventModal .close, #eventModal [id*='close']"):
-            await self._click("#eventModal .close, #eventModal [id*='close']")
+        if await self._exists("#modalClose"):
+            await self._click("#modalClose")
         else:
-            await self._click("#eventModalBackdrop")
+            await self._click("#modalBackdrop")
         await asyncio.sleep(0.3)
         if await self._is_visible("#eventModal"):
             return False, "modal未关闭"

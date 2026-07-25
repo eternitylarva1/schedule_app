@@ -30,6 +30,7 @@ const STATIC_ASSETS = [
   '/static/js/notepad.js?v=20260622-02',
   '/static/js/settings.js?v=20260702-03',
   '/static/js/llm-queue.js?v=20260624-01',
+  '/static/js/event-modal.js?v=20260725-01',
   '/static/js/main.js?v=20260723-01',
   '/static/js/goal-core.js?v=20260720-02',
   '/static/js/goal-ai.js?v=20260720-02',
