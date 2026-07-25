@@ -10,7 +10,8 @@ async def cleanup_test_entries() -> dict[str, int]:
     2. is_test flag for events, expenses, budgets and goals
     """
     patterns = [
-        "%测试%", "%test%", "%debug%", "%demo%", "%样例%", "%示例%", "%tmp%", "%临时%"
+        "%测试%", "%test%", "%debug%", "%demo%", "%样例%", "%示例%", "%tmp%", "%临时%",
+        "%trace%", "%dup%", "%bug%", "%repro%",
     ]
 
     async with aiosqlite.connect(DB_PATH) as db:
