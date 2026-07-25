@@ -544,13 +544,17 @@ class RefactorTester:
     async def phase6_all_tabs_accessible(self) -> Tuple[bool, str]:
         """测试：所有Tab可访问"""
         await self._close_any_modal()
-        tabs = ["#tabDay", "#tabTodo", "#tabGoals", "#tabNotepad"]
-        for tab in tabs:
+        tabs = {
+            "#tabDay": "#dayView",
+            "#tabTodo": "#todoView",
+            "#tabGoals": "#goalsView",
+            "#tabNotepad": "#notepadView"
+        }
+        for tab, view in tabs.items():
             await self._click(tab)
             await asyncio.sleep(0.3)
-            view = tab.replace("tab", "").lower()
-            if not await self._exists(f"#{view}View"):
-                return False, f"{tab}对应的视图不存在"
+            if not await self._exists(view):
+                return False, f"{tab}对应的视图不存在 ({view})"
         return True, ""
 
     async def phase6_fab_works(self) -> Tuple[bool, str]:

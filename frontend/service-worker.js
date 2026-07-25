@@ -34,6 +34,7 @@ const STATIC_ASSETS = [
   '/static/js/todo-view.js?v=20260725-01',
   '/static/js/view-router.js?v=20260725-01',
   '/static/js/search.js?v=20260725-01',
+  '/static/js/app-init.js?v=20260725-01',
   '/static/js/main.js?v=20260725-01',
   '/static/js/goal-core.js?v=20260720-02',
   '/static/js/goal-ai.js?v=20260720-02',
