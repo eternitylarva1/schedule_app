@@ -1164,6 +1164,12 @@
                 _hideMentionDropdown();
                 contentEl.focus();
             }
+            // Esc while image resize overlay: dismiss
+            if (_resizeOverlay && e.key === 'Escape') {
+                e.preventDefault();
+                _removeResizeOverlay();
+                contentEl.focus();
+            }
             // Arrow keys while mention dropdown is showing
             if (_mentionDropdownEl) {
                 if (e.key === 'ArrowDown') {
@@ -1458,13 +1464,23 @@
             _resizeOverlay = overlay;
         });
 
+        // Remove old global click handler if any (from previous note)
+        if (_resizeDocClickHandler) {
+            document.removeEventListener('click', _resizeDocClickHandler);
+        }
+
         // Remove overlay when clicking outside images
-        document.addEventListener('click', (e) => {
+        // Named handler so we can clean up when switching notes
+        _resizeDocClickHandler = (e) => {
             if (_resizeOverlay && !e.target.closest('.img-resize-overlay') && !e.target.closest('img')) {
                 _removeResizeOverlay();
             }
-        });
+        };
+        document.addEventListener('click', _resizeDocClickHandler);
     }
+
+    // Module-level reference for the resize overlay click handler
+    let _resizeDocClickHandler = null;
 
     function scheduleAutoSave(note) {
         clearTimeout(_saveTimer);
@@ -1527,6 +1543,11 @@
         const main = document.getElementById('notesMain');
         if (!main) return;
         clearTimeout(_saveTimer);
+        _removeResizeOverlay();
+        if (_resizeDocClickHandler) {
+            document.removeEventListener('click', _resizeDocClickHandler);
+            _resizeDocClickHandler = null;
+        }
         _currentInlineNoteId = null;
         const state = getState();
         state.selectedNote = null;

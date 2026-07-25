@@ -141,7 +141,7 @@
 
         aiState.isOpen = true;
         aiState.currentNote = note;
-        aiState.selectedText = '';
+        // Don't clear selectedText — capture current selection, if any
 
         if (noteTitleEl) {
             noteTitleEl.textContent = (note.title || '').trim() || '(无标题)';
@@ -483,6 +483,8 @@
     }
 
     async function insertAIResponseToNote(content) {
+        const { updateNote, showToast } = getUtils();
+
         // Use inline AI block with accept/reject if editor is open
         const editor = window.ScheduleAppNoteEditor;
         if (editor && typeof editor.insertAIBlock === 'function') {
@@ -495,7 +497,6 @@
         // Fallback: old behavior (append to content)
         if (!aiState.currentNote) return;
 
-        const { updateNote, showToast } = getUtils();
         const currentContent = aiState.currentNote.content || '';
         const newContent = currentContent
             ? currentContent + '\n\n---\nAI 回答：\n' + content

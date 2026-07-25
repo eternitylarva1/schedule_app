@@ -1174,7 +1174,7 @@
                         const currentId = typeof editor.getCurrentInlineNoteId === 'function' ? editor.getCurrentInlineNoteId() : null;
                         if (currentId !== null && currentId !== noteId && typeof editor.flushAutoSave === 'function') {
                             const currentNote = state.notes.find(n => n.id === currentId);
-                            if (currentNote) editor.flushAutoSave(currentNote);
+                            if (currentNote) await editor.flushAutoSave(currentNote);
                         }
                     }
 
@@ -1225,9 +1225,11 @@
                         await updateNote(noteId, { is_archived: true });
                         const noteForTrash = getState().notes.find(n => n.id === noteId);
                         if (noteForTrash) noteForTrash.is_archived = true;
-                        if (editor && typeof editor.clearInlineEditor === 'function') {
-                            const ai = window.ScheduleAppNoteAI;
-                            if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === noteId) {
+                        // Close editor if the archived note is currently being viewed
+                        if (editor) {
+                            const currentNoteId = typeof editor.getCurrentInlineNoteId === 'function' ? editor.getCurrentInlineNoteId() : null;
+                            if (currentNoteId === noteId) {
+                                await editor.flushAutoSave(noteForTrash || { id: noteId });
                                 editor.clearInlineEditor();
                             }
                         }
@@ -1694,9 +1696,11 @@
             try {
                 await updateNote(note.id, { is_archived: true });
                 note.is_archived = true;
-                if (editor && typeof editor.clearInlineEditor === 'function') {
-                    const ai = window.ScheduleAppNoteAI;
-                    if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === note.id) {
+                // Close editor if currently viewing this note
+                if (editor) {
+                    const currentNoteId = typeof editor.getCurrentInlineNoteId === 'function' ? editor.getCurrentInlineNoteId() : null;
+                    if (currentNoteId === note.id) {
+                        await editor.flushAutoSave(note);
                         editor.clearInlineEditor();
                     }
                 }
