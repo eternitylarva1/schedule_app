@@ -87,6 +87,7 @@ async def _handle_event_operation(op, action, user_text, dry_run):
             all_day=False,
             recurrence="none",
             status="pending",
+            priority=op.get("priority", "none"),
         )
         created = await db.create_event(event)
         preview["id"] = created.id

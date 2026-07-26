@@ -205,10 +205,10 @@ async def update_event_impl(event_id: int, changes: dict):
 
 @tool(
     name="create_event",
-    description="创建一个新日程。参数: title(标题), start_time(开始时间ISO格式), end_time(可选结束时间), category_id(可选: work/life/study/health)",
+    description="创建一个新日程。参数: title(标题), start_time(开始时间ISO格式), end_time(可选结束时间), category_id(可选: work/life/study/health), priority(可选: none/low/medium/high)",
     category="events",
 )
-async def create_event(*, db_instance=None, title="", start_time="", end_time="", category_id="work", **kwargs):
+async def create_event(*, db_instance=None, title="", start_time="", end_time="", category_id="work", priority="none", **kwargs):
     """创建事件"""
     try:
         from ..models import Event
@@ -217,6 +217,7 @@ async def create_event(*, db_instance=None, title="", start_time="", end_time=""
             start_time=datetime.fromisoformat(start_time) if start_time else None,
             end_time=datetime.fromisoformat(end_time) if end_time else None,
             category_id=category_id or "work",
+            priority=priority if priority in ("none", "low", "medium", "high") else "none",
             status="pending",
         )
         result = await db.create_event(ev)

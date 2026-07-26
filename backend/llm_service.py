@@ -178,7 +178,8 @@ class LLMService:
     "title": "日程标题（提取核心任务，去除时间描述）",
     "start_time": "ISO格式开始时间，如2026-04-01T15:00:00；如果时间不明确可返回null",
     "duration_minutes": 预估分钟数,
-    "category_id": "work/life/study/health之一"
+    "category_id": "work/life/study/health之一",
+    "priority": "none/low/medium/high，根据'重要''紧急''加急'→high，'抽空''随便''有空'→low，默认none"
 }},
 ... 更多日程
 ]
@@ -962,6 +963,7 @@ class LLMService:
               "start_time": "ISO格式如2026-04-25T18:00:00（event用）",
               "duration_minutes": 30,
               "category_id": "work/life/study/health（event用）",
+              "priority": "none|low|medium|high（event_create用，根据用户语义推断重要性）",
               "amount": 100.0（expense用）",
               "expense_category": "food/transport/shopping/other（expense用）",
               "note_content": "笔记内容（note用）",
@@ -1026,8 +1028,12 @@ class LLMService:
             - "顺延"在中文中也可表示"按时间顺序依次排列"——如果用户说是"洗漱、报道、体检按时间顺延"，理解为依次创建三个事件
             - 判断标准：如果用户给的是具体的事件名称列表，用 event_create；如果用户说"所有"、"剩下的"、"没做的"等概括性词汇，用 event_postpone
          11) 示例：
-           - "今天2点开会" → domain=event, action=event_create, title="开会", start_time=今天2点
-           - "花50块买书" → domain=expense, action=expense_create, amount=50, expense_category="shopping", note="买书"
+            - "今天2点开会" → domain=event, action=event_create, title="开会", start_time=今天2点
+            - "花50块买书" → domain=expense, action=expense_create, amount=50, expense_category="shopping", note="买书"
+            - "加急处理报告" → domain=event, action=event_create, title="处理报告", priority="high"（用户明确标注"加急"→高优先级）
+            - "抽空整理文档" → domain=event, action=event_create, title="整理文档", priority="low"（"抽空"表示不紧急→低优先级）
+            - "重要的客户会议" → domain=event, action=event_create, title="客户会议", priority="high"
+            - "随便看看邮件" → domain=event, action=event_create, title="看邮件", priority="low"
            - "写笔记：明天要做的事" → domain=note, action=note_create, title="明天要做的事"
            - "创建短期目标：减肥" → domain=goal, action=goal_create, title="减肥", horizon="short"
             - "完成开会" → domain=event, action=event_complete, target_title="开会"
@@ -1370,6 +1376,7 @@ class LLMService:
                         end_time=end,
                         category_id=ev.get("category_id", "work"),
                         status="pending",
+                        priority=ev.get("priority", "none"),
                     )
                     created = await db_instance.create_event(event_obj)
                     results.append({
