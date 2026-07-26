@@ -1,3 +1,5 @@
 aiohttp
 aiosqlite
 aiohttp-cors
+fpdf2
+python-docx

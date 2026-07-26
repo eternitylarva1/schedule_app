@@ -1418,6 +1418,14 @@
                     <span class="note-menu-icon">📥</span>
                     <span class="note-menu-label">纯文本 (.txt)</span>
                 </button>
+                <button class="note-menu-item" data-action="export-docx">
+                    <span class="note-menu-icon">📄</span>
+                    <span class="note-menu-label">Word (.docx)</span>
+                </button>
+                <button class="note-menu-item" data-action="export-pdf">
+                    <span class="note-menu-icon">📕</span>
+                    <span class="note-menu-label">PDF (.pdf)</span>
+                </button>
             </div>
             <div class="note-menu-divider"></div>
             <button class="note-menu-item" data-action="undo">
@@ -1675,6 +1683,10 @@
             await _copyNoteToClipboard(note);
         } else if (action === 'export-md' || action === 'export-txt') {
             _exportNote(note, action === 'export-md' ? 'md' : 'txt');
+        } else if (action === 'export-docx' || action === 'export-pdf') {
+            const fmt = action === 'export-docx' ? 'docx' : 'pdf';
+            window.open('/api/notes/' + note.id + '/export?format=' + fmt, '_blank');
+            hideNoteContextMenu();
         } else if (action === 'undo' || action === 'redo') {
             const ed = window.ScheduleAppNoteEditor;
             if (ed) {

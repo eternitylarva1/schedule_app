@@ -1,4 +1,5 @@
 """Note HTTP endpoints."""
+import io
 import json
 from aiohttp import web
 from typing import Any
@@ -313,9 +314,120 @@ async def reorder_notes(request: web.Request) -> web.Response:
         return error_response(f"排序保存失败: {str(e)}")
 
 
+# ============= Note Export =============
+
+NOTO_FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+
+def _export_pdf_bytes(title: str, content: str) -> bytes:
+    """Generate a PDF file in memory using fpdf2."""
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_font("Noto", fname=NOTO_FONT_PATH)
+    pdf.set_auto_page_break(auto=True, margin=20)
+
+    pdf.add_page()
+    # Title
+    pdf.set_font("Noto", size=18)
+    pdf.multi_cell(0, 10, title or "未命名笔记")
+    pdf.ln(4)
+    # Separator line
+    w = pdf.w - 2 * pdf.l_margin
+    pdf.line(pdf.l_margin, pdf.get_y(), pdf.l_margin + w, pdf.get_y())
+    pdf.ln(6)
+    # Content — split paragraphs
+    pdf.set_font("Noto", size=11)
+    for line in content.splitlines():
+        if line.strip():
+            pdf.set_x(pdf.l_margin)
+            pdf.multi_cell(0, 7, line)
+        else:
+            pdf.ln(4)
+
+    # Output to bytes
+    buf = io.BytesIO()
+    pdf.output(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def _export_docx_bytes(title: str, content: str) -> bytes:
+    """Generate a .docx file in memory using python-docx."""
+    from docx import Document
+    from docx.shared import Pt, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    doc = Document()
+
+    # Adjust default style
+    style = doc.styles["Normal"]
+    style.font.size = Pt(11)
+
+    # Title
+    heading = doc.add_heading(title or "未命名笔记", level=1)
+    heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+    # Content — split paragraphs
+    for line in content.splitlines():
+        paragraph = doc.add_paragraph(line if line.strip() else " ")
+        paragraph.style.font.size = Pt(11)
+
+    # Output to bytes
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+async def export_note(request: web.Request) -> web.StreamResponse:
+    """GET /api/notes/{id}/export?format=pdf|docx — export a note as a file."""
+    note_id = int(request.match_info["id"])
+    export_format = request.query.get("format", "pdf")
+
+    try:
+        note = await db.get_note(note_id)
+        if not note:
+            return error_response("笔记不存在", code=404)
+    except Exception as e:
+        return error_response(f"获取笔记失败: {str(e)}")
+
+    title = (note.title or "").strip() or "未命名笔记"
+    content = note.content or ""
+    safe_title = title.replace(" ", "_")[:50]
+
+    try:
+        if export_format == "pdf":
+            file_bytes = _export_pdf_bytes(title, content)
+            filename = f"{safe_title}.pdf"
+            content_type = "application/pdf"
+        elif export_format == "docx":
+            file_bytes = _export_docx_bytes(title, content)
+            filename = f"{safe_title}.docx"
+            content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        else:
+            return error_response(f"不支持的导出格式: {export_format}，请使用 pdf 或 docx", code=400)
+    except Exception as e:
+        return error_response(f"导出失败: {str(e)}")
+
+    resp = web.StreamResponse(
+        status=200,
+        reason="OK",
+        headers={
+            "Content-Type": content_type,
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Length": str(len(file_bytes)),
+        },
+    )
+    await resp.prepare(request)
+    await resp.write(file_bytes)
+    await resp.write_eof()
+    return resp
+
+
 # ============= Route Registration =============
 
 def register_routes(app: web.Application) -> None:
+    app.router.add_get("/api/notes/{id}/export", export_note)
     app.router.add_get("/api/notes", get_notes)
     app.router.add_post("/api/notes", create_note)
     app.router.add_put("/api/notes/{id}", update_note)
