@@ -424,10 +424,91 @@ async def export_note(request: web.Request) -> web.StreamResponse:
     return resp
 
 
+async def share_note_to_qq(request: web.Request) -> web.Response:
+    """POST /api/notes/{id}/share-to-qq — share a note as PDF/DOCX to QQ.
+    
+    Request body: { "format": "pdf"|"docx", "user_id": 2674610176 }
+    """
+    note_id = int(request.match_info["id"])
+
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return error_response("无效的JSON数据")
+
+    export_format = data.get("format", "pdf")
+    user_id = data.get("user_id", 2674610176)
+    message = (data.get("message") or "").strip()
+
+    if export_format not in ("pdf", "docx"):
+        return error_response("不支持的格式，请使用 pdf 或 docx", code=400)
+
+    try:
+        note = await db.get_note(note_id)
+        if not note:
+            return error_response("笔记不存在", code=404)
+    except Exception as e:
+        return error_response(f"获取笔记失败: {str(e)}")
+
+    title = (note.title or "").strip() or "未命名笔记"
+    content = note.content or ""
+    safe_title = title.replace(" ", "_")[:50]
+    ext = "pdf" if export_format == "pdf" else "docx"
+
+    try:
+        if export_format == "pdf":
+            file_bytes = _export_pdf_bytes(title, content)
+        else:
+            file_bytes = _export_docx_bytes(title, content)
+    except Exception as e:
+        return error_response(f"生成文件失败: {str(e)}")
+
+    # Save to temp file
+    import tempfile
+    import os as _os
+    tmp_path = _os.path.join(tempfile.gettempdir(), f"schedule_share_{note_id}_{safe_title}.{ext}")
+    with open(tmp_path, "wb") as f:
+        f.write(file_bytes)
+
+    # Send to QQ
+    try:
+        import sys as _sys
+        _sys.path.insert(0, "/home/gaoming/.opencode/skills/qq-notify")
+        from send_message import send_private_message, send_private_file
+
+        # Send text message first
+        text_msg = message or f"📄 分享笔记：{title}"
+        r1 = send_private_message(user_id, text_msg)
+
+        # Send file
+        file_name = f"{safe_title}.{ext}"
+        r2 = send_private_file(user_id, tmp_path, file_name)
+
+        # Clean up temp file
+        _os.unlink(tmp_path)
+
+        msg_ok = r1.get("status") == "ok"
+        file_ok = r2.get("status") == "ok"
+        return json_response({
+            "success": msg_ok and file_ok,
+            "text_sent": msg_ok,
+            "file_sent": file_ok,
+            "format": export_format,
+        })
+    except Exception as e:
+        # Clean up temp file on error too
+        try:
+            _os.unlink(tmp_path)
+        except OSError:
+            pass
+        return error_response(f"QQ发送失败: {str(e)}")
+
+
 # ============= Route Registration =============
 
 def register_routes(app: web.Application) -> None:
     app.router.add_get("/api/notes/{id}/export", export_note)
+    app.router.add_post("/api/notes/{id}/share-to-qq", share_note_to_qq)
     app.router.add_get("/api/notes", get_notes)
     app.router.add_post("/api/notes", create_note)
     app.router.add_put("/api/notes/{id}", update_note)

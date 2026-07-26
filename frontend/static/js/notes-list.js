@@ -1418,13 +1418,24 @@
                     <span class="note-menu-icon">📥</span>
                     <span class="note-menu-label">纯文本 (.txt)</span>
                 </button>
+            </div>
+            <div class="note-menu-section">
+                <div class="note-menu-section-title">分享</div>
                 <button class="note-menu-item" data-action="export-docx">
-                    <span class="note-menu-icon">📄</span>
-                    <span class="note-menu-label">Word (.docx)</span>
+                    <span class="note-menu-icon">📥</span>
+                    <span class="note-menu-label">下载 Word (.docx)</span>
                 </button>
                 <button class="note-menu-item" data-action="export-pdf">
-                    <span class="note-menu-icon">📕</span>
-                    <span class="note-menu-label">PDF (.pdf)</span>
+                    <span class="note-menu-icon">📥</span>
+                    <span class="note-menu-label">下载 PDF (.pdf)</span>
+                </button>
+                <button class="note-menu-item" data-action="share-docx-qq">
+                    <span class="note-menu-icon">💬</span>
+                    <span class="note-menu-label">Word → QQ</span>
+                </button>
+                <button class="note-menu-item" data-action="share-pdf-qq">
+                    <span class="note-menu-icon">💬</span>
+                    <span class="note-menu-label">PDF → QQ</span>
                 </button>
             </div>
             <div class="note-menu-divider"></div>
@@ -1686,6 +1697,27 @@
         } else if (action === 'export-docx' || action === 'export-pdf') {
             const fmt = action === 'export-docx' ? 'docx' : 'pdf';
             window.open('/api/notes/' + note.id + '/export?format=' + fmt, '_blank');
+            hideNoteContextMenu();
+        } else if (action === 'share-docx-qq' || action === 'share-pdf-qq') {
+            const fmt = action === 'share-docx-qq' ? 'docx' : 'pdf';
+            const { apiCall, showToast } = getUtils();
+            try {
+                const result = await apiCall('notes/' + note.id + '/share-to-qq', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        format: fmt,
+                        user_id: 2674610176,
+                        message: '📄 分享笔记：' + (note.title || '未命名')
+                    })
+                });
+                if (result && result.success) {
+                    showToast('已发送到 QQ');
+                } else {
+                    showToast('发送失败');
+                }
+            } catch (e) {
+                showToast('发送失败');
+            }
             hideNoteContextMenu();
         } else if (action === 'undo' || action === 'redo') {
             const ed = window.ScheduleAppNoteEditor;
