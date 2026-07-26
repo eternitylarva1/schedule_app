@@ -11,9 +11,9 @@ async def create_note_conversation(conversation: "NoteConversation") -> "NoteCon
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            """INSERT INTO note_conversations (note_id, role, content, selected_text, created_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (conversation.note_id, conversation.role, conversation.content, conversation.selected_text, now),
+            """INSERT INTO note_conversations (note_id, role, content, reasoning, selected_text, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (conversation.note_id, conversation.role, conversation.content, conversation.reasoning, conversation.selected_text, now),
         )
         await db.commit()
         conversation.id = cursor.lastrowid
@@ -25,7 +25,7 @@ async def get_note_conversations(note_id: int) -> List["NoteConversation"]:
     """Get all conversation messages for a note, ordered by creation time."""
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            """SELECT id, note_id, role, content, selected_text, created_at 
+            """SELECT id, note_id, role, content, reasoning, selected_text, created_at 
                FROM note_conversations 
                WHERE note_id = ? 
                ORDER BY created_at ASC""",
@@ -38,8 +38,9 @@ async def get_note_conversations(note_id: int) -> List["NoteConversation"]:
                 note_id=row[1],
                 role=row[2],
                 content=row[3],
-                selected_text=row[4] or "",
-                created_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                reasoning=row[4] or "",
+                selected_text=row[5] or "",
+                created_at=datetime.fromisoformat(row[6]) if row[6] else None,
             )
             for row in rows
         ]

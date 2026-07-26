@@ -365,6 +365,54 @@
     flex-wrap: wrap;
 }
 
+/* AI 思考过程 可折叠区块 */
+.ai-drawer-reasoning {
+    margin-bottom: 4px;
+    max-width: 85%;
+}
+
+.ai-drawer-reasoning-header {
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 0;
+    user-select: none;
+    transition: color 0.15s;
+}
+
+.ai-drawer-reasoning-header:hover {
+    color: var(--text-secondary);
+}
+
+.ai-drawer-reasoning-toggle {
+    font-size: 9px;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+
+.ai-drawer-reasoning.collapsed .ai-drawer-reasoning-toggle {
+    transform: rotate(-90deg);
+}
+
+.ai-drawer-reasoning-content {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 6px 8px;
+    border-left: 2px solid var(--border-color);
+    margin-left: 6px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.ai-drawer-reasoning.collapsed .ai-drawer-reasoning-content {
+    display: none;
+}
+
 .ai-drawer-insert-btn,
 .ai-drawer-newnote-btn {
     padding: 4px 10px;

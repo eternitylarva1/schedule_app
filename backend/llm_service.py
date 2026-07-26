@@ -1403,8 +1403,9 @@ class LLMService:
         referenced_notes: Optional[list[int]] = None,
         tools: Optional[list[str]] = None,
         db_instance = None,
-    ) -> Optional[str]:
-        """两步：AI 选择工具 → 执行 → AI 回答"""
+    ) -> Optional[dict]:
+        """两步：AI 选择工具 → 执行 → AI 回答
+        Returns dict with 'content' (str) and 'reasoning' (str|None)."""
         from .tools import get_tools, execute_tool
 
         # 1. 获取可用工具定义列表
@@ -1503,13 +1504,24 @@ class LLMService:
             return []  # fallback safe
 
 
+    def _extract_reasoning(text: str):
+        """Extract <think>...</think> tags from model output.
+        Returns (reasoning: str|None, clean_text: str)."""
+        import re as _re2
+        match = _re2.search(r'<think>(.*?)</think>', text, _re2.DOTALL)
+        if match:
+            reasoning = match.group(1).strip()
+            clean = _re2.sub(r'<think>.*?</think>\s*', '', text, flags=_re2.DOTALL).strip()
+            return reasoning, clean
+        return None, text.strip()
+
     async def _answer_with_context(
         self,
         message: str,
         context: dict,
         selected_text: str = "",
         referenced_notes: Optional[list[int]] = None,
-    ) -> Optional[str]:
+    ) -> Optional[dict]:
         """Pass 2: 结合已有数据回答用户"""
         # 格式化 context
         def _json_default(obj):
@@ -1569,7 +1581,10 @@ class LLMService:
             {"role": "user", "content": prompt},
         ], temperature=0.7)
         
-        return response
+        if not response:
+            return None
+        reasoning, content = self._extract_reasoning(response)
+        return {"content": content, "reasoning": reasoning}
 
 
 def create_llm_service(db_path: str = None) -> LLMService:

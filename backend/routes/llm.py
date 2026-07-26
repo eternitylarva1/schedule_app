@@ -411,6 +411,10 @@ async def llm_agent_chat(request: web.Request) -> web.Response:
     if not response:
         return error_response(llm_service.last_error_message or "AI 响应失败")
 
+    # response is now a dict: { "content": "...", "reasoning": "..."|None }
+    content = response.get("content", "") if isinstance(response, dict) else response
+    reasoning = response.get("reasoning") if isinstance(response, dict) else None
+
     # Save conversation history if note_id is provided
     note_id = data.get("note_id")
     if note_id:
@@ -425,14 +429,15 @@ async def llm_agent_chat(request: web.Request) -> web.Response:
             ai_conv = db.NoteConversation(
                 note_id=note_id,
                 role="assistant",
-                content=response,
+                content=content,
+                reasoning=reasoning or "",
                 selected_text=""
             )
             await db.create_note_conversation(ai_conv)
         except Exception as e:
             print(f"Failed to save conversation: {e}")
 
-    return json_response({"content": response})
+    return json_response({"content": content, "reasoning": reasoning})
 
 
 

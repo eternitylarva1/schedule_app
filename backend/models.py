@@ -265,6 +265,7 @@ class NoteConversation:
     note_id: int | None = None
     role: str = "user"  # user/assistant
     content: str = ""
+    reasoning: str = ""  # AI's thinking process (extracted from <think> tags)
     selected_text: str = ""  # User's selected text when asking
     created_at: datetime | None = None
 

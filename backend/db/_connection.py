@@ -247,11 +247,18 @@ async def create_baseline_schema(db):
             note_id INTEGER NOT NULL,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
+            reasoning TEXT DEFAULT '',
             selected_text TEXT DEFAULT '',
             created_at TEXT,
             FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
         )
     """)
+
+    # Migration: add reasoning column if missing (added after schema creation)
+    try:
+        await db.execute("ALTER TABLE note_conversations ADD COLUMN reasoning TEXT DEFAULT ''")
+    except Exception:
+        pass  # column already exists
 
     # Budget templates table
     await db.execute("""

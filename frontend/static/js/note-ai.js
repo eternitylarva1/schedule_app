@@ -389,6 +389,15 @@
 
         container.innerHTML = aiState.conversations.map(conv => `
             <div class="ai-drawer-message ${conv.role}">
+                ${conv.reasoning ? `
+                <div class="ai-drawer-reasoning">
+                    <div class="ai-drawer-reasoning-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                        <span class="ai-drawer-reasoning-toggle">▾</span>
+                        <span>🧠 思考过程</span>
+                    </div>
+                    <div class="ai-drawer-reasoning-content">${escapeHtml(conv.reasoning)}</div>
+                </div>
+                ` : ''}
                 <div class="ai-drawer-bubble">
                     ${escapeHtml(conv.content)}
                     ${conv.role === 'assistant' ? `
@@ -465,12 +474,26 @@
             if (response) {
                 const thinkingEl = container?.querySelector('.ai-drawer-message.assistant:last-child');
                 if (thinkingEl) {
-                    thinkingEl.innerHTML = `
+                    let html = '';
+                    // Show reasoning if present
+                    if (response.reasoning) {
+                        html += `
+                        <div class="ai-drawer-reasoning">
+                            <div class="ai-drawer-reasoning-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                                <span class="ai-drawer-reasoning-toggle">▾</span>
+                                <span>🧠 思考过程</span>
+                            </div>
+                            <div class="ai-drawer-reasoning-content">${escapeHtml(response.reasoning)}</div>
+                        </div>
+                        `;
+                    }
+                    html += `
                         <div class="ai-drawer-bubble">${escapeHtml(response.content)}<div class="ai-drawer-actions"><button class="ai-drawer-insert-btn" data-content="${encodeURIComponent(response.content)}" title="插入到当前笔记">↩ 插入</button><button class="ai-drawer-newnote-btn" data-content="${encodeURIComponent(response.content)}" title="另存为新笔记">📄 新笔记</button></div></div>
                     `;
+                    thinkingEl.innerHTML = html;
                 }
                 aiState.conversations.push({ role: 'user', content: rawMessage });
-                aiState.conversations.push({ role: 'assistant', content: response.content });
+                aiState.conversations.push({ role: 'assistant', content: response.content, reasoning: response.reasoning });
             }
         } catch (error) {
             console.error('Chat error:', error);
