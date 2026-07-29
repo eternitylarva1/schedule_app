@@ -51,6 +51,7 @@ async def llm_chat(request: web.Request) -> web.Response:
     
     result = await llm_service.process_schedule_command(user_text, existing_events)
     if result:
+        await db.log_llm_call(user_text, json.dumps(result, ensure_ascii=False)[:500], len(result.get("events", [])), source="chat")
         return json_response(result)
     else:
         return error_response(llm_service.last_error_message or "LLM处理失败，请检查API配置或稍后重试")
@@ -193,6 +194,7 @@ async def llm_create(request: web.Request) -> web.Response:
         if not events_list:
             return error_response(f"创建事件失败")
         
+        await db.log_llm_call(user_text, json.dumps([e.to_dict() for e in events_list], ensure_ascii=False)[:500], len(events_list), source="create")
         return json_response([e.to_dict() for e in events_list])
     
     except Exception as e:
@@ -358,6 +360,7 @@ async def llm_command(request: web.Request) -> web.Response:
                 "failed_operations": past_time_errors,
             })
 
+        await db.log_llm_call(original_user_text, json.dumps({"summary": plan.get("summary",""), "ops": len(preview_ops)}, ensure_ascii=False), len(created_items), source="command")
         return json_response({
             "dry_run": dry_run,
             "summary": plan.get("summary", ""),
@@ -692,6 +695,16 @@ def _has_schedule_input(text: str) -> bool:
     return False
 
 
+"""GET /api/llm/logs - view LLM input/output logs."""
+async def llm_logs(request: web.Request) -> web.Response:
+    """GET /api/llm/logs - return recent LLM call logs."""
+    try:
+        logs = await db.get_llm_logs(50)
+        return json_response(logs)
+    except Exception as e:
+        return error_response(str(e))
+
+
 # ============= Route Registration =============
 
 def register_routes(app: web.Application) -> None:
@@ -703,3 +716,4 @@ def register_routes(app: web.Application) -> None:
     app.router.add_post("/api/llm/parse_expense", llm_parse_expense)
     app.router.add_post("/api/llm/chat-agent", llm_agent_chat)
     app.router.add_post("/api/llm/test", llm_test)
+    app.router.add_get("/api/llm/logs", llm_logs)
