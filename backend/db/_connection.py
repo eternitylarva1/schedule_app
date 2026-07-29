@@ -386,4 +386,16 @@ async def create_baseline_schema(db):
             cat
         )
 
+    # LLM input/output audit log
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS llm_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_input TEXT NOT NULL DEFAULT '',
+            parsed_result TEXT DEFAULT '',
+            operation_count INTEGER DEFAULT 0,
+            source TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
     await db.commit()

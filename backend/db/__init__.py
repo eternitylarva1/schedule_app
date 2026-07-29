@@ -59,6 +59,7 @@ from .backup import export_all_data, import_all_data
 from .categories import (
     get_categories, create_category, update_category, delete_category,
 )
+from .llm_logs import log_llm_call, get_llm_logs
 
 __all__ = [
     # Connection
@@ -117,4 +118,6 @@ __all__ = [
     "export_all_data", "import_all_data",
     # Categories
     "get_categories", "create_category", "update_category", "delete_category",
+    # LLM Logs
+    "log_llm_call", "get_llm_logs",
 ]

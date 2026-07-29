@@ -62,8 +62,8 @@
             getCategoryColor: c.getCategoryColor,
             formatTimeRange: c.formatTimeRange,
             handleEventDragStart: c.handleEventDragStart,
-            showEventDetail: () => window.ScheduleAppEventModal?.showEventDetail?.(),
-            markEventDoneQuick: () => window.ScheduleAppSelection?.markEventDoneQuick?.(),
+            showEventDetail: (...args) => window.ScheduleAppEventModal?.showEventDetail?.(...args),
+            markEventDoneQuick: (...args) => window.ScheduleAppSelection?.markEventDoneQuick?.(...args),
             switchView,
             escapeHtml,
         };
@@ -96,7 +96,7 @@
         const renderGoalsView = () => window.ScheduleAppGoals?.renderGoalsView?.();
         const renderNotepadView = () => window.ScheduleAppNotepad?.renderNotepadView?.();
         const renderTodoView = () => window.ScheduleAppTodoView?.renderTodoView?.();
-        const openEventModal = () => window.ScheduleAppEventModal?.openEventModal?.();
+        const openEventModal = (...args) => window.ScheduleAppEventModal?.openEventModal?.(...args);
 
         if (state.selectionMode.active && !['todo', 'goals'].includes(view)) {
             exitSelectionMode();
