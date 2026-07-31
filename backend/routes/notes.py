@@ -393,7 +393,8 @@ async def export_note(request: web.Request) -> web.StreamResponse:
 
     title = (note.title or "").strip() or "未命名笔记"
     content = note.content or ""
-    safe_title = title.replace(" ", "_")[:50]
+    import re as _re_safe2
+    safe_title = _re_safe2.sub(r'[<>:"/\\|?*()!&;$`\s]', '_', title)[:50]
 
     try:
         if export_format == "pdf":
@@ -452,7 +453,9 @@ async def share_note_to_qq(request: web.Request) -> web.Response:
 
     title = (note.title or "").strip() or "未命名笔记"
     content = note.content or ""
-    safe_title = title.replace(" ", "_")[:50]
+    # Sanitize for filename: remove shell-dangerous chars, keep CJK/ASCII
+    import re as _re_safe
+    safe_title = _re_safe.sub(r'[<>:"/\\|?*()!&;$`\s]', '_', title)[:50]
     ext = "pdf" if export_format == "pdf" else "docx"
 
     try:
