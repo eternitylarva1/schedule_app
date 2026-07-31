@@ -323,7 +323,7 @@ def _export_pdf_bytes(title: str, content: str) -> bytes:
     from fpdf import FPDF
 
     pdf = FPDF()
-    pdf.add_font("Noto", fname=NOTO_FONT_PATH)
+    pdf.add_font("Noto", fname=NOTO_FONT_PATH, collection_font_number=2)
     pdf.set_auto_page_break(auto=True, margin=20)
 
     pdf.add_page()
