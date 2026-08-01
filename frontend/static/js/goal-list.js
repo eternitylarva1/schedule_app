@@ -603,7 +603,7 @@
                     color
                 });
                 showToast?.('子任务已添加');
-                const newGoalId = result?.data?.id;
+                const newGoalId = result?.id;
                 if (newGoalId) {
                     const dateFmt = `${String(month + 1).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
                     const subHtml = `
@@ -762,7 +762,7 @@
                     const color = GOAL_COLORS4[Math.floor(Math.random() * GOAL_COLORS4.length)];
                     const result = await G.createGoal({ title: title.trim(), parent_id: parentId, horizon: state.goalsHorizon, color });
                     showToast?.('子任务已添加');
-                    const newId = result?.data?.id;
+                    const newId = result?.id;
                     if (newId) {
                         const subHtml = [
                             '<div class="goal-card goal-subtask" data-goal-id="' + newId + '" style="border-left: 4px solid ' + color + '">',
