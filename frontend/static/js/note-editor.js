@@ -1416,6 +1416,8 @@
                 document.removeEventListener('mousemove', onMove);
                 document.removeEventListener('mouseup', onUp);
                 _isResizing = false;
+                // Sync overlay to final image position after resize completes
+                _updateOverlayFromImage();
                 scheduleAutoSave(note);
             };
 

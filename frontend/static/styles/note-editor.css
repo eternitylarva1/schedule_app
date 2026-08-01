@@ -668,10 +668,9 @@
 .img-resize-overlay {
     position: absolute;
     z-index: 100;
-    border: 2px solid var(--accent-primary);
+    outline: 2px solid var(--accent-primary);
     border-radius: var(--radius-sm);
     pointer-events: none;
-    box-sizing: border-box;
 }
 .img-resize-handle {
     position: absolute;
