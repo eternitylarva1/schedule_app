@@ -1334,8 +1334,8 @@
             if (!_resizeOverlay) return;
             const r = _resizeOverlay._img.getBoundingClientRect();
             const er = contentEl.getBoundingClientRect();
-            _resizeOverlay.style.left = (r.left - er.left) + 'px';
-            _resizeOverlay.style.top = (r.top - er.top) + 'px';
+            _resizeOverlay.style.left = (r.left - er.left + contentEl.scrollLeft) + 'px';
+            _resizeOverlay.style.top = (r.top - er.top + contentEl.scrollTop) + 'px';
             _resizeOverlay.style.width = r.width + 'px';
             _resizeOverlay.style.height = r.height + 'px';
         }
@@ -1448,8 +1448,8 @@
             overlay._img = img; // store reference for resize math
             const pos = img.getBoundingClientRect();
             const editorRect = contentEl.getBoundingClientRect();
-            overlay.style.left = (pos.left - editorRect.left) + 'px';
-            overlay.style.top = (pos.top - editorRect.top) + 'px';
+            overlay.style.left = (pos.left - editorRect.left + contentEl.scrollLeft) + 'px';
+            overlay.style.top = (pos.top - editorRect.top + contentEl.scrollTop) + 'px';
             overlay.style.width = pos.width + 'px';
             overlay.style.height = pos.height + 'px';
             contentEl.appendChild(overlay);
@@ -1505,7 +1505,7 @@
         if (!titleInput || !contentEl) return;
 
         const newTitle = titleInput.value.trim();
-        const newContent = (contentEl.innerText || contentEl.textContent || '').trim();
+        const newContent = contentEl.innerHTML;
 
         // Check no-op
         if (newTitle === (note.title || '') && newContent === (note.content || '')) {
