@@ -357,7 +357,8 @@
                     const visible = subInfos.slice(0, 3);
                     const dots = visible.map(si => `<span class="goal-calendar-dot" style="background:${si.color}"></span>`).join('');
                     const more = subInfos.length > 3 ? `<span class="goal-calendar-dot-more">+${subInfos.length - 3}</span>` : '';
-                    cells += `<div class="${cls}"><span class="goal-calendar-dots">${dots}${more}</span><span class="day-num">${d}</span></div>`;
+                    const subtaskData = JSON.stringify(subInfos.map(si => ({t: si.title, c: si.color})).slice(0, 10));
+                    cells += `<div class="${cls}" data-subtasks='${subtaskData}'><span class="goal-calendar-dots">${dots}${more}</span><span class="day-num">${d}</span></div>`;
                 } else {
                     if (others.has(ds)) cls += ' other';
                     if (year === today.getFullYear() && month === today.getMonth() && d === today.getDate()) cls += ' today';
@@ -381,6 +382,7 @@
                     <div class="goal-calendar-day-header weekend">日</div>
                     ${cells}
                 </div>
+                <div class="goal-calendar-tooltip hidden" id="cal-tooltip-${goal.id}"></div>
             </div>`;
         }
 
@@ -558,6 +560,70 @@
             }
         });
 
+        // Calendar cell hover/long-press → show subtask tooltip
+        listEl.addEventListener('mouseenter', (e) => {
+            const cell = e.target.closest('.goal-calendar-cell[data-subtasks]');
+            if (!cell) return;
+            showCalendarTooltip(cell, true);
+        }, true);
+        listEl.addEventListener('mouseleave', (e) => {
+            const cell = e.target.closest('.goal-calendar-cell[data-subtasks]');
+            if (!cell) return;
+            showCalendarTooltip(cell, false);
+        }, true);
+        
+        // Mobile: long-press on calendar cell
+        let calLongPressTimer = null;
+        let calLongPressPos = null;
+        listEl.addEventListener('touchstart', (e) => {
+            const cell = e.target.closest('.goal-calendar-cell[data-subtasks]');
+            if (!cell) return;
+            calLongPressPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            calLongPressTimer = setTimeout(() => {
+                showCalendarTooltip(cell, true);
+            }, 500);
+        }, { passive: true });
+        listEl.addEventListener('touchend', (e) => {
+            if (calLongPressTimer) clearTimeout(calLongPressTimer);
+            const cell = e.target.closest('.goal-calendar-cell[data-subtasks]');
+            if (cell) showCalendarTooltip(cell, false);
+        });
+        listEl.addEventListener('touchmove', () => {
+            if (calLongPressTimer) { clearTimeout(calLongPressTimer); calLongPressTimer = null; }
+        });
+        
+        function showCalendarTooltip(cell, show) {
+            const container = cell.closest('.goal-calendar');
+            if (!container) return;
+            const goalId = container.dataset.goalId;
+            let tooltip = container.querySelector('.goal-calendar-tooltip');
+            if (!tooltip) return;
+            
+            if (!show) {
+                tooltip.classList.add('hidden');
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(cell.dataset.subtasks || '[]');
+                if (!data.length) return;
+                
+                const items = data.map(si => 
+                    `<div class="cal-tt-item"><span class="cal-tt-dot" style="background:${si.c}"></span>${si.t}</div>`
+                ).join('');
+                
+                tooltip.innerHTML = items;
+                tooltip.classList.remove('hidden');
+                
+                // Position near the cell
+                const cellRect = cell.getBoundingClientRect();
+                const calRect = container.getBoundingClientRect();
+                tooltip.style.left = (cellRect.left - calRect.left + cellRect.width / 2) + 'px';
+                tooltip.style.top = (cellRect.top - calRect.top - 8) + 'px';
+            } catch (e) { /* ignore */ }
+        }
+        
+        // Date badge click → open edit modal
         listEl.addEventListener('click', (e) => {
             const btn = e.target.closest('.goal-date-btn');
             if (!btn) return;
