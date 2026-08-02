@@ -240,12 +240,51 @@
         return newId;
     }
 
+    const TEMPLATES_KEY = 'schedule_app_goal_templates';
+
+    function saveGoalTemplate(goalData) {
+        const templates = getGoalTemplates();
+        // Avoid duplicate titles
+        const existing = templates.findIndex(t => t.title === goalData.title);
+        const entry = {
+            title: goalData.title,
+            horizon: goalData.horizon || 'short',
+            subtasks: (goalData.subtasks || []).map(st => ({
+                title: st.title,
+                subtasks: (st.subtasks || []).map(sst => ({ title: sst.title }))
+            }))
+        };
+        if (existing >= 0) {
+            templates[existing] = entry;
+        } else {
+            templates.push(entry);
+        }
+        localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+    }
+
+    function getGoalTemplates() {
+        try {
+            return JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]');
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function deleteGoalTemplate(index) {
+        const templates = getGoalTemplates();
+        templates.splice(index, 1);
+        localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+    }
+
     // Export
     global.ScheduleAppGoalCore = {
         createGoal,
         updateGoal,
         deleteGoal,
         duplicateGoalTree,
+        saveGoalTemplate,
+        getGoalTemplates,
+        deleteGoalTemplate,
         GOAL_COLORS,
         escapeHtml,
         formatTime,

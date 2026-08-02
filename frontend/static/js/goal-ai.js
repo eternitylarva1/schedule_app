@@ -1809,6 +1809,12 @@
                         <button class="modal-close" id="addGoalClose">×</button>
                     </div>
                     <div class="modal-body">
+                        <div class="form-group" id="addGoalTemplateGroup">
+                            <label for="addGoalTemplate">从模版创建</label>
+                            <select id="addGoalTemplate" style="width:100%;padding:8px;border-radius:6px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color)">
+                                <option value="">— 空白 —</option>
+                            </select>
+                        </div>
                         <div class="form-group">
                             <label for="addGoalTitle">目标内容</label>
                             <input type="text" id="addGoalTitle" placeholder="输入目标内容..." />
@@ -1833,6 +1839,25 @@
         const cancelBtn = document.getElementById('addGoalCancel');
         const confirmBtn = document.getElementById('addGoalConfirm');
         const titleInput = document.getElementById('addGoalTitle');
+        const templateSelect = document.getElementById('addGoalTemplate');
+        
+        // Populate template dropdown
+        if (templateSelect && G.getGoalTemplates) {
+            const templates = G.getGoalTemplates();
+            templates.forEach((tpl, i) => {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = `${tpl.title} (${tpl.horizon === 'short' ? '短期' : tpl.horizon === 'semester' ? '学期' : '长期'})`;
+                templateSelect.appendChild(opt);
+            });
+            templateSelect.addEventListener('change', () => {
+                if (templateSelect.value !== '') {
+                    const tpl = templates[parseInt(templateSelect.value)];
+                    titleInput.value = tpl.title;
+                    titleInput.focus();
+                }
+            });
+        }
         
         const closeModal = () => modal.remove();
         backdrop.addEventListener('click', closeModal);
@@ -1847,12 +1872,41 @@
             }
             
             try {
-                await G.createGoal({
+                const result = await G.createGoal({
                     title: title,
                     horizon: state.goalsHorizon || 'short',
                     color: GOAL_COLORS[0],
                     start_date: new Date().toISOString()
                 });
+                
+                // If creating from template, also create subtasks
+                const tplIndex = templateSelect?.value;
+                if (tplIndex !== '' && tplIndex !== undefined && result?.id) {
+                    const tpl = G.getGoalTemplates()[parseInt(tplIndex)];
+                    if (tpl?.subtasks) {
+                        for (const st of tpl.subtasks) {
+                            const child = await G.createGoal({
+                                title: st.title,
+                                parent_id: result.id,
+                                horizon: state.goalsHorizon || 'short',
+                                color: GOAL_COLORS[0],
+                                start_date: new Date().toISOString()
+                            });
+                            if (child?.id && st.subtasks) {
+                                for (const sst of st.subtasks) {
+                                    await G.createGoal({
+                                        title: sst.title,
+                                        parent_id: child.id,
+                                        horizon: state.goalsHorizon || 'short',
+                                        color: GOAL_COLORS[0],
+                                        start_date: new Date().toISOString()
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+                
                 closeModal();
                 if (state.goalsViewMode === 'timeline') {
                     await G.renderTimelineView();
