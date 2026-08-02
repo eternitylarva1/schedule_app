@@ -86,7 +86,7 @@ async def init_app() -> web.Application:
             )
             await db.activate_ai_provider(provider["id"])
 
-    app = web.Application()
+    app = web.Application(client_max_size=50 * 1024 * 1024)  # 50MB for images
     
     # Set LLM service database path for runtime configuration
     llm_service.set_db_path(str(db.DB_PATH))

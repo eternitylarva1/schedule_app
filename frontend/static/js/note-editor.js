@@ -1409,6 +1409,10 @@
                 img.style.height = Math.round(newH) + 'px';
                 img.style.marginLeft = Math.round(newMarginLeft) + 'px';
                 img.style.marginTop = Math.round(newMarginTop) + 'px';
+                // Also update HTML width/height attributes so contentEditable
+                // respects the new dimensions for layout and innerHTML serialization
+                img.setAttribute('width', Math.round(newW));
+                img.setAttribute('height', Math.round(newH));
                 _updateOverlayFromImage();
             };
 

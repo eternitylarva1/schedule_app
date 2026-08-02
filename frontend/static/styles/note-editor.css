@@ -665,6 +665,12 @@
 /* ============================================
    Image Resize Overlay
    ============================================ */
+#noteInlineContent img {
+    max-width: 100%;
+    height: auto;
+    vertical-align: top;
+    cursor: pointer;
+}
 .img-resize-overlay {
     position: absolute;
     z-index: 100;
