@@ -450,6 +450,7 @@
                         </div>
                         <div class="goal-actions">
                             <button class="goal-action-btn copy-goal-btn" data-action="copygoal" data-goal-id="${goal.id}" title="复制此目标">📋</button>
+                            <button class="goal-action-btn duplicate-btn" data-action="duplicate" data-goal-id="${goal.id}" title="复制此目标">📋</button>
                             <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
                             <button class="goal-action-btn edit-btn" data-action="edit" data-goal-id="${goal.id}" title="编辑">✏️</button>
                             <button class="goal-action-btn history-btn" data-action="history" data-goal-id="${goal.id}" title="历史">🕘</button>
@@ -796,6 +797,21 @@
             } else if (action === 'copygoal') {
                 const goal = findGoalById(goals, goalId);
                 if (goal && G.exportSingleGoal) G.exportSingleGoal(goal);
+            } else if (action === 'duplicate') {
+                showToast?.('正在复制...');
+                try {
+                    // Fetch full goal tree and recursively duplicate
+                    const { apiCall } = utils;
+                    const tree = await apiCall(`goals/${goalId}/tree`);
+                    if (tree) {
+                        await G.duplicateGoalTree(tree);
+                        showToast?.('已复制 📋');
+                        await G.renderGoalsList();
+                    }
+                } catch (err) {
+                    console.error('Duplicate error:', err);
+                    showToast?.('复制失败');
+                }
             } else if (action === 'decompose') {
                 const { apiCall } = utils;
                 showToast?.('AI 正在细分任务...');

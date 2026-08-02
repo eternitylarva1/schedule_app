@@ -1850,7 +1850,8 @@
                 await G.createGoal({
                     title: title,
                     horizon: state.goalsHorizon || 'short',
-                    color: GOAL_COLORS[0]
+                    color: GOAL_COLORS[0],
+                    start_date: new Date().toISOString()
                 });
                 closeModal();
                 if (state.goalsViewMode === 'timeline') {

@@ -207,11 +207,45 @@
         return labels[horizon] || '目标';
     }
 
+    // Deep-copy a goal with all its subtasks recursively
+    async function duplicateGoalTree(goalData, parentId = null) {
+        const utils = getUtils();
+        const apiCallFn = (utils || {}).apiCall;
+        if (!apiCallFn) throw new Error('apiCall not available');
+        
+        // Create copy of this goal
+        const copy = await apiCallFn('goals', {
+            method: 'POST',
+            body: JSON.stringify({
+                title: goalData.title + ' (副本)',
+                description: goalData.description || '',
+                horizon: goalData.horizon || 'short',
+                parent_id: parentId,
+                color: goalData.color || '',
+                start_date: goalData.start_date,
+                end_date: goalData.end_date
+            })
+        });
+        
+        const newId = copy?.id;
+        if (!newId) return null;
+        
+        // Recursively duplicate subtasks
+        if (goalData.subtasks && goalData.subtasks.length > 0 && newId) {
+            for (const st of goalData.subtasks) {
+                await duplicateGoalTree(st, newId);
+            }
+        }
+        
+        return newId;
+    }
+
     // Export
     global.ScheduleAppGoalCore = {
         createGoal,
         updateGoal,
         deleteGoal,
+        duplicateGoalTree,
         GOAL_COLORS,
         escapeHtml,
         formatTime,
