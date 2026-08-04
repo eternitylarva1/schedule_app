@@ -99,18 +99,40 @@
 
 .goal-card-head {
     display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.goal-title-row {
+    display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: baseline;
+    gap: var(--space-sm);
 }
 
 .goal-title-wrap {
     flex: 1;
+    min-width: 0;
 }
 
 .goal-title {
     font-size: var(--font-size-md);
     font-weight: 500;
     color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.goal-date-badge {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.goal-date-badge .date-range {
+    color: var(--accent-primary);
+    font-weight: 500;
 }
 
 .goal-meta {
@@ -121,7 +143,33 @@
 
 .goal-actions {
     display: flex;
-    gap: var(--space-xs);
+    gap: 4px;
+    align-items: center;
+}
+
+.goal-actions-text {
+    display: flex;
+    gap: 2px;
+    flex-wrap: wrap;
+}
+.goal-actions-text .goal-action-btn {
+    width: auto;
+    height: auto;
+    padding: 4px 10px;
+    font-size: var(--font-size-xs);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.goal-actions-text .goal-action-btn:active {
+    background: var(--bg-hover);
+}
+.goal-actions-text .goal-action-btn.primary-action {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
 }
 
 .goal-action-btn {
@@ -1892,5 +1940,35 @@
     .calendar-range-day {
         font-size: 11px;
     }
+}
+
+/* ============================================
+   More Menu Popup (⋯ on goal cards)
+   ============================================ */
+.goal-more-popup {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    right: 0;
+    min-width: 150px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    padding: var(--space-xs) 0;
+}
+.goal-more-popup-item {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+.goal-more-popup-item:active {
+    background: var(--bg-hover);
 }
 

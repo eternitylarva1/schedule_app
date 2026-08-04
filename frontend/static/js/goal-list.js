@@ -411,19 +411,18 @@
                     ${subtasks.map(st => `
                         <div class="goal-card goal-subtask${goalsSelectionActive ? ' selection-mode' : ''}${(goalsSelectionActive && state.selectionMode.goalIds.has(String(st.id))) ? ' selected' : ''}" data-goal-id="${st.id}"${st.color ? ` style="border-left: 4px solid ${st.color}"` : ''}>
                             <div class="goal-card-head">
-                                <div class="goal-title-wrap">
-                                    <div class="goal-title">${escapeHtml(st.title)}</div>
-                                    <div class="goal-meta">${countSubtasks(st) > 0 ? countSubtasks(st) + '项' : ''}</div>
+                                <div class="goal-title-row">
+                                    <div class="goal-title-wrap">
+                                        <span class="goal-title">${escapeHtml(st.title)}</span>
+                                    </div>
                                     ${st.start_date || st.end_date
-                                        ? `<button class="goal-date-badge goal-date-btn" data-action="setDate" data-goal-id="${st.id}" title="点击设置日期"><span class="date-range">📅 ${formatGoalDate(st.start_date, st.end_date)}</span></button>`
-                                        : `<button class="goal-date-badge goal-date-btn goal-date-placeholder" data-action="setDate" data-goal-id="${st.id}" title="点击设置日期">📅 设置日期</button>`}
+                                        ? `<span class="goal-date-badge"><span class="date-range">${formatGoalDate(st.start_date, st.end_date)}</span></span>`
+                                        : ``}
                                 </div>
-                                <div class="goal-actions">
-                                    <button class="goal-action-btn promote-btn" data-action="promote" data-goal-id="${st.id}" title="升级为独立目标">↗️</button>
-                                    ${countSubtasks(st) > 0 ? `<button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${st.id}" title="展开">▶</button>` : ''}
-                                    <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="${st.id}" title="AI细分">📋</button>
-                                    <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="${st.id}" title="完成">✓</button>
-                                    <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${st.id}" title="删除">🗑️</button>
+                                <div class="goal-actions-text" style="padding-left: 10px">
+                                    ${countSubtasks(st) > 0 ? `<button class="goal-action-btn" data-action="toggle" data-goal-id="${st.id}">▶ 展开</button>` : ''}
+                                    <button class="goal-action-btn primary-action" data-action="complete" data-goal-id="${st.id}">✓ 完成</button>
+                                    <button class="goal-action-btn" data-action="more" data-goal-id="${st.id}">⋯</button>
                                 </div>
                             </div>
                             ${countSubtasks(st) > 0 ? `<div class="goal-children hidden">${renderSubtasks(st.subtasks, depth + 1, st.id)}</div>` : ''}
@@ -441,23 +440,19 @@
             return `
                 <div class="goal-card${selectionClass}${selectedClass}" data-goal-id="${goal.id}"${goal.color ? ` style="border-left: 4px solid ${goal.color}"` : ''}>
                     <div class="goal-card-head">
-                        <div class="goal-title-wrap">
-                            <div class="goal-title">${escapeHtml(goal.title)}</div>
-                            <div class="goal-meta">${subtaskCount > 0 ? subtaskCount + '项' : ''}</div>
+                        <div class="goal-title-row">
+                            <div class="goal-title-wrap">
+                                <span class="goal-title">${escapeHtml(goal.title)}</span>
+                            </div>
                             ${goal.start_date || goal.end_date
-                                ? `<button class="goal-date-badge goal-date-btn" data-action="setDate" data-goal-id="${goal.id}" title="点击设置日期"><span class="date-range">📅 ${formatGoalDate(goal.start_date, goal.end_date)}</span></button>`
-                                : `<button class="goal-date-badge goal-date-btn goal-date-placeholder" data-action="setDate" data-goal-id="${goal.id}" title="点击设置日期">📅 设置日期</button>`}
+                                ? `<span class="goal-date-badge" data-action="setDate" data-goal-id="${goal.id}" title="点击设置日期"><span class="date-range">${formatGoalDate(goal.start_date, goal.end_date)}</span></span>`
+                                : ``}
                         </div>
-                        <div class="goal-actions">
-                            <button class="goal-action-btn copy-goal-btn" data-action="copygoal" data-goal-id="${goal.id}" title="导出文本">📋</button>
-                            <button class="goal-action-btn duplicate-btn" data-action="duplicate" data-goal-id="${goal.id}" title="复制为新目标">📑</button>
-                            <button class="goal-action-btn template-btn" data-action="savetemplate" data-goal-id="${goal.id}" title="存为模版">💾</button>
-                            <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
-                            <button class="goal-action-btn edit-btn" data-action="edit" data-goal-id="${goal.id}" title="编辑">✏️</button>
-                            <button class="goal-action-btn history-btn" data-action="history" data-goal-id="${goal.id}" title="历史">🕘</button>
-                            <button class="goal-action-btn toggle-btn" data-action="toggle" data-goal-id="${goal.id}" title="展开">▶</button>
-                            <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="${goal.id}" title="完成">✓</button>
-                            <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="${goal.id}" title="删除">🗑️</button>
+                        <div class="goal-actions-text">
+                            ${subtaskCount > 0 ? `<button class="goal-action-btn" data-action="toggle" data-goal-id="${goal.id}">▶ 展开</button>` : ''}
+                            <button class="goal-action-btn primary-action" data-action="complete" data-goal-id="${goal.id}">✓ 完成</button>
+                            <button class="goal-action-btn" data-action="edit" data-goal-id="${goal.id}">✏️ 编辑</button>
+                            <button class="goal-action-btn" data-action="more" data-goal-id="${goal.id}">⋯</button>
                         </div>
                     </div>
                     <div class="goal-children hidden">
@@ -795,6 +790,8 @@
             } else if (action === 'edit') {
                 const goal = (state.goals || goals).find(g => g.id === goalId);
                 if (goal && G.openGoalEditModal) await G.openGoalEditModal(goal);
+            } else if (action === 'more') {
+                showMoreMenu(actionBtn, goalId);
             } else if (action === 'copygoal') {
                 const goal = findGoalById(goals, goalId);
                 if (goal && G.exportSingleGoal) G.exportSingleGoal(goal);
@@ -856,14 +853,12 @@
                         const subHtml = [
                             '<div class="goal-card goal-subtask" data-goal-id="' + newId + '" style="border-left: 4px solid ' + color + '">',
                             '  <div class="goal-card-head">',
-                            '    <div class="goal-title-wrap">',
-                            '      <div class="goal-title">' + escapeHtml(title.trim()) + '</div>',
+                            '    <div class="goal-title-row">',
+                            '      <div class="goal-title-wrap"><span class="goal-title">' + escapeHtml(title.trim()) + '</span></div>',
                             '    </div>',
-                            '    <div class="goal-actions">',
-                            '      <button class="goal-action-btn promote-btn" data-action="promote" data-goal-id="' + newId + '" title="升级为独立目标">↗️</button>',
-                            '      <button class="goal-action-btn decompose-btn" data-action="decompose" data-goal-id="' + newId + '" title="AI细分">📋</button>',
-                            '      <button class="goal-action-btn complete-btn" data-action="complete" data-goal-id="' + newId + '" title="完成">✓</button>',
-                            '      <button class="goal-action-btn delete-btn" data-action="delete" data-goal-id="' + newId + '" title="删除">🗑️</button>',
+                            '    <div class="goal-actions-text" style="padding-left:10px">',
+                            '      <button class="goal-action-btn primary-action" data-action="complete" data-goal-id="' + newId + '">✓ 完成</button>',
+                            '      <button class="goal-action-btn" data-action="more" data-goal-id="' + newId + '">⋯</button>',
                             '    </div>',
                             '  </div>',
                             '  <button class="goal-add-subtask-btn" data-action="addsubtask" data-parent-id="' + newId + '" data-depth="' + (depth + 1) + '">+ 添加子任务</button>',
@@ -905,60 +900,83 @@
             }
         }
         
+        // ⋯ More menu popup
+        function showMoreMenu(btn, goalId) {
+            // Remove any existing menu
+            document.querySelectorAll('.goal-more-popup').forEach(el => el.remove());
+            
+            const card = btn.closest('.goal-card');
+            const isSubtask = card.classList.contains('goal-subtask');
+            
+            const items = [
+                { label: '💬 AI讨论', action: 'discuss' },
+                { label: '📑 复制为新目标', action: 'duplicate' },
+                { label: '📋 导出文本', action: 'copygoal' },
+                { label: '💾 存为模版', action: 'savetemplate' },
+                ...(isSubtask ? [{ label: '↗️ 升级为独立目标', action: 'promote' }] : []),
+                { label: '🗑️ 删除', action: 'delete' },
+            ];
+            
+            const menu = document.createElement('div');
+            menu.className = 'goal-more-popup';
+            menu.innerHTML = items.map(item => 
+                `<button class="goal-more-popup-item" data-action="${item.action}" data-goal-id="${goalId}">${item.label}</button>`
+            ).join('');
+            
+            btn.parentNode.appendChild(menu);
+            
+            // Position below the ⋯ button
+            requestAnimationFrame(() => {
+                const menuRect = menu.getBoundingClientRect();
+                if (menuRect.bottom > window.innerHeight) {
+                    menu.style.bottom = '100%';
+                    menu.style.top = 'auto';
+                }
+            });
+            
+            // Close on outside click
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!menu.contains(e.target)) {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 0);
+            
+            // Handle menu item clicks via the delegated listener
+            menu.querySelectorAll('.goal-more-popup-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menu.remove();
+                });
+            });
+        }
+        
+        // Long-press on card → quick-complete
         listEl.querySelectorAll('.goal-card[data-goal-id]').forEach((card) => {
             const goalId = card.dataset.goalId;
-            let timer = null;
-            let startX = 0;
-            let startY = 0;
-
-            const applyGoalSelectionVisual = () => {
-                card.classList.add('selection-mode');
-                card.classList.toggle('selected', state.selectionMode.goalIds.has(String(goalId)));
-                G.renderSelectionBar && G.renderSelectionBar('goals');
-            };
-
+            let longPressTimer = null;
+            
             card.addEventListener('touchstart', (e) => {
-                if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
-                startX = e.touches[0].clientX;
-                startY = e.touches[0].clientY;
-                timer = setTimeout(async () => {
-                    state.selectionMode.longPressTriggered = true;
-                    G.enterSelectionMode && G.enterSelectionMode('goals', goalId);
-                    if (navigator.vibrate) navigator.vibrate(20);
-                    listEl.querySelectorAll('.goal-card[data-goal-id]').forEach((el) => {
-                        el.classList.add('selection-mode');
-                    });
-                    applyGoalSelectionVisual();
-                }, 450);
+                longPressTimer = setTimeout(async () => {
+                    if (navigator.vibrate) navigator.vibrate(15);
+                    const wasDone = card.classList.contains('goal-done');
+                    await G.updateGoal(parseInt(goalId), { status: wasDone ? 'active' : 'done' });
+                    card.classList.toggle('goal-done', !wasDone);
+                    const completeBtn = card.querySelector('[data-action="complete"]');
+                    if (completeBtn) {
+                        completeBtn.textContent = wasDone ? '✓ 完成' : '↩ 撤销';
+                    }
+                    showToast?.(wasDone ? '已撤销 ↩' : '已完成 ✓');
+                }, 600);
             }, { passive: true });
-
-            card.addEventListener('touchmove', (e) => {
-                if (!timer) return;
-                const dx = e.touches[0].clientX - startX;
-                const dy = e.touches[0].clientY - startY;
-                if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
-                    clearTimeout(timer);
-                    timer = null;
-                }
-            }, { passive: true });
-
+            
             card.addEventListener('touchend', () => {
-                if (timer) {
-                    clearTimeout(timer);
-                    timer = null;
-                }
-            }, { passive: true });
-
-            card.addEventListener('click', async (e) => {
-                if (state.selectionMode.longPressTriggered) {
-                    state.selectionMode.longPressTriggered = false;
-                    return;
-                }
-                if (state.selectionMode.active && state.selectionMode.type === 'goals') {
-                    if (e.target.closest('.goal-action-btn') || e.target.closest('.goal-add-subtask-btn')) return;
-                    G.toggleSelection && G.toggleSelection('goals', goalId);
-                    applyGoalSelectionVisual();
-                }
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+            });
+            card.addEventListener('touchmove', () => {
+                if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
             });
         });
     }
