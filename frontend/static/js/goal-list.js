@@ -449,7 +449,7 @@
                                 : ``}
                         </div>
                         <div class="goal-actions-text">
-                            ${subtaskCount > 0 ? `<button class="goal-action-btn" data-action="toggle" data-goal-id="${goal.id}">▶ 展开</button>` : ''}
+                            <button class="goal-action-btn" data-action="toggle" data-goal-id="${goal.id}">▶ 展开</button>
                             <button class="goal-action-btn primary-action" data-action="complete" data-goal-id="${goal.id}">✓ 完成</button>
                             <button class="goal-action-btn" data-action="edit" data-goal-id="${goal.id}">✏️ 编辑</button>
                             <button class="goal-action-btn" data-action="more" data-goal-id="${goal.id}">⋯</button>
@@ -459,8 +459,8 @@
                         ${renderMiniCalendar(goal, goals)}
                         <div class="goal-deliverables-section" id="deliverables-${goal.id}"></div>
                         ${renderSubtasks(goal.subtasks)}
-                        <button class="goal-add-subtask-btn" data-action="addsubtask" data-parent-id="${goal.id}">+ 添加子任务</button>
                     </div>
+                    <button class="goal-add-subtask-btn" data-action="addsubtask" data-parent-id="${goal.id}">+ 添加子任务</button>
                 </div>
             `;
         }).join('');
