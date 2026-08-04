@@ -151,6 +151,8 @@
     display: flex;
     gap: 2px;
     flex-wrap: wrap;
+    position: relative;
+    align-items: center;
 }
 .goal-actions-text .goal-action-btn {
     width: auto;

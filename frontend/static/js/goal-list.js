@@ -923,18 +923,11 @@
                 `<button class="goal-more-popup-item" data-action="${item.action}" data-goal-id="${goalId}">${item.label}</button>`
             ).join('');
             
+            // Position relative to the ⋯ button's parent
+            btn.parentNode.style.position = 'relative';
             btn.parentNode.appendChild(menu);
             
-            // Position below the ⋯ button
-            requestAnimationFrame(() => {
-                const menuRect = menu.getBoundingClientRect();
-                if (menuRect.bottom > window.innerHeight) {
-                    menu.style.bottom = '100%';
-                    menu.style.top = 'auto';
-                }
-            });
-            
-            // Close on outside click
+            // Close on outside click (not on popup items — let delegation handle those)
             setTimeout(() => {
                 document.addEventListener('click', function closeMenu(e) {
                     if (!menu.contains(e.target)) {
@@ -942,15 +935,7 @@
                         document.removeEventListener('click', closeMenu);
                     }
                 });
-            }, 0);
-            
-            // Handle menu item clicks via the delegated listener
-            menu.querySelectorAll('.goal-more-popup-item').forEach(item => {
-                item.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    menu.remove();
-                });
-            });
+            }, 50);
         }
         
         // Long-press on card → quick-complete
