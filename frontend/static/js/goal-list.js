@@ -449,8 +449,8 @@
                                 : `<button class="goal-date-badge goal-date-btn goal-date-placeholder" data-action="setDate" data-goal-id="${goal.id}" title="点击设置日期">📅 设置日期</button>`}
                         </div>
                         <div class="goal-actions">
-                            <button class="goal-action-btn copy-goal-btn" data-action="copygoal" data-goal-id="${goal.id}" title="复制此目标">📋</button>
-                            <button class="goal-action-btn duplicate-btn" data-action="duplicate" data-goal-id="${goal.id}" title="复制此目标">📋</button>
+                            <button class="goal-action-btn copy-goal-btn" data-action="copygoal" data-goal-id="${goal.id}" title="导出文本">📋</button>
+                            <button class="goal-action-btn duplicate-btn" data-action="duplicate" data-goal-id="${goal.id}" title="复制为新目标">📑</button>
                             <button class="goal-action-btn template-btn" data-action="savetemplate" data-goal-id="${goal.id}" title="存为模版">💾</button>
                             <button class="goal-action-btn discuss-btn" data-action="discuss" data-goal-id="${goal.id}" title="AI讨论">💬</button>
                             <button class="goal-action-btn edit-btn" data-action="edit" data-goal-id="${goal.id}" title="编辑">✏️</button>
