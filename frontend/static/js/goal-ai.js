@@ -1799,7 +1799,169 @@
         const { showToast } = utils;
         const G = Goals();
         const GOAL_COLORS = (G.GOAL_COLORS || []);
-        
+
+        // --- Calendar range state ---
+        let centerDate = new Date();
+        let startDate = null;
+        let endDate = null;
+        let isDragging = false;
+
+        const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
+
+        function buildCalendarHTML(months) {
+            return months.map(({ year, month }) => {
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                // Monday-first weekday index (0=Mon ... 6=Sun)
+                let startWeekday = firstDay.getDay() - 1;
+                if (startWeekday < 0) startWeekday = 6;
+                const today = new Date();
+                const todayStr = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+
+                let dayCells = '';
+                // Empty cells before first day
+                for (let i = 0; i < startWeekday; i++) {
+                    dayCells += '<div class="calendar-range-day other-month"></div>';
+                }
+                // Day cells
+                for (let d = 1; d <= lastDay.getDate(); d++) {
+                    const dateStr = `${year}-${month}-${d}`;
+                    const isToday = dateStr === todayStr;
+                    dayCells += `<div class="calendar-range-day${isToday ? ' today' : ''}" data-date="${dateStr}" data-year="${year}" data-month="${month}" data-day="${d}">${d}</div>`;
+                }
+                const monthName = `${year}年${month + 1}月`;
+                return `
+                    <div class="calendar-range-month" data-year="${year}" data-month="${month}">
+                        <div class="calendar-range-month-header">${monthName}</div>
+                        <div class="calendar-range-grid">
+                            ${WEEKDAYS.map((w, i) => `<div class="calendar-range-day-header${i >= 5 ? ' weekend' : ''}">${w}</div>`).join('')}
+                            ${dayCells}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        function getMonths(center) {
+            const months = [];
+            for (let offset = -1; offset <= 1; offset++) {
+                const d = new Date(center.getFullYear(), center.getMonth() + offset, 1);
+                months.push({ year: d.getFullYear(), month: d.getMonth() });
+            }
+            return months;
+        }
+
+        function formatDate(d) {
+            if (!d) return '';
+            const m = d.getMonth() + 1;
+            const day = d.getDate();
+            return `${m.toString().padStart(2, '0')}/${day.toString().padStart(2, '0')}`;
+        }
+
+        function daysBetween(a, b) {
+            if (!a || !b) return 0;
+            const ms = Math.abs(b - a);
+            return Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        function dateFromStr(dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            return new Date(y, m, d);
+        }
+
+        function renderCalendar() {
+            const months = getMonths(centerDate);
+            const container = document.getElementById('addGoalCalMonths');
+            if (container) {
+                container.innerHTML = buildCalendarHTML(months);
+                updateDayStyles();
+                updateSummary();
+                bindDayEvents();
+            }
+        }
+
+        function updateDayStyles() {
+            if (!startDate && !endDate) return;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayStr = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+
+            document.querySelectorAll('.calendar-range-day[data-date]').forEach(el => {
+                const dateStr = el.dataset.date;
+                const d = dateFromStr(dateStr);
+                el.classList.remove('start', 'end', 'in-range', 'has-range');
+
+                if (startDate && endDate) {
+                    const s = startDate < endDate ? startDate : endDate;
+                    const e = startDate < endDate ? endDate : startDate;
+                    if (d >= s && d <= e) {
+                        el.classList.add('in-range', 'has-range');
+                        if (d.getTime() === s.getTime()) { el.classList.add('start'); el.classList.remove('in-range'); }
+                        if (d.getTime() === e.getTime()) { el.classList.add('end'); el.classList.remove('in-range'); }
+                    }
+                } else if (startDate) {
+                    const s = startDate;
+                    if (d.getTime() === s.getTime()) el.classList.add('start');
+                } else if (endDate) {
+                    const e = endDate;
+                    if (d.getTime() === e.getTime()) el.classList.add('end');
+                }
+            });
+        }
+
+        function updateSummary() {
+            const barFill = document.getElementById('addGoalCalBarFill');
+            const datesText = document.getElementById('addGoalCalDates');
+            const daysCount = document.getElementById('addGoalCalDays');
+            if (!barFill) return;
+
+            if (!startDate && !endDate) {
+                barFill.style.width = '0%';
+                datesText.textContent = '请选择日期范围';
+                daysCount.textContent = '';
+                return;
+            }
+
+            let s = startDate, e = endDate;
+            if (!endDate) e = startDate;
+            if (startDate && endDate && startDate > endDate) { s = endDate; e = startDate; }
+
+            const totalDays = daysBetween(s, e);
+            const barPct = Math.min(100, Math.max(4, totalDays * 3));
+            barFill.style.width = barPct + '%';
+            datesText.textContent = `${formatDate(s)} — ${formatDate(e)}`;
+            daysCount.textContent = totalDays > 1 ? `${totalDays}天` : '';
+        }
+
+        function handleDayClick(dateStr) {
+            const clicked = dateFromStr(dateStr);
+            if (!startDate || (startDate && endDate)) {
+                // Start fresh
+                startDate = clicked;
+                endDate = null;
+            } else {
+                // Second click — set end
+                endDate = clicked;
+                if (startDate > endDate) { const tmp = startDate; startDate = endDate; endDate = tmp; }
+            }
+            updateDayStyles();
+            updateSummary();
+        }
+
+        function bindDayEvents() {
+            document.querySelectorAll('.calendar-range-day[data-date]').forEach(el => {
+                el.addEventListener('click', () => handleDayClick(el.dataset.date));
+                el.addEventListener('pointerenter', (e) => {
+                    if (isDragging && startDate && !endDate) {
+                        const hovered = dateFromStr(el.dataset.date);
+                        endDate = hovered;
+                        if (startDate > endDate) { const tmp = startDate; startDate = endDate; endDate = tmp; }
+                        updateDayStyles();
+                        updateSummary();
+                    }
+                });
+            });
+        }
+
         const modalHtml = `
             <div class="modal" id="addGoalModal">
                 <div class="modal-backdrop" id="addGoalBackdrop"></div>
@@ -1819,6 +1981,23 @@
                             <label for="addGoalTitle">目标内容</label>
                             <input type="text" id="addGoalTitle" placeholder="输入目标内容..." />
                         </div>
+                        <div class="form-group">
+                            <label style="display:block;font-size:var(--font-size-sm);color:var(--text-secondary);margin-bottom:var(--space-xs)">选择执行时间</label>
+                            <div class="calendar-range" id="addGoalCalendar">
+                                <div class="calendar-range-nav">
+                                    <button class="calendar-range-nav-btn" id="addGoalCalPrev">◀</button>
+                                    <button class="calendar-range-nav-btn" id="addGoalCalNext">▶</button>
+                                </div>
+                                <div class="calendar-range-months" id="addGoalCalMonths"></div>
+                                <div class="calendar-range-summary">
+                                    <div class="calendar-range-bar"><div class="calendar-range-bar-fill" id="addGoalCalBarFill"></div></div>
+                                    <div class="calendar-range-dates">
+                                        <span class="calendar-range-dates-text" id="addGoalCalDates">请选择日期范围</span>
+                                        <span class="calendar-range-days-count" id="addGoalCalDays"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn" id="addGoalCancel">取消</button>
@@ -1827,12 +2006,12 @@
                 </div>
             </div>
         `;
-        
+
         const existingModal = document.getElementById('addGoalModal');
         if (existingModal) existingModal.remove();
-        
+
         document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
+
         const modal = document.getElementById('addGoalModal');
         const backdrop = document.getElementById('addGoalBackdrop');
         const closeBtn = document.getElementById('addGoalClose');
@@ -1840,7 +2019,31 @@
         const confirmBtn = document.getElementById('addGoalConfirm');
         const titleInput = document.getElementById('addGoalTitle');
         const templateSelect = document.getElementById('addGoalTemplate');
-        
+
+        // Render initial calendar
+        renderCalendar();
+
+        // Nav buttons
+        document.getElementById('addGoalCalPrev').addEventListener('click', () => {
+            centerDate = new Date(centerDate.getFullYear(), centerDate.getMonth() - 1, 1);
+            renderCalendar();
+        });
+        document.getElementById('addGoalCalNext').addEventListener('click', () => {
+            centerDate = new Date(centerDate.getFullYear(), centerDate.getMonth() + 1, 1);
+            renderCalendar();
+        });
+
+        // Drag selection
+        const calEl = document.getElementById('addGoalCalendar');
+        calEl.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('.calendar-range-day[data-date]')) {
+                isDragging = true;
+                calEl.setPointerCapture(e.pointerId);
+            }
+        });
+        calEl.addEventListener('pointerup', () => { isDragging = false; });
+        calEl.addEventListener('pointercancel', () => { isDragging = false; });
+
         // Populate template dropdown
         if (templateSelect && G.getGoalTemplates) {
             const templates = G.getGoalTemplates();
@@ -1858,27 +2061,37 @@
                 }
             });
         }
-        
+
         const closeModal = () => modal.remove();
         backdrop.addEventListener('click', closeModal);
         closeBtn.addEventListener('click', closeModal);
         cancelBtn.addEventListener('click', closeModal);
-        
+
         confirmBtn.addEventListener('click', async () => {
             const title = titleInput.value.trim();
             if (!title) {
                 showToast?.('请输入目标内容');
                 return;
             }
-            
+
+            // Resolve start/end: if only one selected, default the other to today
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            let s = startDate;
+            let e = endDate;
+            if (s && !e) e = s;
+            if (!s && e) s = today;
+            if (!s && !e) { s = today; e = today; }
+
             try {
                 const result = await G.createGoal({
                     title: title,
                     horizon: state.goalsHorizon || 'short',
                     color: GOAL_COLORS[0],
-                    start_date: new Date().toISOString()
+                    start_date: s.toISOString(),
+                    end_date: e.toISOString()
                 });
-                
+
                 // If creating from template, also create subtasks
                 const tplIndex = templateSelect?.value;
                 if (tplIndex !== '' && tplIndex !== undefined && result?.id) {
@@ -1890,7 +2103,8 @@
                                 parent_id: result.id,
                                 horizon: state.goalsHorizon || 'short',
                                 color: GOAL_COLORS[0],
-                                start_date: new Date().toISOString()
+                                start_date: s.toISOString(),
+                                end_date: e.toISOString()
                             });
                             if (child?.id && st.subtasks) {
                                 for (const sst of st.subtasks) {
@@ -1899,14 +2113,15 @@
                                         parent_id: child.id,
                                         horizon: state.goalsHorizon || 'short',
                                         color: GOAL_COLORS[0],
-                                        start_date: new Date().toISOString()
+                                        start_date: s.toISOString(),
+                                        end_date: e.toISOString()
                                     });
                                 }
                             }
                         }
                     }
                 }
-                
+
                 closeModal();
                 if (state.goalsViewMode === 'timeline') {
                     await G.renderTimelineView();
@@ -1919,7 +2134,7 @@
                 showToast?.('添加失败');
             }
         });
-        
+
         requestAnimationFrame(() => {
             modal.classList.remove('hidden');
             titleInput.focus();
