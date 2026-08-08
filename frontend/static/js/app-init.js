@@ -226,14 +226,7 @@
             document.querySelectorAll('.cal-segment').forEach(s => {
                 s.classList.toggle('active', s.dataset.subview === st().calendarSubview);
             });
-            // Show/hide prev/next nav buttons for week/month
-            const showNavArrows = st().calendarSubview === 'week' || st().calendarSubview === 'month';
-            if (el().prevBtn) {
-                el().prevBtn.classList.toggle('hidden', !showNavArrows);
-            }
-            if (el().nextBtn) {
-                el().nextBtn.classList.toggle('hidden', !showNavArrows);
-            }
+            // Navigation arrows always visible in day view
             // Re-render based on subview
             if (st().calendarSubview === 'day') {
                 el().dayView.classList.remove('hidden');
@@ -324,9 +317,25 @@
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            // Don't intercept when typing in inputs
+            const tag = document.activeElement?.tagName?.toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
             if (e.key === 'Escape') {
                 window.ScheduleAppEventModal?.closeEventModal?.();
                 window.ScheduleAppEventModal?.closeDetailModal?.();
+            }
+
+            // ← → day navigation (day/todo views only, modals closed)
+            const state = core().state;
+            const view = state?.currentView;
+            if ((view === 'day' || view === 'todo') && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                const modal = document.getElementById('eventModal');
+                const detail = document.getElementById('detailModal');
+                if (modal?.classList.contains('hidden') && detail?.classList.contains('hidden')) {
+                    e.preventDefault();
+                    window.ScheduleAppViewRouter?.navigateDate?.(e.key === 'ArrowRight' ? 1 : -1);
+                }
             }
         });
 

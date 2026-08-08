@@ -131,8 +131,8 @@
             elements.app.classList.toggle('notepad-immersive', view === 'notepad');
         }
 
-        // Show/hide prev/next navigation buttons (only for day view with week/month subview)
-        const showNavArrows = view === 'day' && (state.calendarSubview === 'week' || state.calendarSubview === 'month');
+        // Show/hide prev/next navigation buttons (visible in day view for all subviews)
+        const showNavArrows = view === 'day';
         if (elements.prevBtn) {
             elements.prevBtn.classList.toggle('hidden', !showNavArrows);
         }
