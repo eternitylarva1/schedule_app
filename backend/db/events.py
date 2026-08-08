@@ -8,8 +8,23 @@ from ._connection import DB_PATH
 
 async def create_event(event: Event) -> Event:
     """Create a new event."""
-    now = datetime.now().isoformat()
+    now_dt = datetime.now()
+    now = now_dt.isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
+        # Dedup: same title + same start_time within 30 seconds = skip
+        if event.start_time and event.title:
+            cutoff = (now_dt - timedelta(seconds=30)).isoformat()
+            cursor = await db.execute(
+                """SELECT id FROM events
+                   WHERE title = ? AND start_time = ? AND created_at > ? LIMIT 1""",
+                (event.title, event.start_time.isoformat(), cutoff)
+            )
+            existing = await cursor.fetchone()
+            if existing:
+                event.id = existing[0]
+                event.created_at = now_dt
+                return event
+
         cursor = await db.execute(
             """INSERT INTO events 
                (title, start_time, end_time, category_id, all_day, recurrence, status, created_at, updated_at, reminder_enabled, reminder_minutes, reminder_sent, priority, is_test, importance, urgency)
