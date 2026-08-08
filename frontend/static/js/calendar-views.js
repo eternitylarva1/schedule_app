@@ -6,7 +6,28 @@
 (function () {
     'use strict';
 
+    function getDefaultDeps() {
+        const core = window.ScheduleAppCore || {};
+        return {
+            state: core.state,
+            elements: core.elements,
+            isToday: core.isToday,
+            isSameDay: core.isSameDay,
+            formatDate: core.formatDate,
+            getCategoryColor: core.getCategoryColor,
+            getCompactTitle: core.getCompactTitle,
+            formatTimeRange: core.formatTimeRange,
+            getEventTop: core.getEventTop,
+            getEventHeight: core.getEventHeight,
+            getWeekDates: core.getWeekDates,
+            showEventDetail: core.showEventDetail,
+            markEventDoneQuick: core.markEventDoneQuick,
+            switchView: core.switchView,
+        };
+    }
+
     function renderTimeline(deps) {
+        deps = deps || getDefaultDeps();
         const {
             state,
             elements,
@@ -242,6 +263,7 @@
     }
 
     function renderAgendaList(mode, deps) {
+        deps = deps || getDefaultDeps();
         const {
             state,
             elements,
@@ -359,6 +381,7 @@
     }
 
     function renderWeekView(deps) {
+        deps = deps || getDefaultDeps();
         const {
             state,
             elements,
@@ -564,6 +587,7 @@
     }
 
     function renderMonthView(deps) {
+        deps = deps || getDefaultDeps();
         const {
             state,
             elements,
