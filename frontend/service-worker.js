@@ -36,14 +36,14 @@ const STATIC_ASSETS = [
   '/static/js/view-router.js?v=20260725-01',
   '/static/js/search.js?v=20260725-01',
   '/static/js/app-init.js?v=20260725-01',
+  '/static/js/selection.js?v=20260425-01',
+  '/static/js/calendar-views.js?v=20260702-01',
   '/static/js/main.js?v=20260725-01',
   '/static/js/goal-core.js?v=20260720-02',
   '/static/js/goal-ai.js?v=20260720-02',
   '/static/js/goal-list.js?v=20260720-02',
   '/static/js/goal-timeline.js?v=20260720-02',
   '/static/js/goals.js?v=20260720-02',
-  '/static/js/selection.js?v=20260425-01',
-  '/static/js/calendar-views.js?v=20260702-01',
 
   // CSS
   '/static/styles/main.css?v=20260801-01',
