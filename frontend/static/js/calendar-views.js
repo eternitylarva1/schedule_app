@@ -20,9 +20,11 @@
             getEventTop: core.getEventTop,
             getEventHeight: core.getEventHeight,
             getWeekDates: core.getWeekDates,
+            escapeHtml: core.escapeHtml,
             showEventDetail: core.showEventDetail,
             markEventDoneQuick: core.markEventDoneQuick,
             switchView: core.switchView,
+            handleEventDragStart: core.handleEventDragStart,
         };
     }
 
