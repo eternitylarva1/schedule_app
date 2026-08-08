@@ -117,6 +117,67 @@ window.ScheduleAppGoals = { renderGoalsView, ... };
    ```
    dry-run 预览：`python3 scripts/sync_sw_cache.py`（不加 --write）
 
+## ⚠️ Agent 必读：常见陷阱（每次修改前必须检查）
+
+以下陷阱曾导致线上 bug，**任何 Agent 在执行修改时必须注意**：
+
+### 前端陷阱
+
+1. **`apiCall()` 已解包 `json.data`**
+   - `apiCall('events', {method:'POST'})` 返回的是 `json.data`（纯数据），不是 `{code, data}` 完整响应
+   - ❌ `resp.data` — 错误，`resp` 就是 data
+   - ✅ `resp` 或 `Array.isArray(resp) ? resp : []` — 正确
+
+2. **calendar-views 渲染函数需要 `deps` 参数**
+   - `renderTimeline(deps)`, `renderWeekView(deps)`, `renderMonthView(deps)`, `renderAgendaList(mode, deps)` — 都需要传 `deps`
+   - 如果从 `app-init.js` 调用，必须传完整 deps 或调用 `getDefaultDeps()`（已在 calendar-views.js 中提供）
+   - 新增调用点不要漏传参数
+
+3. **事件监听只绑定一次**
+   - `app-init.js:8` 的 `bindEvents()` 已设 `st()._eventsBound = true` 防止重复绑定
+   - 新增事件监听优先加到 `app-init.js` 而非 `main.js`
+   - 不要在模块初始化时绑定全局事件（会被重复调用）
+
+4. **标题输入监听器会自动 POST `_parse:true`**
+   - `app-init.js:334-354` 的 debounced input 监听器会 POST `/api/events` 带 `_parse: true`
+   - 后端 `routes/events.py` 识别该标志，只解析不保存
+   - 不要修改这个行为——它是自动时间解析功能
+
+5. **模块导出到 `window.ScheduleAppXxx`**
+   - 遵循 IIFE + `window.ScheduleAppXxx = {...}` 模式
+   - 依赖通过 `window.ScheduleAppCore` 获取，不直接 import
+   - 新增模块必须同步更新 `service-worker.js` 缓存列表
+
+### 后端陷阱
+
+1. **`init_db()` 返回 connection，必须捕获**
+   - 旧版 `init_db` 是 void，新版返回 `aiosqlite.Connection`
+   - 不要用 `except Exception: pass` 吞迁移错误
+   - 新增表/列通过 `migrations.py` 版本化迁移，不要直接改 `_connection.py`
+
+2. **`error_response()` 默认 code=400（HTTP 状态码）**
+   - 不是 code=1 了
+   - 支持 `error_type` 和 `details` 字段结构化错误
+   - `_helpers.py` 是 facade，修改去 `response.py`
+
+3. **`_parse: true` 只解析不保存**
+   - `routes/events.py` 创建事件前检查此标志
+   - 前端用它实现输入时的时间预览，不应产生持久化事件
+
+### 通用陷阱
+
+1. **代码拆分 ≠ 逻辑修改**
+   - 提取函数到新文件时，不要顺便改逻辑
+   - 跨文件引用用 `window.ScheduleAppXxx`，不是直接函数名
+
+2. **修改后必须跑冒烟测试**
+   - 至少点一遍所有标签页确认无 JS 报错
+   - `curl http://localhost:8080/api/events?date=month` 验证 API 正常
+
+3. **调试数据必须清理**
+   - 调试产生的测试数据用 `POST /api/settings/cleanup_test_entries` 清理
+   - 标题带 `test/demo/debug/trace/dup/bug/repro` 的事件会被自动清理
+
 ## Browser-Harness 使用流程
 
 ### 1. 连接已有 Chrome（优先）
