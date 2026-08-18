@@ -54,42 +54,33 @@
                 <div class="img-gen-result" id="imgGenResult">
                     <div class="img-gen-empty" id="imgGenEmpty">
                         <div class="img-gen-empty-icon">🎨</div>
-                        <div class="img-gen-empty-text">输入描述，开始创作</div>
-                    </div>
-                    <div class="img-gen-image-wrapper hidden" id="imgGenImageWrapper">
-                        <img class="img-gen-image" id="imgGenImage" src="" alt="生成结果">
-                        <div class="img-gen-image-actions">
-                            <button class="btn btn-secondary" id="imgGenSaveBtn">📝 保存到笔记</button>
-                            <button class="btn btn-secondary" id="imgGenDownloadBtn">⬇ 下载</button>
-                            <button class="btn btn-secondary" id="imgGenRegenBtn">🔄 重新生成</button>
-                        </div>
+                        <div class="img-gen-empty-title">输入描述，开始创作</div>
+                        <div class="img-gen-empty-text">在下方输入图片描述，选择模型后点击生成</div>
                     </div>
                     <div class="img-gen-error hidden" id="imgGenError"></div>
                 </div>
                 <div class="img-gen-input-area">
-                    <div class="img-gen-prompt-wrap">
-                        <textarea class="img-gen-prompt" id="imgGenPrompt"
-                            placeholder="描述你想生成的图片，如：一只赛博朋克风格的猫咪在未来城市中..."
-                            rows="3" autocomplete="off"></textarea>
-                    </div>
-                    <div class="img-gen-advanced-toggle">
+                    <textarea class="img-gen-prompt" id="imgGenPrompt"
+                        placeholder="描述你想生成的图片，如：一只赛博朋克风格的猫咪在未来城市中..."
+                        rows="3" autocomplete="off"></textarea>
+                    <div class="img-gen-adv-toggle" id="imgGenAdvToggleWrap">
                         <button class="img-gen-adv-btn" id="imgGenAdvToggle" type="button">
-                            ⚙ 高级选项 <span id="imgGenAdvArrow">▼</span>
+                            ⚙ 高级选项 <span class="img-gen-adv-arrow" id="imgGenAdvArrow">▼</span>
                         </button>
                     </div>
                     <div class="img-gen-advanced hidden" id="imgGenAdvanced">
                         <div class="img-gen-adv-row">
                             <label class="img-gen-adv-label">模型</label>
-                            <select class="img-gen-adv-select" id="imgGenModelSelect">
+                            <select class="img-gen-select" id="imgGenModelSelect">
                                 <option value="">加载中...</option>
                             </select>
                         </div>
                         <div class="img-gen-adv-row">
                             <label class="img-gen-adv-label">尺寸</label>
-                            <select class="img-gen-adv-select" id="imgGenSizeSelect">
-                                <option value="1:1">1:1 (正方形)</option>
-                                <option value="16:9">16:9 (宽屏)</option>
-                                <option value="9:16">9:16 (竖版)</option>
+                            <select class="img-gen-select" id="imgGenSizeSelect">
+                                <option value="1:1">1:1 正方形</option>
+                                <option value="16:9">16:9 宽屏</option>
+                                <option value="9:16">9:16 竖版</option>
                             </select>
                         </div>
                     </div>
@@ -110,19 +101,25 @@
         if (!submitBtn || submitBtn.dataset.bound === '1') return;
         submitBtn.dataset.bound = '1';
 
-        submitBtn.addEventListener('click', handleGenerate);
-
-        document.getElementById('imgGenAdvToggle')?.addEventListener('click', () => {
-            const adv = document.getElementById('imgGenAdvanced');
-            const arrow = document.getElementById('imgGenAdvArrow');
-            const isHidden = adv.classList.contains('hidden');
-            adv.classList.toggle('hidden');
-            arrow.textContent = isHidden ? '▲' : '▼';
+        submitBtn.addEventListener('click', () => {
+            const state = submitBtn.dataset.state;
+            if (state === 'loading') {
+                handleCancel();
+            } else {
+                handleGenerate();
+            }
         });
 
-        document.getElementById('imgGenSaveBtn')?.addEventListener('click', handleSaveToNote);
-        document.getElementById('imgGenDownloadBtn')?.addEventListener('click', handleDownload);
-        document.getElementById('imgGenRegenBtn')?.addEventListener('click', handleRegenerate);
+        const advToggle = document.getElementById('imgGenAdvToggle');
+        const advToggleWrap = document.getElementById('imgGenAdvToggleWrap');
+        const adv = document.getElementById('imgGenAdvanced');
+        const arrow = document.getElementById('imgGenAdvArrow');
+        advToggle?.addEventListener('click', () => {
+            const isHidden = adv.classList.contains('hidden');
+            adv.classList.toggle('hidden');
+            advToggleWrap?.classList.toggle('open', !isHidden);
+            if (arrow) arrow.textContent = isHidden ? '▲' : '▼';
+        });
 
         // Enter in prompt textarea = submit (Ctrl+Enter)
         document.getElementById('imgGenPrompt')?.addEventListener('keydown', (e) => {
@@ -235,19 +232,37 @@
     // ============================================================
 
     function _showResult(imageData) {
+        const resultEl = document.getElementById('imgGenResult');
         const empty = document.getElementById('imgGenEmpty');
-        const wrapper = document.getElementById('imgGenImageWrapper');
-        const img = document.getElementById('imgGenImage');
+        if (!resultEl) return;
 
-        if (!img || !wrapper) return;
-
-        img.src = getImageUrl(imageData.id);
-        img.alt = imageData.prompt || '生成结果';
-        img.dataset.imageId = imageData.id;
-        img.dataset.prompt = imageData.prompt || '';
+        const imgId = imageData.id;
+        const imgUrl = getImageUrl(imgId);
 
         empty.classList.add('hidden');
-        wrapper.classList.remove('hidden');
+
+        const card = document.createElement('div');
+        card.className = 'img-gen-card';
+        card.id = 'imgGenCard';
+        card.innerHTML = `
+            <img class="img-gen-card-img" id="imgGenImage" src="${imgUrl}" alt="${_escHtml(imageData.prompt || '')}" data-image-id="${imgId}" data-prompt="${_escHtml(imageData.prompt || '')}">
+            <div class="img-gen-card-actions">
+                <button class="btn btn-secondary" id="imgGenSaveBtn" type="button">📝 保存笔记</button>
+                <button class="btn btn-secondary" id="imgGenDownloadBtn" type="button">⬇ 下载</button>
+                <button class="btn btn-secondary" id="imgGenRegenBtn" type="button">🔄 重绘</button>
+            </div>
+        `;
+
+        // Remove old card if any
+        const oldCard = document.getElementById('imgGenCard');
+        oldCard?.remove();
+
+        resultEl.appendChild(card);
+
+        card.querySelector('#imgGenSaveBtn')?.addEventListener('click', handleSaveToNote);
+        card.querySelector('#imgGenDownloadBtn')?.addEventListener('click', handleDownload);
+        card.querySelector('#imgGenRegenBtn')?.addEventListener('click', handleRegenerate);
+
         _hideError();
     }
 
@@ -319,12 +334,10 @@
         const btn = document.getElementById('imgGenSubmitBtn');
         if (!btn) return;
         if (loading) {
-            btn.textContent = '取消';
-            btn.classList.add('img-gen-loading');
+            btn.innerHTML = '<span class="spinner"></span>取消';
             btn.dataset.state = 'loading';
         } else {
-            btn.textContent = '生成';
-            btn.classList.remove('img-gen-loading');
+            btn.innerHTML = '生成';
             btn.dataset.state = '';
         }
     }

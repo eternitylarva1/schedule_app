@@ -47,12 +47,12 @@
         return `
             <div class="gallery-view">
                 <div class="gallery-toolbar">
-                    <select class="gallery-filter-model" id="galleryModelFilter">
+                    <select class="gallery-select" id="galleryModelFilter">
                         <option value="">全部模型</option>
                     </select>
                     <input type="text" class="gallery-search" id="gallerySearchInput"
                         placeholder="🔍 搜索 prompt..." autocomplete="off">
-                    <button class="btn btn-secondary gallery-multi-btn" id="galleryMultiBtn" type="button">
+                    <button class="btn" id="galleryMultiBtn" type="button">
                         ☑ 多选
                     </button>
                 </div>
@@ -64,25 +64,28 @@
                     <div class="gallery-empty-text">还没有图片</div>
                     <div class="gallery-empty-hint">去生图试试吧</div>
                 </div>
-                <!-- Multi-select action bar -->
                 <div class="gallery-multi-bar hidden" id="galleryMultiBar">
                     <span class="gallery-multi-count" id="galleryMultiCount">已选择 0 张</span>
                     <button class="btn btn-danger" id="galleryMultiDeleteBtn">删除所选</button>
                     <button class="btn btn-secondary" id="galleryMultiCancelBtn">取消</button>
                 </div>
             </div>
-            <!-- Lightbox -->
             <div class="gallery-lightbox hidden" id="galleryLightbox">
                 <div class="gallery-lightbox-backdrop" id="galleryLightboxBackdrop"></div>
                 <button class="gallery-lightbox-close" id="galleryLightboxClose" aria-label="关闭">×</button>
                 <div class="gallery-lightbox-content" id="galleryLightboxContent">
-                    <img class="gallery-lightbox-img" id="galleryLightboxImg" src="" alt="">
-                    <div class="gallery-lightbox-info" id="galleryLightboxInfo"></div>
+                    <div class="gallery-lightbox-card">
+                        <img class="gallery-lightbox-img" id="galleryLightboxImg" src="" alt="">
+                        <div class="gallery-lightbox-info" id="galleryLightboxInfo">
+                            <div class="gallery-lbx-prompt" id="galleryLbxPrompt"></div>
+                            <div class="gallery-lbx-meta" id="galleryLbxMeta"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="gallery-lightbox-actions">
-                    <button class="btn btn-secondary" id="galleryLbxInsertBtn">📝 插入笔记</button>
-                    <button class="btn btn-secondary" id="galleryLbxDownloadBtn">⬇ 下载</button>
-                    <button class="btn btn-danger" id="galleryLbxDeleteBtn">🗑 删除</button>
+                    <button class="btn btn-secondary" id="galleryLbxInsertBtn" type="button">📝 插入笔记</button>
+                    <button class="btn btn-secondary" id="galleryLbxDownloadBtn" type="button">⬇ 下载</button>
+                    <button class="btn btn-danger" id="galleryLbxDeleteBtn" type="button">🗑 删除</button>
                 </div>
             </div>
         `;
@@ -188,8 +191,9 @@
 
         grid.innerHTML = images.map(img => {
             const isSelected = _selectedIds.has(img.id);
+            const time = img.created_at ? new Date(img.created_at).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
             return `
-                <div class="gallery-item ${isSelected ? 'selected' : ''}" data-id="${img.id}">
+                <div class="gallery-item ${isSelected ? 'selected' : ''}" data-id="${img.id}" data-model="${_escAttr(img.model || '')}" data-time="${_escAttr(time)}">
                     <img class="gallery-thumb" src="${getImageUrl(img.id)}" alt="${_escHtml(img.prompt || '')}"
                         loading="lazy" data-image-id="${img.id}">
                     ${_isMultiSelectMode ? `<div class="gallery-item-check">${isSelected ? '☑' : '☐'}</div>` : ''}
@@ -219,6 +223,7 @@
                     if (!_isMultiSelectMode) {
                         _isMultiSelectMode = true;
                         _updateMultiSelectUI();
+                        getUtils().showToast?.('已进入多选模式，点击选择');
                     }
                     const id = item.dataset.id;
                     _selectedIds.add(id);
@@ -264,25 +269,23 @@
     function openLightbox(id) {
         const lightbox = document.getElementById('galleryLightbox');
         const img = document.getElementById('galleryLightboxImg');
-        const info = document.getElementById('galleryLightboxInfo');
+        const promptEl = document.getElementById('galleryLbxPrompt');
+        const metaEl = document.getElementById('galleryLbxMeta');
         if (!lightbox || !img) return;
-
-        // Find image data from current grid
-        const thumb = document.querySelector(`.gallery-thumb[data-image-id="${id}"]`);
-        const item = thumb?.closest('.gallery-item');
 
         img.src = getImageUrl(id);
         img.alt = '图片';
         img.dataset.imageId = id;
 
-        // Info bar
-        const prompt = item?.querySelector('img')?.alt || '';
+        // Get image data from the thumbnail element
+        const thumb = document.querySelector(`.gallery-thumb[data-image-id="${id}"]`);
+        const item = thumb?.closest('.gallery-item');
+        const prompt = thumb?.alt || '';
         const model = item?.dataset?.model || '';
         const time = item?.dataset?.time || '';
-        info.innerHTML = `
-            <div class="gallery-lbx-prompt">${_escHtml(prompt)}</div>
-            <div class="gallery-lbx-meta">${_escHtml(model)} · ${_escHtml(time)}</div>
-        `;
+
+        if (promptEl) promptEl.textContent = prompt;
+        if (metaEl) metaEl.textContent = model + (time ? ' · ' + time : '');
 
         lightbox.dataset.currentId = id;
         lightbox.classList.remove('hidden');
