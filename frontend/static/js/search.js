@@ -64,7 +64,15 @@
         resultsEl.innerHTML = '<div style="text-align: center; padding: 24px; color: var(--text-muted);">搜索中...</div>';
 
         try {
-            const resp = core().apiCall ? core().apiCall(`search?q=${encodeURIComponent(q)}`) : await fetch(`/api/search?q=${encodeURIComponent(q)}`).then(r => r.json());
+            const resp = core().apiCall ? core().apiCall(`search?q=${encodeURIComponent(q)}`) : await (async () => {
+                const token = window.ScheduleAppAuth?.getToken?.();
+                const fingerprint = window.ScheduleAppAuth?.getFingerprint?.();
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = 'Bearer ' + token;
+                if (fingerprint) headers['X-Device-Fingerprint'] = fingerprint;
+                const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { headers });
+                return r.json();
+            })();
             const data = resp || { events: [], notes: [], goals: [] };
             renderSearchResults(data, q);
         } catch (e) {

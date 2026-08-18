@@ -408,9 +408,10 @@
                     window.ScheduleAppCore.onAuthSuccess();
                 }
             } else {
-                // Auto-login failed, but password is set - show login panel
+                // Auto-login failed, but password is set - show login panel with clear hint
                 showPanel('login');
                 showAuth();
+                showError(els.loginPassword, '密码已设置成功，请使用刚设置的密码登录');
             }
         } else {
             hideAuth();

@@ -16,6 +16,16 @@
         return div.innerHTML;
     };
 
+    // Fetch with auth headers (bypasses apiCall to avoid toast-on-error semantics)
+    function authFetch(url, options = {}) {
+        const token = window.ScheduleAppAuth?.getToken?.();
+        const fingerprint = window.ScheduleAppAuth?.getFingerprint?.();
+        const headers = { ...(options.headers || {}) };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        if (fingerprint) headers['X-Device-Fingerprint'] = fingerprint;
+        return fetch(url, { ...options, headers });
+    }
+
     async function openSettingsView() {
         const state = getState();
         const elements = getElements();
@@ -583,7 +593,7 @@
         const { showToast } = getUtils();
         showToast('正在发送测试消息...');
         try {
-            const response = await fetch('/api/test-qq-channel', { method: 'POST' });
+            const response = await authFetch('/api/test-qq-channel', { method: 'POST' });
             const json = await response.json();
             if (json.code === 0) {
                 showToast('✅ QQ 信道测试成功');
@@ -616,7 +626,7 @@
         if (!container) return;
 
         try {
-            const resp = await fetch('/api/errors?limit=50');
+            const resp = await authFetch('/api/errors?limit=50');
             const json = await resp.json();
             if (json.code !== 0 || !Array.isArray(json.data)) {
                 container.innerHTML = '<div style="padding:8px;color:#999;">加载失败</div>';
@@ -643,7 +653,7 @@
     async function handleClearErrorLogs() {
         const { showToast } = getUtils();
         try {
-            const resp = await fetch('/api/errors', { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ids: []}) });
+            const resp = await authFetch('/api/errors', { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ids: []}) });
             const json = await resp.json();
             showToast('已清除错误日志');
             const container = document.getElementById('errorLogsList');
@@ -753,7 +763,7 @@
         list.style.display = 'block';
         list.innerHTML = '<div class="event-history-loading" style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
         try {
-            const resp = await fetch('/api/event-history');
+            const resp = await authFetch('/api/event-history');
             const json = await resp.json();
             if (json.code === 0 && json.data && json.data.length > 0) {
                 list.innerHTML = json.data.slice(0, 50).map(h => {
@@ -796,7 +806,7 @@
         list.style.display = 'block';
         list.innerHTML = '<div class="event-history-loading" style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
         try {
-            const resp = await fetch('/api/deleted-events');
+            const resp = await authFetch('/api/deleted-events');
             const json = await resp.json();
             if (json.code === 0 && json.data && json.data.length > 0) {
                 list.innerHTML = json.data.slice(0, 50).map(e => {
@@ -825,7 +835,7 @@
     async function restoreDeletedEvent(deletedId) {
         const { showToast } = getUtils();
         try {
-            const resp = await fetch('/api/deleted-events/' + deletedId + '/restore', { method: 'POST' });
+            const resp = await authFetch('/api/deleted-events/' + deletedId + '/restore', { method: 'POST' });
             const json = await resp.json();
             if (json.code === 0) {
                 showToast('✅ 已恢复日程');
@@ -844,7 +854,7 @@
         const { showToast } = getUtils();
         if (!confirm('确定要永久删除吗？此操作不可恢复。')) return;
         try {
-            const resp = await fetch('/api/deleted-events/' + deletedId, { method: 'DELETE' });
+            const resp = await authFetch('/api/deleted-events/' + deletedId, { method: 'DELETE' });
             const json = await resp.json();
             if (json.code === 0) {
                 showToast('已永久删除');
@@ -863,7 +873,7 @@
         list.style.display = 'block';
         list.innerHTML = '<div class="event-history-loading" style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
         try {
-            const resp = await fetch('/api/event-modifications');
+            const resp = await authFetch('/api/event-modifications');
             const json = await resp.json();
             if (json.code === 0 && json.data && json.data.length > 0) {
                 list.innerHTML = json.data.slice(0, 50).map(m => {
@@ -891,7 +901,7 @@
     async function undoEventModification(modificationId) {
         const { showToast } = getUtils();
         try {
-            const resp = await fetch('/api/event-modifications/' + modificationId + '/undo', { method: 'POST' });
+            const resp = await authFetch('/api/event-modifications/' + modificationId + '/undo', { method: 'POST' });
             const json = await resp.json();
             if (json.code === 0) {
                 showToast('✅ 已撤销修改');
@@ -912,7 +922,7 @@
         list.style.display = 'block';
         list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
         try {
-            const resp = await fetch('/api/expense-operation-logs?limit=100');
+            const resp = await authFetch('/api/expense-operation-logs?limit=100');
             const json = await resp.json();
             if (json.code === 0 && json.data && json.data.length > 0) {
                 list.innerHTML = json.data.slice(0, 50).map(log => {
@@ -949,7 +959,7 @@
     async function undoExpenseOperation(logId) {
         const { showToast } = getUtils();
         try {
-            const resp = await fetch('/api/expense-operation-logs/' + logId + '/undo', { method: 'POST' });
+            const resp = await authFetch('/api/expense-operation-logs/' + logId + '/undo', { method: 'POST' });
             const json = await resp.json();
             if (json.code === 0) {
                 showToast('✅ 已撤销修改');
@@ -970,7 +980,7 @@
         list.style.display = 'block';
         list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--text-muted);font-size:12px;">加载中...</div>';
         try {
-            const resp = await fetch('/api/deleted-expenses');
+            const resp = await authFetch('/api/deleted-expenses');
             const json = await resp.json();
             if (json.code === 0 && json.data && json.data.length > 0) {
                 list.innerHTML = json.data.slice(0, 50).map(e => {
@@ -995,7 +1005,7 @@
     async function restoreDeletedExpense(deletedId) {
         const { showToast } = getUtils();
         try {
-            const resp = await fetch('/api/deleted-expenses/' + deletedId + '/restore', { method: 'POST' });
+            const resp = await authFetch('/api/deleted-expenses/' + deletedId + '/restore', { method: 'POST' });
             const json = await resp.json();
             if (json.code === 0) {
                 showToast('✅ 已恢复支出');
@@ -1487,7 +1497,7 @@ async deletePattern(patternId) {
 
     async function loadPromptTemplates() {
         try {
-            const resp = await fetch('/api/settings/prompt');
+            const resp = await authFetch('/api/settings/prompt');
             const json = await resp.json();
             if (json.code === 0) {
                 cachedPrompts = json.data || {};
@@ -1500,7 +1510,7 @@ async deletePattern(patternId) {
 
     async function savePromptTemplate(key, value) {
         try {
-            const resp = await fetch('/api/settings/prompt', {
+            const resp = await authFetch('/api/settings/prompt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key, value }),
