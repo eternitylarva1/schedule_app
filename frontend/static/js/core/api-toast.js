@@ -12,13 +12,19 @@
     async function apiCall(endpoint, options = {}, signal = null) {
         const url = `/api/${endpoint}`;
         console.log('API call:', options.method || 'GET', url);
-        
+
+        // Get auth headers from ScheduleAppAuth
+        const token = window.ScheduleAppAuth?.getToken?.();
+        const fingerprint = window.ScheduleAppAuth?.getFingerprint?.();
+
         const defaultOptions = {
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': 'Bearer ' + token } : {}),
+                ...(fingerprint ? { 'X-Device-Fingerprint': fingerprint } : {}),
             }
         };
-        
+
         const fetchOptions = { ...defaultOptions, ...options };
         if (signal) {
             fetchOptions.signal = signal;
@@ -31,6 +37,15 @@
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('HTTP Error:', response.status, errorText);
+
+                // Handle 401 - only redirect to login when we HAD a token (session
+                // expired/revoked). Startup requests without a token will 401 too,
+                // but the auth overlay already shows the correct panel; overriding it
+                // here would clobber the setup panel with the login panel.
+                if (response.status === 401 && !endpoint.startsWith('auth/') && token) {
+                    window.ScheduleAppAuth?.handleUnauthorized?.();
+                    return null;
+                }
 
                 let toastMessage = '';
                 if (errorText) {

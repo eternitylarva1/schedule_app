@@ -7,7 +7,7 @@
  * 自动同步命令: python scripts/sync_sw_cache.py
  */
 
-const CACHE_NAME = 'schedule-app-v27';
+const CACHE_NAME = 'schedule-app-v28';
 const STATIC_ASSETS = [
   // Root
   '/',
@@ -17,7 +17,7 @@ const STATIC_ASSETS = [
   '/static/js/core/state.js?v=20260720-02',
   '/static/js/core/elements.js?v=20260720-02',
   '/static/js/core/utils.js?v=20260412-04',
-  '/static/js/core/api-toast.js?v=20260622-01',
+  '/static/js/core/api-toast.js?v=20260818-02',
   '/static/js/core/drag.js?v=20260412-05',
 
   // Feature modules
@@ -28,7 +28,7 @@ const STATIC_ASSETS = [
   '/static/js/notes-list.js?v=20260721-05',
   '/static/js/expense.js?v=20260622-02',
   '/static/js/notepad.js?v=20260622-02',
-  '/static/js/settings.js?v=20260702-03',
+  '/static/js/settings.js?v=20260818-01',
   '/static/js/llm-queue.js?v=20260624-01',
   '/static/js/recurrence-ui.js?v=20260725-01',
   '/static/js/event-modal.js?v=20260725-01',
@@ -38,7 +38,8 @@ const STATIC_ASSETS = [
   '/static/js/app-init.js?v=20260725-01',
   '/static/js/selection.js?v=20260425-01',
   '/static/js/calendar-views.js?v=20260702-01',
-  '/static/js/main.js?v=20260725-01',
+  '/static/js/main.js?v=20260818-01',
+  '/static/js/auth-ui.js?v=20260818-01',
   '/static/js/goal-core.js?v=20260720-02',
   '/static/js/goal-ai.js?v=20260720-02',
   '/static/js/goal-list.js?v=20260720-02',
@@ -46,7 +47,7 @@ const STATIC_ASSETS = [
   '/static/js/goals.js?v=20260720-02',
 
   // CSS
-  '/static/styles/main.css?v=20260801-01',
+  '/static/styles/main.css?v=20260818-01',
 
   // Other
   '/manifest.json',

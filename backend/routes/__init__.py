@@ -13,6 +13,7 @@ from .backup import register_routes as _register_backup
 from .learning import register_routes as _register_learning
 from .misc import register_routes as _register_misc
 from .categories import register_routes as _register_categories
+from .auth import register_routes as _register_auth
 
 __all__ = ["setup_routes", "json_response", "error_response"]
 
@@ -31,3 +32,4 @@ def setup_routes(app: web.Application) -> None:
     _register_learning(app)
     _register_misc(app)
     _register_categories(app)
+    _register_auth(app)

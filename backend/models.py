@@ -440,3 +440,22 @@ class LearningPattern:
             d['created_at'] = datetime.fromisoformat(d['created_at'])
         d = {k: v for k, v in d.items() if v is not None}
         return cls(**d)
+
+
+@dataclass
+class Auth:
+    """Auth model for password storage."""
+    id: int | None = None
+    password_hash: str = ""  # stored as "salt:hash" format
+    salt: str = ""
+    created_at: datetime | None = None
+
+
+@dataclass
+class AuthToken:
+    """Auth token model for session management."""
+    id: int | None = None
+    token_hash: str = ""  # sha256 of actual token
+    fingerprint_hash: str = ""  # sha256 of device fingerprint
+    created_at: datetime | None = None
+    expires_at: datetime | None = None

@@ -10,6 +10,7 @@ from . import db
 from .routes import setup_routes
 from .reminder_service import ReminderService
 from .llm_service import llm_service
+from .middleware import auth_middleware
 
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -93,6 +94,9 @@ async def init_app() -> web.Application:
 
     # Add logging middleware
     app.middlewares.append(log_middleware)
+
+    # Add auth middleware (protects /api/* except /api/auth/*)
+    app.middlewares.append(auth_middleware)
 
     # Setup API routes
     setup_routes(app)

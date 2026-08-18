@@ -1590,6 +1590,50 @@ async deletePattern(patternId) {
         }
     }
 
+    // Auth settings entries
+    function addAuthSettingsEntries() {
+        const content = document.querySelector('#settingsView .settings-content');
+        if (!content || document.getElementById('authSettingsSection')) return;
+
+        const sectionHtml = `
+            <div class="settings-section" id="authSettingsSection">
+                <div class="settings-section-title">🔐 账户</div>
+                <div class="settings-item">
+                    <div class="settings-item-info">
+                        <span class="settings-item-title">修改密码</span>
+                        <span class="settings-item-desc">更改你的登录密码</span>
+                    </div>
+                    <button class="btn btn-secondary" id="openChangePasswordBtn">修改</button>
+                </div>
+                <div class="settings-item">
+                    <div class="settings-item-info">
+                        <span class="settings-item-title">退出登录</span>
+                        <span class="settings-item-desc">清除登录状态</span>
+                    </div>
+                    <button class="btn btn-secondary" id="logoutBtn">退出</button>
+                </div>
+            </div>
+        `;
+
+        const personalSection = content.querySelector('.settings-section:has(#openUserContextBtn)');
+        if (personalSection && personalSection.parentNode) {
+            personalSection.insertAdjacentHTML('afterend', sectionHtml);
+        } else {
+            content.insertAdjacentHTML('afterbegin', sectionHtml);
+        }
+
+        document.getElementById('openChangePasswordBtn')?.addEventListener('click', () => {
+            window.ScheduleAppAuth?.openChangePasswordModal();
+        });
+        document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+            const confirmed = confirm('确定要退出登录吗？');
+            if (!confirmed) return;
+            await window.ScheduleAppAuth?.logout();
+            window.ScheduleAppAuth?.showLogin();
+            window.location.reload();
+        });
+    }
+
     window.ScheduleAppSettings = {
         openSettingsView,
         closeSettingsView,
@@ -1650,6 +1694,8 @@ async deletePattern(patternId) {
         savePrompt,
         resetPrompt,
         togglePromptTuning,
+        // Auth
+        addAuthSettingsEntries,
     };
 
     // Expose to global scope for inline onclick handlers (legacy compatibility)
@@ -1661,5 +1707,8 @@ async deletePattern(patternId) {
     if (window.ScheduleAppCore && window.ScheduleAppCore.state) {
         SettingsLearningUI.init();
     }
+
+    // Add auth settings entries after settings module loads
+    addAuthSettingsEntries();
 
 })();

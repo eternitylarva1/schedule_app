@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <title>日程管理</title>
     <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/static/styles/main.css?v=20260801-01">
+    <link rel="stylesheet" href="/static/styles/main.css?v=20260818-01">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
@@ -671,6 +671,67 @@
             </button>
         </nav>
 
+        <!-- Auth Overlay -->
+        <div id="authOverlay" class="hidden">
+            <div class="auth-card">
+                <!-- Logo Area -->
+                <div class="auth-logo-area">
+                    <span class="auth-logo-icon">🔒</span>
+                    <span class="auth-logo-text">日程管理</span>
+                </div>
+
+                <!-- Setup Panel (first-time setup) -->
+                <div id="authSetupPanel" class="auth-panel">
+                    <p class="auth-subtitle">设置你的登录密码<br>至少 6 位字符</p>
+                    <form id="authSetupForm" novalidate>
+                        <div class="auth-form-group">
+                            <label class="auth-label">密码</label>
+                            <div class="auth-input-wrapper">
+                                <input type="password" id="authSetupPassword" class="auth-input"
+                                    placeholder="输入密码" autocomplete="new-password">
+                                <button type="button" class="auth-toggle-password" aria-label="显示密码">👁️</button>
+                            </div>
+                            <span class="auth-strength-indicator" id="authSetupStrength" style="display:none;"></span>
+                        </div>
+                        <div class="auth-form-group">
+                            <label class="auth-label">确认密码</label>
+                            <div class="auth-input-wrapper">
+                                <input type="password" id="authSetupConfirmPassword" class="auth-input"
+                                    placeholder="再输入一次" autocomplete="new-password">
+                                <button type="button" class="auth-toggle-password" aria-label="显示密码">👁️</button>
+                            </div>
+                        </div>
+                        <div class="auth-form-actions">
+                            <button type="submit" class="btn btn-primary auth-submit-btn">开始使用</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Login Panel (returning user) -->
+                <div id="authLoginPanel" class="auth-panel hidden">
+                    <p class="auth-subtitle">输入密码解锁应用</p>
+                    <form id="authLoginForm" novalidate>
+                        <div class="auth-form-group">
+                            <label class="auth-label">密码</label>
+                            <div class="auth-input-wrapper">
+                                <input type="password" id="authLoginPassword" class="auth-input"
+                                    placeholder="请输入密码" autocomplete="current-password">
+                                <button type="button" class="auth-toggle-password" aria-label="显示密码">👁️</button>
+                            </div>
+                        </div>
+                        <label class="auth-checkbox-label">
+                            <input type="checkbox" id="authLoginRememberMe" checked>
+                            <span>保持登录</span>
+                        </label>
+                        <div class="auth-form-actions">
+                            <button type="submit" class="btn btn-primary auth-submit-btn">解锁</button>
+                        </div>
+                    </form>
+                    <p class="auth-footer-hint">忘记密码？请联系开发者重置</p>
+                </div>
+            </div>
+        </div>
+
 <!-- Settings Modal -->
         <div class="modal hidden" id="settingsModal">
             <div class="modal-backdrop" id="settingsBackdrop"></div>
@@ -1017,7 +1078,7 @@
     <script src="/static/js/core/state.js?v=20260720-02"></script>
     <script src="/static/js/core/elements.js?v=20260720-02"></script>
     <script src="/static/js/core/utils.js?v=20260412-04"></script>
-    <script src="/static/js/core/api-toast.js?v=20260622-01"></script>
+    <script src="/static/js/core/api-toast.js?v=20260818-02"></script>
     <script src="/static/js/core/drag.js?v=20260412-05"></script>
     <script src="/static/js/utils2.js?v=20260425-01"></script>
     <script src="/static/js/budget.js?v=20260629-01"></script>
@@ -1026,7 +1087,7 @@
     <script src="/static/js/notes-list.js?v=20260721-05"></script>
     <script src="/static/js/expense.js?v=20260622-02"></script>
     <script src="/static/js/notepad.js?v=20260622-02"></script>
-    <script src="/static/js/settings.js?v=20260702-03"></script>
+    <script src="/static/js/settings.js?v=20260818-01"></script>
     <script src="/static/js/llm-queue.js?v=20260624-01"></script>
     <script src="/static/js/recurrence-ui.js?v=20260725-01"></script>
     <script src="/static/js/event-modal.js?v=20260725-01"></script>
@@ -1036,7 +1097,8 @@
     <script src="/static/js/app-init.js?v=20260725-01"></script>
     <script src="/static/js/selection.js?v=20260425-01"></script>
     <script src="/static/js/calendar-views.js?v=20260702-01"></script>
-    <script src="/static/js/main.js?v=20260725-01"></script>
+    <script src="/static/js/main.js?v=20260818-01"></script>
+    <script src="/static/js/auth-ui.js?v=20260818-01"></script>
     <script src="/static/js/goal-core.js?v=20260720-02"></script>
     <script src="/static/js/goal-ai.js?v=20260720-02"></script>
     <script src="/static/js/goal-list.js?v=20260720-02"></script>

@@ -833,7 +833,15 @@
     // ============================================
     async function init() {
         console.log('Initializing Schedule App...');
-        
+
+        // 认证拦截：未登录先显示登录/设置密码遮罩
+        const authState = await window.ScheduleAppAuth?.initAuthUI?.();
+        if (!authState) {
+            // 未认证：登录/设置成功后刷新页面重新初始化
+            window.ScheduleAppCore.onAuthSuccess = () => { window.location.reload(); };
+            return;
+        }
+
         injectToastStyles();
         registerGlobalErrorHandlers();
         bindEvents();

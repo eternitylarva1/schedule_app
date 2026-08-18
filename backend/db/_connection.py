@@ -398,4 +398,25 @@ async def create_baseline_schema(db):
         )
     """)
 
+    # Auth table for password hash
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS auth (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    # Auth tokens table for session management
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS auth_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token_hash TEXT NOT NULL UNIQUE,
+            fingerprint_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL
+        )
+    """)
+
     await db.commit()
