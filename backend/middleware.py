@@ -1,11 +1,11 @@
 """Auth middleware for protecting API routes."""
-import hashlib
 import os
 
 from aiohttp import web
 
 from .routes.response import error_response
 from .db import auth as auth_db
+from .db.settings import get_api_key
 
 
 AUTH_DISABLED = os.environ.get("AUTH_DISABLED", "").strip().lower() in ("1", "true", "yes")
@@ -34,21 +34,21 @@ async def auth_middleware(request: web.Request, handler):
 
     # Extract Bearer token
     auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return error_response("未登录或登录已过期", 401)
+    token_valid = False
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        if token:
+            fingerprint = request.headers.get("X-Device-Fingerprint", "")
+            if fingerprint:
+                token_valid = await auth_db.verify_token(token, fingerprint)
 
-    token = auth_header[7:]  # strip "Bearer "
-    if not token:
-        return error_response("未登录或登录已过期", 401)
-
-    # Extract fingerprint header
-    fingerprint = request.headers.get("X-Device-Fingerprint", "")
-    if not fingerprint:
-        return error_response("未登录或登录已过期", 401)
-
-    # Verify token + fingerprint
-    valid = await auth_db.verify_token(token, fingerprint)
-    if not valid:
+    if not token_valid:
+        # Fallback: check static API key from X-API-Key header
+        api_key = request.headers.get("X-API-Key", "").strip()
+        if api_key:
+            stored_key = await get_api_key()
+            if stored_key and api_key == stored_key:
+                return await handler(request)
         return error_response("未登录或登录已过期", 401)
 
     return await handler(request)

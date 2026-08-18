@@ -1,5 +1,6 @@
 """Settings HTTP endpoints."""
 import json
+import secrets
 import aiosqlite
 from aiohttp import web
 from typing import Any
@@ -296,9 +297,36 @@ async def save_prompt(request: web.Request) -> web.Response:
         return error_response(str(e))
 
 
-# ============ Note Conversations Endpoints (AI Chat) ============
+
+# ============ Static API Key Endpoints ============
 
 
+async def get_api_key_handler(request: web.Request) -> web.Response:
+    """GET /api/settings/api-key — get current API key (or null)."""
+    try:
+        key = await db.get_api_key()
+        return json_response({"api_key": key})
+    except Exception as e:
+        return error_response(str(e))
+
+
+async def create_api_key_handler(request: web.Request) -> web.Response:
+    """POST /api/settings/api-key — generate a new static API key."""
+    try:
+        new_key = secrets.token_urlsafe(32)
+        await db.set_api_key(new_key)
+        return json_response({"api_key": new_key})
+    except Exception as e:
+        return error_response(str(e))
+
+
+async def delete_api_key_handler(request: web.Request) -> web.Response:
+    """DELETE /api/settings/api-key — revoke the static API key."""
+    try:
+        await db.clear_api_key()
+        return json_response({"success": True})
+    except Exception as e:
+        return error_response(str(e))
 
 
 # ============= Route Registration =============
@@ -318,3 +346,6 @@ def register_routes(app: web.Application) -> None:
     app.router.add_put("/api/user-contexts/reorder", reorder_user_contexts)
     app.router.add_get("/api/settings/prompt", get_prompts)
     app.router.add_post("/api/settings/prompt", save_prompt)
+    app.router.add_get("/api/settings/api-key", get_api_key_handler)
+    app.router.add_post("/api/settings/api-key", create_api_key_handler)
+    app.router.add_delete("/api/settings/api-key", delete_api_key_handler)

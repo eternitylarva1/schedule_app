@@ -18,7 +18,8 @@ from .events import (
     search_events,
 )
 from .settings import (
-    get_setting, set_setting,
+    get_setting, set_setting, delete_setting,
+    get_api_key, set_api_key, clear_api_key,
     get_ai_providers, get_active_ai_provider, get_ai_provider,
     create_ai_provider, update_ai_provider, delete_ai_provider, activate_ai_provider,
     get_user_contexts, create_user_context, update_user_context,
@@ -80,7 +81,8 @@ __all__ = [
     "batch_uncomplete_events", "batch_delete_events", "get_stats",
     "search_events",
     # Settings
-    "get_setting", "set_setting",
+    "get_setting", "set_setting", "delete_setting",
+    "get_api_key", "set_api_key", "clear_api_key",
     "get_ai_providers", "get_active_ai_provider", "get_ai_provider",
     "create_ai_provider", "update_ai_provider", "delete_ai_provider", "activate_ai_provider",
     "get_user_contexts", "create_user_context", "update_user_context",

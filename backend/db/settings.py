@@ -23,6 +23,29 @@ async def set_setting(key: str, value: str) -> None:
         await db.commit()
 
 
+async def delete_setting(key: str) -> bool:
+    """Delete a setting by key. Returns True if a row was deleted."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("DELETE FROM settings WHERE key = ?", (key,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def get_api_key() -> Optional[str]:
+    """Get the static API key from settings. Returns None if not set."""
+    return await get_setting("api_key")
+
+
+async def set_api_key(value: str) -> None:
+    """Set the static API key in settings."""
+    await set_setting("api_key", value)
+
+
+async def clear_api_key() -> bool:
+    """Clear (delete) the static API key. Returns True if a key was deleted."""
+    return await delete_setting("api_key")
+
+
 async def get_ai_providers() -> list[dict]:
     """Get all AI providers."""
     async with aiosqlite.connect(DB_PATH) as db:

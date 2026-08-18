@@ -1600,6 +1600,132 @@ async deletePattern(patternId) {
         }
     }
 
+    // ============================================================
+    // API Key Management
+    // ============================================================
+
+    async function loadApiKey() {
+        const { apiCall, showToast } = getUtils();
+        const container = document.getElementById('apiKeyContent');
+        if (!container) return;
+
+        try {
+            const data = await apiCall('settings/api-key');
+            renderApiKeySection(data && data.api_key ? data.api_key : null);
+        } catch (e) {
+            container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">加载失败</div>';
+        }
+    }
+
+    function renderApiKeySection(apiKey) {
+        const container = document.getElementById('apiKeyContent');
+        if (!container) return;
+
+        if (!apiKey) {
+            container.innerHTML = `
+                <div class="api-key-empty">
+                    <span style="color:var(--text-muted);font-size:13px;">未设置 API Key</span>
+                    <button class="btn btn-primary" id="genApiKeyBtn" style="margin-top:8px;">生成 API Key</button>
+                </div>
+            `;
+            container.querySelector('#genApiKeyBtn')?.addEventListener('click', handleGenApiKey);
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="api-key-display">
+                <div class="api-key-value" id="apiKeyValue" title="点击复制">${escHtml(apiKey)}</div>
+                <div class="api-key-actions">
+                    <button class="btn btn-secondary" id="copyApiKeyBtn">复制</button>
+                    <button class="btn btn-secondary" id="regenApiKeyBtn">重新生成</button>
+                    <button class="btn btn-danger" id="disableApiKeyBtn">停用</button>
+                </div>
+            </div>
+        `;
+
+        container.querySelector('#copyApiKeyBtn')?.addEventListener('click', () => handleCopyApiKey(apiKey));
+        container.querySelector('#regenApiKeyBtn')?.addEventListener('click', handleRegenApiKey);
+        container.querySelector('#disableApiKeyBtn')?.addEventListener('click', handleDisableApiKey);
+        container.querySelector('#apiKeyValue')?.addEventListener('click', () => handleCopyApiKey(apiKey));
+    }
+
+    function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(
+                () => {},
+                () => fallbackCopy(text)
+            );
+        } else {
+            fallbackCopy(text);
+        }
+    }
+
+    function fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    async function handleCopyApiKey(apiKey) {
+        const { showToast } = getUtils();
+        copyText(apiKey);
+        showToast('已复制到剪贴板');
+    }
+
+    async function handleGenApiKey() {
+        const { apiCall, showToast } = getUtils();
+        try {
+            const data = await apiCall('settings/api-key', { method: 'POST' });
+            if (data && data.api_key) {
+                showToast('API Key 已生成');
+                renderApiKeySection(data.api_key);
+            } else {
+                showToast('生成失败');
+            }
+        } catch (e) {
+            showToast('生成失败');
+        }
+    }
+
+    async function handleRegenApiKey() {
+        const { apiCall, showToast } = getUtils();
+        const confirmed = confirm('重新生成会使旧 key 立即失效，确定要继续吗？');
+        if (!confirmed) return;
+        try {
+            const data = await apiCall('settings/api-key', { method: 'POST' });
+            if (data && data.api_key) {
+                showToast('API Key 已重新生成');
+                renderApiKeySection(data.api_key);
+            } else {
+                showToast('生成失败');
+            }
+        } catch (e) {
+            showToast('生成失败');
+        }
+    }
+
+    async function handleDisableApiKey() {
+        const { apiCall, showToast } = getUtils();
+        const confirmed = confirm('确定要停用当前的 API Key 吗？停用后任何使用该 key 的请求都将失效。');
+        if (!confirmed) return;
+        try {
+            await apiCall('settings/api-key', { method: 'DELETE' });
+            showToast('API Key 已停用');
+            renderApiKeySection(null);
+        } catch (e) {
+            showToast('停用失败');
+        }
+    }
+
     // Auth settings entries
     function addAuthSettingsEntries() {
         const content = document.querySelector('#settingsView .settings-content');
@@ -1642,6 +1768,27 @@ async deletePattern(patternId) {
             window.ScheduleAppAuth?.showLogin();
             window.location.reload();
         });
+
+        // API Key section container (injected after auth section)
+        const apiKeyContainerId = 'apiKeySection';
+        if (!document.getElementById(apiKeyContainerId)) {
+            const sectionHtml = `
+                <div class="settings-section" id="${apiKeyContainerId}">
+                    <div class="settings-section-title">🔑 开发者访问</div>
+                    <div class="api-key-desc">用于脚本 / 命令行调用接口，无需登录；请勿泄露给他人</div>
+                    <div id="apiKeyContent">加载中...</div>
+                </div>
+            `;
+            const authSection = document.getElementById('authSettingsSection');
+            if (authSection && authSection.parentNode) {
+                authSection.insertAdjacentHTML('afterend', sectionHtml);
+            } else {
+                content.insertAdjacentHTML('afterbegin', sectionHtml);
+            }
+
+            // Load API key on first render
+            loadApiKey();
+        }
     }
 
     window.ScheduleAppSettings = {
