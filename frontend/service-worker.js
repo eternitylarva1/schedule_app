@@ -7,7 +7,7 @@
  * 自动同步命令: python scripts/sync_sw_cache.py
  */
 
-const CACHE_NAME = 'schedule-app-v28';
+const CACHE_NAME = 'schedule-app-v29';
 const STATIC_ASSETS = [
   // Root
   '/',
@@ -47,7 +47,7 @@ const STATIC_ASSETS = [
   '/static/js/goals.js?v=20260720-02',
 
   // CSS
-  '/static/styles/main.css?v=20260818-01',
+  '/static/styles/main.css?v=20260818-02',
 
   // Other
   '/manifest.json',
