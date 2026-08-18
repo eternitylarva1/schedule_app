@@ -1703,8 +1703,8 @@ async deletePattern(patternId) {
 
     window.SettingsLearningUI = SettingsLearningUI;
 
-    // Initialize learning UI after settings module loads
-    if (window.ScheduleAppCore && window.ScheduleAppCore.state) {
+    // Initialize learning UI after settings module loads — only if authenticated
+    if (window.ScheduleAppCore && window.ScheduleAppCore.state && window.ScheduleAppAuth?.getToken?.()) {
         SettingsLearningUI.init();
     }
 

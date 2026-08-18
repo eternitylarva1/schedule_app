@@ -85,7 +85,12 @@
   // Load categories from API
   async function loadCategories() {
     try {
-      const response = await fetch('/api/categories');
+      const token = window.ScheduleAppAuth?.getToken?.();
+      const fingerprint = window.ScheduleAppAuth?.getFingerprint?.();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      if (fingerprint) headers['X-Device-Fingerprint'] = fingerprint;
+      const response = await fetch('/api/categories', { headers });
       const json = await response.json();
       if (json && json.code === 0 && Array.isArray(json.data)) {
         state.categories = json.data.filter(c => c.type === 'event');
@@ -96,8 +101,10 @@
     }
   }
 
-  // Initialize categories on load
-  loadCategories();
+  // Initialize categories on load — only if already authenticated
+  if (window.ScheduleAppAuth?.getToken?.()) {
+    loadCategories();
+  }
 
   global.ScheduleAppCore = {
     ...(global.ScheduleAppCore || {}),
