@@ -257,6 +257,24 @@
                 }
             },
         },
+        {
+            id: 'image',
+            group: 'note',
+            order: 4,
+            render() {
+                return `<button type="button" class="tb-btn" id="noteInlineImageBtn" data-tb-action="image" title="插入图片">📎</button>`;
+            },
+            bind(note) {
+                const btn = document.getElementById('noteInlineImageBtn');
+                if (btn) {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const fileInput = document.getElementById('noteImageUploadInput');
+                        if (fileInput) fileInput.click();
+                    });
+                }
+            },
+        },
     ];
 
     // Build toolbar HTML from registry
@@ -1082,6 +1100,7 @@
 
         main.innerHTML = `
             <div class="note-inline-editor" data-note-id="${note.id}">
+                <input type="file" id="noteImageUploadInput" accept="image/*" style="display:none;" aria-hidden="true">
                 <div class="note-inline-toolbar">
                     ${_renderToolbarHTML(note)}
                 </div>
@@ -1264,38 +1283,19 @@
             }
         });
 
-        // ── Core: Paste — images as base64, else plain text ─────
-        contentEl.addEventListener('paste', (e) => {
+        // ── Core: Paste — images via upload API, else plain text ─────
+        contentEl.addEventListener('paste', async (e) => {
             const items = e.clipboardData?.items;
             const hasImage = items && Array.from(items).some(item => item.type.startsWith('image/'));
-            
+
             if (hasImage) {
                 e.preventDefault();
-                Array.from(items).forEach(item => {
-                    if (!item.type.startsWith('image/')) return;
+                for (const item of Array.from(items)) {
+                    if (!item.type.startsWith('image/')) continue;
                     const file = item.getAsFile();
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        const img = document.createElement('img');
-                        img.src = ev.target.result;
-                        img.style.maxWidth = '100%';
-                        img.style.borderRadius = 'var(--radius-md)';
-                        img.style.margin = '8px 0';
-                        const sel = window.getSelection();
-                        if (sel.rangeCount) {
-                            const range = sel.getRangeAt(0);
-                            range.deleteContents();
-                            range.insertNode(img);
-                            range.setStartAfter(img);
-                            range.collapse(true);
-                            sel.removeAllRanges();
-                            sel.addRange(range);
-                        }
-                        scheduleAutoSave(note);
-                    };
-                    reader.readAsDataURL(file);
-                });
+                    if (!file) continue;
+                    await _insertImageFile(file);
+                }
             } else {
                 e.preventDefault();
                 const text = (e.clipboardData || window.clipboardData).getData('text/plain');
@@ -1305,6 +1305,61 @@
                 }
             }
         });
+
+        // ── Core: File input for image upload ───────────────────
+        const fileInput = document.getElementById('noteImageUploadInput');
+        if (fileInput) {
+            fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                e.target.value = ''; // reset so same file can be re-selected
+                await _insertImageFile(file);
+            });
+        }
+
+        // ── Helper: Insert uploaded image at cursor ────────────
+        async function _insertImageFile(file) {
+            const { apiCall, showToast } = getUtils();
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const result = await apiCall('images/upload', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {}, // Let browser set Content-Type for multipart
+                });
+
+                if (result && result.id) {
+                    const imgUrl = window.ScheduleAppImageGen?.getImageUrl?.(result.id) || `/api/images/${result.id}`;
+                    const img = document.createElement('img');
+                    img.src = imgUrl;
+                    img.style.maxWidth = '100%';
+                    img.style.borderRadius = 'var(--radius-md)';
+                    img.style.margin = '8px 0';
+                    img.dataset.imageId = result.id;
+
+                    const sel = window.getSelection();
+                    if (sel && sel.rangeCount) {
+                        const range = sel.getRangeAt(0);
+                        range.deleteContents();
+                        range.insertNode(img);
+                        range.setStartAfter(img);
+                        range.collapse(true);
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                    } else {
+                        contentEl.appendChild(img);
+                    }
+                    scheduleAutoSave(note);
+                } else {
+                    showToast('图片上传失败');
+                }
+            } catch (err) {
+                console.error('Image upload failed:', err);
+                showToast('图片上传失败');
+            }
+        }
 
         // ── Core: Font size selector ────────────────────────────
         const fontSizeEl = document.getElementById('noteInlineFontSize');

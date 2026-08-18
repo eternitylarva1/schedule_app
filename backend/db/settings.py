@@ -73,14 +73,15 @@ async def get_ai_provider(provider_id: int) -> Optional[dict]:
             return dict(row) if row else None
 
 
-async def create_ai_provider(name: str, api_base: str, model: str, api_key: str) -> dict:
+async def create_ai_provider(name: str, api_base: str, model: str, api_key: str,
+                               image_model: str = None, image_api_base: str = None) -> dict:
     """Create a new AI provider."""
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute(
-            """INSERT INTO ai_providers (name, api_base, model, api_key, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (name, api_base, model, api_key, now, now),
+            """INSERT INTO ai_providers (name, api_base, model, api_key, image_model, image_api_base, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (name, api_base, model, api_key, image_model, image_api_base, now, now),
         )
         await db.commit()
         provider_id = cursor.lastrowid
@@ -90,6 +91,8 @@ async def create_ai_provider(name: str, api_base: str, model: str, api_key: str)
             "api_base": api_base,
             "model": model,
             "api_key": api_key,
+            "image_model": image_model,
+            "image_api_base": image_api_base,
             "is_active": 0,
             "created_at": now,
             "updated_at": now,
@@ -102,21 +105,23 @@ async def update_ai_provider(
     api_base: str,
     model: str,
     api_key: Optional[str] = None,
+    image_model: Optional[str] = None,
+    image_api_base: Optional[str] = None,
 ) -> Optional[dict]:
     """Update an AI provider."""
     now = datetime.now().isoformat()
     async with aiosqlite.connect(DB_PATH) as db:
         if api_key is None:
             await db.execute(
-                """UPDATE ai_providers SET name = ?, api_base = ?, model = ?, updated_at = ?
+                """UPDATE ai_providers SET name = ?, api_base = ?, model = ?, image_model = ?, image_api_base = ?, updated_at = ?
                    WHERE id = ?""",
-                (name, api_base, model, now, provider_id),
+                (name, api_base, model, image_model, image_api_base, now, provider_id),
             )
         else:
             await db.execute(
-                """UPDATE ai_providers SET name = ?, api_base = ?, model = ?, api_key = ?, updated_at = ?
+                """UPDATE ai_providers SET name = ?, api_base = ?, model = ?, api_key = ?, image_model = ?, image_api_base = ?, updated_at = ?
                    WHERE id = ?""",
-                (name, api_base, model, api_key, now, provider_id),
+                (name, api_base, model, api_key, image_model, image_api_base, now, provider_id),
             )
         await db.commit()
         db.row_factory = aiosqlite.Row

@@ -419,4 +419,20 @@ async def create_baseline_schema(db):
         )
     """)
 
+    # Images table for generated images and uploads
+    await db.execute("""
+        CREATE TABLE IF NOT EXISTS images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL DEFAULT 'generated',
+            prompt TEXT,
+            model TEXT,
+            file_path TEXT NOT NULL,
+            mime_type TEXT,
+            file_size INTEGER,
+            width INTEGER,
+            height INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
     await db.commit()

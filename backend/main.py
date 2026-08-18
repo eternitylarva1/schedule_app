@@ -68,6 +68,10 @@ async def init_app() -> web.Application:
     # Initialize database
     await db.init_db()
 
+    # Ensure images directory exists
+    from pathlib import Path
+    (Path(__file__).parent / "data" / "images").mkdir(parents=True, exist_ok=True)
+
     # Initialize default AI provider from environment variables if none exists
     providers = await db.get_ai_providers()
     if len(providers) == 0:

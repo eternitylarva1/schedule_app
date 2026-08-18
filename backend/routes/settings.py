@@ -84,6 +84,8 @@ async def create_ai_provider(request: web.Request) -> web.Response:
             api_base=data.get("api_base", "").strip(),
             model=data.get("model", "").strip(),
             api_key=api_key,
+            image_model=data.get("image_model", "").strip() or None,
+            image_api_base=data.get("image_api_base", "").strip() or None,
         )
         return json_response(_sanitize_ai_provider(provider))
     except Exception as e:
@@ -116,6 +118,8 @@ async def update_ai_provider(request: web.Request) -> web.Response:
             api_base=data.get("api_base", "").strip(),
             model=data.get("model", "").strip(),
             api_key=normalized_api_key,
+            image_model=data.get("image_model", "").strip() or None,
+            image_api_base=data.get("image_api_base", "").strip() or None,
         )
         if provider:
             return json_response(_sanitize_ai_provider(provider))

@@ -1742,6 +1742,152 @@ async deletePattern(patternId) {
         }
     }
 
+    // ============================================================
+    // Image Generation Provider Management
+    // ============================================================
+
+    async function loadImageProviders() {
+        const { apiCall } = getUtils();
+        const container = document.getElementById('imgProviderContent');
+        if (!container) return;
+
+        try {
+            const providers = await apiCall('ai-providers');
+            const allProviders = providers || [];
+            const imageProviders = allProviders.filter(p => p.image_model && p.image_model.trim());
+            const activeImageProvider = allProviders.find(p => p.is_active && p.image_model && p.image_model.trim());
+
+            renderImageProviderSection(imageProviders, activeImageProvider);
+        } catch (e) {
+            container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">加载失败</div>';
+        }
+    }
+
+    function renderImageProviderSection(imageProviders, activeProvider) {
+        const container = document.getElementById('imgProviderContent');
+        if (!container) return;
+
+        const activeName = activeProvider ? `${activeProvider.name} · ${activeProvider.image_model}` : '未设置';
+
+        container.innerHTML = `
+            <div class="img-provider-active">
+                <span class="img-provider-active-label">当前生图</span>
+                <span class="img-provider-active-name">${activeProvider ? escHtml(activeName) : '<span style="color:var(--text-muted)">未设置</span>'}</span>
+            </div>
+            <div class="img-provider-list" id="imgProviderList">
+                ${imageProviders.length === 0
+                    ? '<div style="color:var(--text-muted);font-size:12px;">暂无支持生图的 AI 提供商</div>'
+                    : imageProviders.map(p => `
+                        <div class="img-provider-item ${p.is_active ? 'active' : ''}" data-id="${p.id}">
+                            <div class="img-provider-info">
+                                <span class="img-provider-name">${escHtml(p.name)}</span>
+                                <span class="img-provider-model">${escHtml(p.image_model || '')}</span>
+                            </div>
+                            <div class="img-provider-actions">
+                                ${p.is_active
+                                    ? '<span class="img-provider-badge">使用中</span>'
+                                    : `<button class="btn btn-secondary img-provider-use-btn" data-id="${p.id}">设为生图</button>`
+                                }
+                            </div>
+                        </div>
+                    `).join('')
+                }
+            </div>
+            <button class="btn btn-secondary" id="addImageProviderBtn" style="margin-top:8px;">+ 添加生图提供商</button>
+        `;
+
+        // Bind set-as-active buttons
+        container.querySelectorAll('.img-provider-use-btn').forEach(btn => {
+            btn.addEventListener('click', () => handleSetImageProvider(btn.dataset.id));
+        });
+
+        document.getElementById('addImageProviderBtn')?.addEventListener('click', () => openAiProviderModal(null, true));
+    }
+
+    async function handleSetImageProvider(id) {
+        const { apiCall, showToast } = getUtils();
+        try {
+            await apiCall(`settings/active-image-provider/${id}`, { method: 'PUT' });
+            showToast('已设为生图模型');
+            await loadImageProviders();
+        } catch (e) {
+            showToast('设置失败');
+        }
+    }
+
+    // Override openAiProviderModal to load image_model for existing providers
+    const _originalOpenAiProviderModal = openAiProviderModal;
+    function openAiProviderModal(id = null, forImage = false) {
+        _originalOpenAiProviderModal(id);
+
+        // Load image_model for existing provider
+        if (id) {
+            const provider = getState().aiProviders?.find(p => p.id === id);
+            const imgModelInput = document.getElementById('aiProviderImageModel');
+            if (imgModelInput && provider) {
+                imgModelInput.value = provider.image_model || '';
+            }
+        } else {
+            const imgModelInput = document.getElementById('aiProviderImageModel');
+            if (imgModelInput) imgModelInput.value = '';
+        }
+
+        // Update modal title
+        const titleEl = document.getElementById('aiProviderModalTitle');
+        if (titleEl) {
+            titleEl.textContent = id ? '编辑 AI 提供商' : '添加 AI 提供商';
+        }
+    }
+
+    // Override saveAiProvider to include image_model
+    const _originalSaveAiProvider = saveAiProvider;
+    async function saveAiProvider() {
+        const elements = getElements();
+        const { apiCall, showToast } = getUtils();
+        const id = elements.aiProviderId.value;
+        const name = elements.aiProviderName.value.trim();
+        const apiBase = elements.aiProviderApiBase.value.trim();
+        const model = elements.aiProviderModel.value.trim();
+        const apiKey = elements.aiProviderApiKey.value.trim();
+        const imageModel = document.getElementById('aiProviderImageModel')?.value.trim() || '';
+
+        if (!name || !apiBase || !model) {
+            showToast('请填写完整信息');
+            return;
+        }
+
+        try {
+            let result;
+            if (id) {
+                result = await apiCall(`ai-providers/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey, image_model: imageModel }),
+                });
+            } else {
+                if (!apiKey) {
+                    showToast('请填写 API Key');
+                    return;
+                }
+                result = await apiCall('ai-providers', {
+                    method: 'POST',
+                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey, image_model: imageModel }),
+                });
+            }
+
+            if (result && !result.error) {
+                showToast(id ? 'AI配置已更新' : 'AI配置已添加');
+                closeAiProviderModal();
+                await loadAiProviders();
+                await loadImageProviders();
+            } else {
+                showToast(result?.message || '保存失败');
+            }
+        } catch (e) {
+            showToast('保存失败');
+            console.error(e);
+        }
+    }
+
     // Auth settings entries
     function addAuthSettingsEntries() {
         const content = document.querySelector('#settingsView .settings-content');
@@ -1802,8 +1948,27 @@ async deletePattern(patternId) {
                 content.insertAdjacentHTML('afterbegin', sectionHtml);
             }
 
-            // Load API key lazily (deferred until auth module + token available)
-            scheduleApiKeyLoad();
+            // Load API key on first render
+            loadApiKey();
+        }
+
+        // Image generation provider section
+        const imgProviderSectionId = 'imgProviderSection';
+        if (!document.getElementById(imgProviderSectionId)) {
+            const sectionHtml = `
+                <div class="settings-section" id="${imgProviderSectionId}">
+                    <div class="settings-section-title">🎨 生图模型</div>
+                    <div class="img-provider-desc">配置支持图片生成的 AI 提供商，用于生图功能</div>
+                    <div id="imgProviderContent">加载中...</div>
+                </div>
+            `;
+            const apiKeySection = document.getElementById('apiKeySection');
+            if (apiKeySection && apiKeySection.parentNode) {
+                apiKeySection.insertAdjacentHTML('afterend', sectionHtml);
+            } else {
+                content.insertAdjacentHTML('afterbegin', sectionHtml);
+            }
+            loadImageProviders();
         }
     }
 

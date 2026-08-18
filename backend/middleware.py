@@ -42,6 +42,14 @@ async def auth_middleware(request: web.Request, handler):
             if fingerprint:
                 token_valid = await auth_db.verify_token(token, fingerprint)
 
+    # Special case for /api/images/{id} GET: allow token+fp from query params
+    # (browser <img> tags can't send custom headers)
+    if not token_valid and request.method == "GET" and path.startswith("/api/images/"):
+        query_token = request.query.get("token", "").strip()
+        query_fp = request.query.get("fp", "").strip()
+        if query_token and query_fp:
+            token_valid = await auth_db.verify_token(query_token, query_fp)
+
     if not token_valid:
         # Fallback: check static API key from X-API-Key header
         api_key = request.headers.get("X-API-Key", "").strip()

@@ -126,8 +126,10 @@
             <!-- Notepad View -->
             <div class="view notepad-view hidden" id="notepadView">
                 <div class="notepad-tabs" id="notepadTabs">
-                    <button class="notepad-tab active" data-subtype="notes">笔记</button>
-                    <button class="notepad-tab" data-subtype="expense">记账</button>
+                    <button class="notepad-tab active" data-subtype="notes">📓 笔记</button>
+                    <button class="notepad-tab" data-subtype="expense">💰 记账</button>
+                    <button class="notepad-tab" data-subtype="image-gen">🎨 生图</button>
+                    <button class="notepad-tab" data-subtype="gallery">🖼 图库</button>
                 </div>
                 <!-- Sub-tab for mobile: list / detail (only on notes subview) -->
                 <div class="notes-mobile-subtabs hidden" id="notesMobileSubtabs">
@@ -885,6 +887,13 @@
                         </div>
                         <input type="text" id="aiProviderModel" class="settings-input" placeholder="gpt-3.5-turbo">
                     </div>
+                    <div class="settings-item settings-item-text" id="aiProviderImageModelRow">
+                        <div class="settings-item-info">
+                            <span class="settings-item-title">生图模型</span>
+                            <span class="settings-item-desc">用于生图功能，选填，如 dall-e-3 / gpt-image-1</span>
+                        </div>
+                        <input type="text" id="aiProviderImageModel" class="settings-input" placeholder="选填，如 dall-e-3">
+                    </div>
                     <div class="settings-item settings-item-text">
                         <div class="settings-item-info">
                             <span class="settings-item-title">API Key</span>
@@ -1099,6 +1108,8 @@
     <script src="/static/js/calendar-views.js?v=20260702-01"></script>
     <script src="/static/js/main.js?v=20260818-01"></script>
     <script src="/static/js/auth-ui.js?v=20260818-06"></script>
+    <script src="/static/js/image-gen.js?v=20260818-01"></script>
+    <script src="/static/js/gallery.js?v=20260818-01"></script>
     <script src="/static/js/goal-core.js?v=20260720-02"></script>
     <script src="/static/js/goal-ai.js?v=20260720-02"></script>
     <script src="/static/js/goal-list.js?v=20260720-02"></script>

@@ -4,7 +4,7 @@ Each migration is a function that runs only once.
 """
 from typing import List, Tuple, Callable
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 3
 
 
 # =============================================================================
@@ -120,6 +120,12 @@ async def migration_add_event_quadrant(db, conn):
     await _add_column_if_not_exists(db, 'events', 'urgency', 'INTEGER DEFAULT 0')
 
 
+async def migration_add_image_provider_fields(db, conn):
+    """v3: Add image_model and image_api_base columns to ai_providers table."""
+    await _add_column_if_not_exists(db, 'ai_providers', 'image_model', 'TEXT')
+    await _add_column_if_not_exists(db, 'ai_providers', 'image_api_base', 'TEXT')
+
+
 # =============================================================================
 # Migration registry
 # =============================================================================
@@ -140,6 +146,8 @@ MIGRATIONS: List[Tuple[int, str, Callable]] = [
     (1, "Add is_recurring and recurrence_period to expenses", migration_add_expense_recurring),
     # v2 migration - four-quadrant (Eisenhower matrix)
     (2, "Add importance/urgency to events for four-quadrant view", migration_add_event_quadrant),
+    # v3 migration - image generation provider fields
+    (3, "Add image_model and image_api_base to ai_providers", migration_add_image_provider_fields),
 ]
 
 

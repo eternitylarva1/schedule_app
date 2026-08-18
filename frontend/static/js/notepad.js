@@ -156,7 +156,7 @@
         const container = elements.notepadContainer;
         const subtype = state.notepadSubview;
 
-        elements.headerTitle.textContent = subtype === 'notes' ? '笔记' : '记账';
+        elements.headerTitle.textContent = subtype === 'notes' ? '笔记' : subtype === 'expense' ? '记账' : subtype === 'image-gen' ? '生图' : '图库';
 
         if (elements.notepadInput) {
             if (subtype === 'notes') {
@@ -176,6 +176,26 @@
 
             if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.renderNotesList === 'function') {
                 await window.ScheduleAppNotesList.renderNotesList();
+            }
+        } else if (subtype === 'image-gen') {
+            // Image generation view
+            if (notesApp) notesApp.classList.add('hidden');
+            if (mobileSubtabs) mobileSubtabs.classList.add('hidden');
+            if (container) container.classList.remove('hidden');
+            if (elements.notepadInputArea) elements.notepadInputArea.classList.add('hidden');
+            if (elements.contentAddBtn) elements.contentAddBtn.classList.add('hidden');
+            if (window.ScheduleAppImageGen && typeof window.ScheduleAppImageGen.renderImageGenView === 'function') {
+                await window.ScheduleAppImageGen.renderImageGenView();
+            }
+        } else if (subtype === 'gallery') {
+            // Gallery view
+            if (notesApp) notesApp.classList.add('hidden');
+            if (mobileSubtabs) mobileSubtabs.classList.add('hidden');
+            if (container) container.classList.remove('hidden');
+            if (elements.notepadInputArea) elements.notepadInputArea.classList.add('hidden');
+            if (elements.contentAddBtn) elements.contentAddBtn.classList.add('hidden');
+            if (window.ScheduleAppGallery && typeof window.ScheduleAppGallery.renderGalleryView === 'function') {
+                await window.ScheduleAppGallery.renderGalleryView();
             }
         } else {
             if (notesApp) notesApp.classList.add('hidden');
