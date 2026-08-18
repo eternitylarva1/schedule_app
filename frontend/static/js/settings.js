@@ -1617,6 +1617,22 @@ async deletePattern(patternId) {
         }
     }
 
+    // Defer API-key load until all scripts are loaded (auth-ui.js) and authed.
+    // Called at module-load time settings.js runs BEFORE auth-ui.js, so the auth
+    // token is not available yet — firing early would 401 and toast an error.
+    function scheduleApiKeyLoad() {
+        const tryLoad = () => {
+            if (window.ScheduleAppAuth?.getToken?.()) {
+                loadApiKey();
+            }
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', tryLoad);
+        } else {
+            tryLoad();
+        }
+    }
+
     function renderApiKeySection(apiKey) {
         const container = document.getElementById('apiKeyContent');
         if (!container) return;
@@ -1786,8 +1802,8 @@ async deletePattern(patternId) {
                 content.insertAdjacentHTML('afterbegin', sectionHtml);
             }
 
-            // Load API key on first render
-            loadApiKey();
+            // Load API key lazily (deferred until auth module + token available)
+            scheduleApiKeyLoad();
         }
     }
 

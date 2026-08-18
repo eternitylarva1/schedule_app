@@ -41,9 +41,12 @@
                 // Handle 401 - only redirect to login when we HAD a token (session
                 // expired/revoked). Startup requests without a token will 401 too,
                 // but the auth overlay already shows the correct panel; overriding it
-                // here would clobber the setup panel with the login panel.
-                if (response.status === 401 && !endpoint.startsWith('auth/') && token) {
-                    window.ScheduleAppAuth?.handleUnauthorized?.();
+                // here would clobber the setup panel with the login panel. Keep those
+                // silent (no toast) since the login/setup screen is the correct state.
+                if (response.status === 401 && !endpoint.startsWith('auth/')) {
+                    if (token) {
+                        window.ScheduleAppAuth?.handleUnauthorized?.();
+                    }
                     return null;
                 }
 
