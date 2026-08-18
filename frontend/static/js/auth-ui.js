@@ -48,26 +48,34 @@
     // Device Fingerprint
     // ============================================================
 
+    const DEVICE_ID_KEY = 'auth_device_id';
+    // In-memory fallback when localStorage is unavailable (e.g. private mode)
+    let _memoryDeviceId = null;
+
     function getFingerprint() {
-        const parts = [
-            navigator.userAgent,
-            navigator.platform,
-            navigator.language,
-            Intl.DateTimeFormat().resolvedOptions().timeZone,
-            screen.width,
-            screen.height,
-            devicePixelRatio,
-            navigator.hardwareConcurrency || '',
-            navigator.deviceMemory || '',
-        ];
-        const str = parts.join('|');
-        // djb2 hash
-        let hash = 5381;
-        for (let i = 0; i < str.length; i++) {
-            hash = ((hash << 5) + hash) ^ str.charCodeAt(i);
-            hash = hash >>> 0; // keep as uint32
+        // Stable device ID: generated once and persisted, so refresh/rotation/zoom
+        // never changes the fingerprint and invalidates the bound token.
+        try {
+            let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+            if (deviceId) return deviceId;
+
+            // Generate new persistent ID
+            // crypto.randomUUID needs secure context (https), fall back to Math.random
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                deviceId = 'dev-' + crypto.randomUUID();
+            } else {
+                deviceId = 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+            }
+            localStorage.setItem(DEVICE_ID_KEY, deviceId);
+            _memoryDeviceId = deviceId;
+            return deviceId;
+        } catch (e) {
+            // localStorage unavailable (private mode / quota exceeded): fall back to per-session id
+            if (!_memoryDeviceId) {
+                _memoryDeviceId = 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+            }
+            return _memoryDeviceId;
         }
-        return hash.toString(16);
     }
 
     // ============================================================
