@@ -1,8 +1,46 @@
 """Auth routes for login, logout, password setup and changes."""
+import os
+import time
 from aiohttp import web
 
 from .response import json_response, error_response
 from ..db import auth as auth_db
+
+# Login lockout state (module-level, in-memory)
+_LOCKOUT_UNTIL: float = 0.0          # monotonic timestamp, 0 = not locked
+_FAILURE_COUNT: int = 0             # consecutive wrong-password attempts
+
+# Configurable via environment variable
+LOCKOUT_SECONDS = int(os.environ.get("LOCKOUT_SECONDS", "30"))
+MAX_FAILURES = 3
+
+
+def _check_lockout() -> tuple[bool, int]:
+    """Return (is_locked, remaining_seconds)."""
+    global _LOCKOUT_UNTIL, _FAILURE_COUNT
+    if _LOCKOUT_UNTIL <= 0:
+        return False, 0
+    remaining = _LOCKOUT_UNTIL - time.monotonic()
+    if remaining <= 0:
+        _LOCKOUT_UNTIL = 0.0
+        _FAILURE_COUNT = 0
+        return False, 0
+    return True, int(remaining)
+
+
+def _record_failure():
+    """Record a wrong password attempt. Triggers lockout on MAX_FAILURES."""
+    global _LOCKOUT_UNTIL, _FAILURE_COUNT
+    _FAILURE_COUNT += 1
+    if _FAILURE_COUNT >= MAX_FAILURES:
+        _LOCKOUT_UNTIL = time.monotonic() + LOCKOUT_SECONDS
+
+
+def _reset_lockout():
+    """Reset on successful login."""
+    global _LOCKOUT_UNTIL, _FAILURE_COUNT
+    _LOCKOUT_UNTIL = 0.0
+    _FAILURE_COUNT = 0
 
 
 def register_routes(app: web.Application) -> None:
@@ -74,17 +112,28 @@ async def handle_login(request: web.Request) -> web.Response:
     if not password:
         return error_response("密码不能为空", 400)
 
+    # Check lockout before any password verification
+    locked, remaining = _check_lockout()
+    if locked:
+        return error_response(f"尝试次数过多，请 {remaining} 秒后重试", 429)
+
     auth_record = await auth_db.get_auth()
     if auth_record is None:
         return error_response("请先设置密码", 401)
 
     # Verify password
     if not auth_db.verify_password(password, auth_record["password_hash"]):
+        _record_failure()
+        locked_now, remaining_now = _check_lockout()
+        if locked_now:
+            return error_response(f"密码错误次数过多，请 {remaining_now} 秒后重试", 429)
         return error_response("密码错误", 401)
 
     if not fingerprint:
         return error_response("设备指纹不能为空", 400)
 
+    # Login success — reset lockout and create token
+    _reset_lockout()
     token, expires_at = await auth_db.create_token(fingerprint)
     from datetime import datetime
     expires_in = int((expires_at - datetime.now()).total_seconds())

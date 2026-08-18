@@ -11,6 +11,7 @@
         _initialized: false,
         _eventsBound: false,
         _activePanel: null, // 'setup' | 'login'
+        _loginCountdown: null, // setInterval id for lock countdown
     };
 
     // DOM references cached after init
@@ -174,6 +175,10 @@
             return { success: false, message: '密码错误' };
         }
 
+        if (result.status === 429) {
+            return { success: false, locked: true, message: result.data?.message || '尝试次数过多，请稍后重试' };
+        }
+
         return { success: false, message: result.data?.message || '登录失败，请重试' };
     }
 
@@ -287,6 +292,40 @@
         if (errEl) errEl.style.display = 'none';
     }
 
+    // Parse remaining seconds from a lock message like "尝试次数过多，请 30 秒后重试"
+    function parseSecondsFromMessage(message) {
+        if (!message) return null;
+        const match = message.match(/(\d+)\s*秒/);
+        return match ? parseInt(match[1], 10) : null;
+    }
+
+    function clearLoginCountdown() {
+        if (state._loginCountdown !== null) {
+            clearInterval(state._loginCountdown);
+            state._loginCountdown = null;
+        }
+    }
+
+    function startLoginCountdown(seconds, submitBtn) {
+        clearLoginCountdown();
+        const originalText = submitBtn.textContent;
+        let remaining = seconds;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = `${remaining} 秒后可重试`;
+
+        state._loginCountdown = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+                clearLoginCountdown();
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            } else {
+                submitBtn.textContent = `${remaining} 秒后可重试`;
+            }
+        }, 1000);
+    }
+
     // ============================================================
     // Password Visibility Toggle
     // ============================================================
@@ -385,10 +424,19 @@
 
         clearError(els.loginPassword);
 
+        // Find submit button for this form
+        const submitBtn = els.loginForm.querySelector('.auth-submit-btn');
+        // Clear any pending countdown
+        clearLoginCountdown();
+
         const result = await submitLogin(password, rememberMe);
 
         if (!result.success) {
-            if (result.message === '密码错误') {
+            if (result.locked) {
+                showError(els.loginPassword, result.message);
+                const seconds = parseSecondsFromMessage(result.message) || 30;
+                startLoginCountdown(seconds, submitBtn);
+            } else if (result.message === '密码错误') {
                 showError(els.loginPassword, result.message);
             } else {
                 showError(els.loginPassword, result.message);
