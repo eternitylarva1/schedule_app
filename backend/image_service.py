@@ -322,8 +322,14 @@ async def save_uploaded_image(
 
     rel_path = f"data/images/{now.strftime('%Y-%m')}/{image_id}.{ext}"
     file_path = Path(__file__).parent.parent / rel_path
-    with open(file_path, "wb") as f:
-        f.write(file_bytes)
+    try:
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+    except Exception:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("DELETE FROM images WHERE id = ?", (image_id,))
+            await db.commit()
+        raise
 
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(

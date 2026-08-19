@@ -74,12 +74,14 @@ async def create_note(note: Note) -> Note:
 
 async def search_notes(q: str, limit: int = 20) -> list[Note]:
     """Search notes by title or content."""
+    escaped_q = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    pattern = f"%{escaped_q}%"
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             """SELECT id, title, content, group_id, sort_order, is_pinned, color, is_archived, created_at, updated_at
-               FROM notes WHERE (title LIKE ? OR content LIKE ?) AND is_archived = 0
+               FROM notes WHERE (title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\') AND is_archived = 0
                ORDER BY is_pinned DESC, created_at DESC LIMIT ?""",
-            (f"%{q}%", f"%{q}%", limit)
+            (pattern, pattern, limit)
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -172,8 +174,8 @@ async def update_note(note_id: int, note: Note) -> Optional[Note]:
         await db.execute(
             "UPDATE notes SET title = ?, content = ?, group_id = ?, sort_order = ?, is_pinned = ?, color = ?, is_archived = ?, updated_at = ? WHERE id = ?",
             (
-                note.title if note.title else existing.title,
-                note.content if note.content else existing.content,
+                note.title if note.title is not None else existing.title,
+                note.content if note.content is not None else existing.content,
                 note.group_id if note.group_id is not None else existing.group_id,
                 sort_order_to_use,
                 1 if is_pinned_to_use else 0,
@@ -191,6 +193,7 @@ async def update_note(note_id: int, note: Note) -> Optional[Note]:
 async def delete_note(note_id: int) -> bool:
     """Delete a note."""
     async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM note_conversations WHERE note_id = ?", (note_id,))
         cursor = await db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
         await db.commit()
         return cursor.rowcount > 0
@@ -198,11 +201,13 @@ async def delete_note(note_id: int) -> bool:
 
 async def get_notes_by_title(keyword: str) -> List[Note]:
     """Get all notes matching title keyword (partial match)."""
+    escaped_kw = keyword.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    pattern = f"%{escaped_kw}%"
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
-            "SELECT * FROM notes WHERE title LIKE ? OR content LIKE ? ORDER BY updated_at DESC",
-            (f"%{keyword}%", f"%{keyword}%"),
+            "SELECT * FROM notes WHERE title LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\' ORDER BY updated_at DESC",
+            (pattern, pattern),
         ) as cursor:
             rows = await cursor.fetchall()
             return [Note(**dict(row)) for row in rows]

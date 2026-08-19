@@ -621,7 +621,8 @@
     }
 
     function _positionPrompt(promptEl, cursorRect) {
-        const promptW = 340, promptH = 42;
+        const promptW = 340;
+        const maxH = parseInt(promptEl.dataset.maxHeight) || 42;
         let left, top;
 
         if (cursorRect) {
@@ -631,11 +632,21 @@
             const vw = window.innerWidth, vh = window.innerHeight;
             if (left + promptW > vw - 12) left = vw - promptW - 12;
             if (left < 12) left = 12;
-            if (top + promptH > vh - 12) top = cursorRect.top - promptH - 6;
+            // For tall dropdowns (e.g. mention), flip upward if not enough space below
+            const bottomSpace = vh - cursorRect.bottom;
+            if (bottomSpace < maxH + 8 && cursorRect.top > maxH) {
+                top = cursorRect.top - maxH - 6;
+                promptEl.style.maxHeight = maxH + 'px';
+            } else {
+                if (top + maxH > vh - 12) {
+                    top = cursorRect.top - maxH - 6;
+                }
+                promptEl.style.maxHeight = Math.min(maxH, bottomSpace - 8) + 'px';
+            }
             if (top < 12) top = 12;
         } else {
             left = Math.max(12, (window.innerWidth - promptW) / 2);
-            top = Math.max(12, window.innerHeight * 0.35);
+            top = Math.max(12, (window.innerHeight - maxH) / 2);
         }
 
         promptEl.style.left = left + 'px';
@@ -670,7 +681,8 @@
         document.body.appendChild(dropdown);
         _mentionDropdownEl = dropdown;
 
-        // Position near cursor
+        // Position near cursor (declare max-height so _positionPrompt can flip up if needed)
+        dropdown.dataset.maxHeight = '320';
         _positionPrompt(dropdown, cursorRect);
 
         // Focus input
@@ -1187,6 +1199,8 @@
         `;
 
         bindInlineEditorEvents(note);
+        // Re-bind AI inline block handlers (events lost after sanitizeNoteHtml re-render)
+        document.querySelectorAll('.ai-inline-edit').forEach(block => _bindAIBlockHandlers(block, note));
         // Initial word count
         _updateWordCount();
         // Restore scroll/cursor position for this note (after layout/paint)
@@ -1599,6 +1613,13 @@
             _resizeOverlay = overlay;
         });
 
+        // Keep overlay in sync when user scrolls the content area
+        if (_overlayScrollHandler) {
+            contentEl.removeEventListener('scroll', _overlayScrollHandler);
+        }
+        _overlayScrollHandler = () => _updateOverlayFromImage();
+        contentEl.addEventListener('scroll', _overlayScrollHandler);
+
         // Remove old global click handler if any (from previous note)
         if (_resizeDocClickHandler) {
             document.removeEventListener('click', _resizeDocClickHandler);
@@ -1616,6 +1637,7 @@
 
     // Module-level reference for the resize overlay click handler
     let _resizeDocClickHandler = null;
+    let _overlayScrollHandler = null;
 
     function scheduleAutoSave(note) {
         clearTimeout(_saveTimer);
@@ -1682,6 +1704,11 @@
         if (_resizeDocClickHandler) {
             document.removeEventListener('click', _resizeDocClickHandler);
             _resizeDocClickHandler = null;
+        }
+        if (_overlayScrollHandler) {
+            const contentEl = document.getElementById('noteInlineContent');
+            contentEl?.removeEventListener('scroll', _overlayScrollHandler);
+            _overlayScrollHandler = null;
         }
         _currentInlineNoteId = null;
         const state = getState();
@@ -1786,6 +1813,9 @@
             groupOptions += `<option value="${g.id}" ${selected}>${escapeHtml(g.name)}</option>`;
         });
 
+        const hasHtml = /<[a-z][^>]*>/i.test(note.content || '');
+        const hintHtml = hasHtml ? '<div class="note-edit-hint" style="font-size:11px;color:var(--text-muted);padding:4px 2px;">此笔记含图片或富文本，修改内容会丢失格式。建议使用内联编辑器。</div>' : '';
+
         const editHtml = `
             <div class="modal" id="noteEditModal">
                 <div class="modal-backdrop" id="noteEditBackdrop"></div>
@@ -1803,6 +1833,7 @@
                             <button class="btn btn-secondary note-edit-ai-btn" id="noteEditAiBtn" title="AI 对话">🤖 AI</button>
                         </div>
                         <textarea id="noteEditTextarea" class="note-edit-textarea">${escapeHtml(noteHtmlToPlainText(note.content))}</textarea>
+                        ${hintHtml}
                     </div>
                     <div class="modal-footer">
                         <button class="btn" id="noteEditCancel">取消</button>
@@ -1858,15 +1889,15 @@
                 showToast('内容不能为空');
                 return;
             }
-            if (newContent === note.content && newTitle === (note.title || '') && newGroupId === note.group_id) {
+            const originalPlainText = noteHtmlToPlainText(note.content).trim();
+            const contentChanged = newContent !== originalPlainText;
+            if (!contentChanged && newTitle === (note.title || '') && newGroupId === note.group_id) {
                 closeModal();
                 return;
             }
-            const result = await updateNote(note.id, {
-                title: newTitle,
-                content: newContent,
-                group_id: newGroupId,
-            });
+            const payload = { title: newTitle, group_id: newGroupId };
+            if (contentChanged) payload.content = newContent;
+            const result = await updateNote(note.id, payload);
             if (result) {
                 showToast('笔记已更新');
                 const ai = getAIWindow();
@@ -1906,6 +1937,28 @@
         document.querySelectorAll('#noteEditModal').forEach(m => m.remove());
     }
 
+    // ── Helper: Bind accept/reject on an AI inline block ────
+    function _bindAIBlockHandlers(block, note) {
+        const contentEl = document.getElementById('noteInlineContent');
+        const acceptBtn = block.querySelector('[data-action="accept"]');
+        const rejectBtn = block.querySelector('[data-action="reject"]');
+        const aiText = block.querySelector('.ai-inline-result-text')?.textContent || '';
+        if (acceptBtn) acceptBtn.onclick = () => {
+            const tn = document.createTextNode(aiText);
+            block.parentNode.replaceChild(tn, block);
+            const r2 = document.createRange(); r2.setStartAfter(tn); r2.collapse(true);
+            const s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r2);
+            contentEl?.focus();
+            if (note) scheduleAutoSave(note);
+            showToast('已应用');
+        };
+        if (rejectBtn) rejectBtn.onclick = () => {
+            block.remove();
+            contentEl?.focus();
+            showToast('已取消');
+        };
+    }
+
     // ── Public: Insert AI result as inline block at cursor ────
     async function insertAIBlock(aiText) {
         const contentEl = document.getElementById('noteInlineContent');
@@ -1943,19 +1996,7 @@
         block.scrollIntoView({ block: 'nearest' });
 
         // Bind accept/reject
-        block.querySelector('[data-action="accept"]').addEventListener('click', () => {
-            const tn = document.createTextNode(aiText);
-            block.parentNode.replaceChild(tn, block);
-            const r2 = document.createRange(); r2.setStartAfter(tn); r2.collapse(true);
-            const s2 = window.getSelection(); s2.removeAllRanges(); s2.addRange(r2);
-            contentEl.focus();
-            const note = window.ScheduleAppCore?.state?.selectedNote;
-            if (note) scheduleAutoSave(note);
-            showToast('已应用');
-        });
-        block.querySelector('[data-action="reject"]').addEventListener('click', () => {
-            block.remove(); contentEl.focus(); showToast('已取消');
-        });
+        _bindAIBlockHandlers(block, window.ScheduleAppCore?.state?.selectedNote);
 
         // Push undo
         const t = document.getElementById('noteInlineTitle')?.value || '';

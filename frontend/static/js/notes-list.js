@@ -544,6 +544,81 @@
             container.addEventListener('drop', handleNoteDrop, false);
             container.addEventListener('dragend', handleNoteDragEnd, false);
         });
+
+        // Mobile touch drag support via event delegation on containers
+        containers.forEach(container => {
+            if (container.dataset.touchDragBound === '1') return;
+            container.dataset.touchDragBound = '1';
+
+            let touchNoteId = null;
+            let touchStartY = 0;
+            let touchDragged = false;
+
+            container.addEventListener('touchstart', (e) => {
+                const handle = e.target.closest('.note-drag-handle');
+                if (!handle) return;
+                const item = handle.closest('.note-swipe');
+                if (!item) return;
+                touchNoteId = parseInt(item.dataset.noteId);
+                touchStartY = e.touches[0].clientY;
+                touchDragged = false;
+            }, { passive: true });
+
+            container.addEventListener('touchmove', (e) => {
+                if (!touchNoteId) return;
+                const touchY = e.touches[0].clientY;
+                if (Math.abs(touchY - touchStartY) > 10) {
+                    touchDragged = true;
+                    e.preventDefault();
+                }
+                // Highlight drop target
+                const touch = e.touches[0];
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                document.querySelectorAll('.note-swipe.drag-over').forEach(el => el.classList.remove('drag-over'));
+                const targetItem = target?.closest('.note-swipe');
+                if (targetItem && parseInt(targetItem.dataset.noteId) !== touchNoteId) {
+                    targetItem.classList.add('drag-over');
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchend', (e) => {
+                if (!touchNoteId || !touchDragged) {
+                    touchNoteId = null;
+                    return;
+                }
+                const touch = e.changedTouches[0];
+                const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                document.querySelectorAll('.note-swipe.drag-over').forEach(el => el.classList.remove('drag-over'));
+                const targetItem = target?.closest('.note-swipe');
+                if (targetItem) {
+                    const fromId = touchNoteId;
+                    const toId = parseInt(targetItem.dataset.noteId);
+                    _reorderNotes(fromId, toId);
+                }
+                touchNoteId = null;
+            });
+        });
+    }
+
+    // Reorder helper used by both mouse drag and touch drag
+    async function _reorderNotes(fromId, toId) {
+        if (!fromId || !toId || fromId === toId) return;
+        // Build minimal drag state to feed handleNoteDrop-like logic
+        const fromSwipe = document.querySelector(`.note-swipe[data-note-id="${fromId}"]`);
+        const toSwipe = document.querySelector(`.note-swipe[data-note-id="${toId}"]`);
+        if (!fromSwipe || !toSwipe) return;
+
+        noteDragState.draggedNoteId = fromId;
+        noteDragState.draggedElement = fromSwipe;
+        noteDragState.dragOverNoteId = toId;
+        noteDragState.dragOverGroupId = null;
+
+        // Determine target group from destination
+        const toGroup = toSwipe.closest('.note-group');
+        const targetGroupId = toGroup ? toGroup.dataset.groupId : 'ungrouped';
+        noteDragState.selectedGroupId = targetGroupId === 'ungrouped' ? null : parseInt(targetGroupId);
+
+        await handleNoteDrop({ preventDefault: () => {} });
     }
 
     function handleNoteDragStart(e) {
@@ -1608,7 +1683,11 @@
         const { showToast } = getUtils();
         try {
             const title = (note.title || '').trim() || '未命名笔记';
-            const content = note.content || '';
+            const plainContent = (note.content || '')
+                .replace(/<br\s*\/?>/gi, '\n')
+                .replace(/<\/p>|<\/div>/gi, '\n')
+                .replace(/<[^>]*>/g, '')
+                .trim();
             const today = new Date();
             const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
@@ -1616,11 +1695,11 @@
             let mimeType;
             if (format === 'md') {
                 // Markdown: frontmatter-style title + content
-                fileContent = `# ${title}\n\n${content}\n`;
+                fileContent = `# ${title}\n\n${plainContent}\n`;
                 mimeType = 'text/markdown;charset=utf-8';
             } else {
                 // Plain text: title + divider + content
-                fileContent = `${title}\n${'='.repeat(Math.min(title.length, 30))}\n\n${content}\n`;
+                fileContent = `${title}\n${'='.repeat(Math.min(title.length, 30))}\n\n${plainContent}\n`;
                 mimeType = 'text/plain;charset=utf-8';
             }
 

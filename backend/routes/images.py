@@ -160,6 +160,9 @@ async def handle_image_get(request: web.Request) -> web.Response:
         return error_response("图片不存在", 404)
 
     file_path = PROJECT_ROOT / record["file_path"]
+    resolved = file_path.resolve()
+    if not str(resolved).startswith(str(IMAGES_BASE.resolve())):
+        return error_response("非法文件路径", 403)
     if not file_path.exists():
         return error_response("图片文件不存在", 404)
 
@@ -210,6 +213,28 @@ async def handle_image_delete(request: web.Request) -> web.Response:
         image_id = int(request.match_info["id"])
     except ValueError:
         return error_response("无效的图片 ID", 400)
+
+    import re, aiosqlite
+    from ..db._connection import DB_PATH
+    # Clean up references in note content before deleting
+    async with aiosqlite.connect(DB_PATH) as db:
+        pattern1 = f'data-image-id="{image_id}"'
+        pattern2 = f'/api/images/{image_id}'
+        cursor = await db.execute(
+            "SELECT id, content FROM notes WHERE content LIKE ? OR content LIKE ?",
+            (f'%{pattern1}%', f'%{pattern2}%')
+        )
+        rows = await cursor.fetchall()
+        for nid, content in rows:
+            new_content = re.sub(r'<img[^>]*data-image-id="' + str(image_id) + r'"[^>]*>', '', content)
+            new_content = re.sub(r'<img[^>]*src="/api/images/' + str(image_id) + r'"[^>]*>', '', new_content)
+            if new_content != content:
+                from datetime import datetime
+                await db.execute(
+                    "UPDATE notes SET content=?, updated_at=? WHERE id=?",
+                    (new_content, datetime.now().isoformat(), nid)
+                )
+        await db.commit()
 
     deleted = await image_service.delete_image(image_id)
     if not deleted:

@@ -22,9 +22,13 @@ async def cleanup_test_entries() -> dict[str, int]:
             patterns,
         )
 
-        # Notes by title/content
+        # Notes by title/content — first delete their conversations
         note_title_where = " OR ".join(["LOWER(title) LIKE LOWER(?)" for _ in patterns])
         note_content_where = " OR ".join(["LOWER(content) LIKE LOWER(?)" for _ in patterns])
+        await db.execute(
+            f"DELETE FROM note_conversations WHERE note_id IN (SELECT id FROM notes WHERE ({note_title_where}) OR ({note_content_where}))",
+            patterns + patterns,
+        )
         note_result = await db.execute(
             f"DELETE FROM notes WHERE ({note_title_where}) OR ({note_content_where})",
             patterns + patterns,

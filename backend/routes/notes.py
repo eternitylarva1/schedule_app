@@ -188,8 +188,8 @@ async def update_note(request: web.Request) -> web.Response:
             is_archived = existing.is_archived
         
         note = Note(
-            title=data.get("title", existing.title) or existing.title,
-            content=data.get("content", existing.content) or existing.content,
+            title=data.get("title", existing.title),
+            content=data.get("content", existing.content),
             group_id=data.get("group_id", existing.group_id),
             sort_order=sort_order,
             is_pinned=is_pinned,
@@ -318,6 +318,14 @@ async def reorder_notes(request: web.Request) -> web.Response:
 
 NOTO_FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
 
+def _html_to_text(html: str) -> str:
+    """Strip HTML tags and unescape entities for plain-text export."""
+    import re, html as html_mod
+    text = re.sub(r'<br\s*/?>|</p>|</div>', '\n', html or '', flags=re.IGNORECASE)
+    text = re.sub(r'<[^>]+>', '', text)
+    return html_mod.unescape(text)
+
+
 def _export_pdf_bytes(title: str, content: str) -> bytes:
     """Generate a PDF file in memory using fpdf2."""
     from fpdf import FPDF
@@ -392,7 +400,7 @@ async def export_note(request: web.Request) -> web.StreamResponse:
         return error_response(f"获取笔记失败: {str(e)}")
 
     title = (note.title or "").strip() or "未命名笔记"
-    content = note.content or ""
+    content = _html_to_text(note.content or "")
     import re as _re_safe2
     safe_title = _re_safe2.sub(r'[<>:"/\\|?*()!&;$`\s]', '_', title)[:50]
 
@@ -452,7 +460,7 @@ async def share_note_to_qq(request: web.Request) -> web.Response:
         return error_response(f"获取笔记失败: {str(e)}")
 
     title = (note.title or "").strip() or "未命名笔记"
-    content = note.content or ""
+    content = _html_to_text(note.content or "")
     # Sanitize for filename: remove shell-dangerous chars, keep CJK/ASCII
     import re as _re_safe
     safe_title = _re_safe.sub(r'[<>:"/\\|?*()!&;$`\s]', '_', title)[:50]
