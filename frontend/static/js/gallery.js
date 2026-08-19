@@ -152,7 +152,7 @@
         try {
             const params = new URLSearchParams();
             if (modelFilter) params.set('model', modelFilter);
-            if (searchQuery) params.set('source', searchQuery);
+            if (searchQuery) params.set('prompt', searchQuery);
             params.set('limit', '50');
             params.set('offset', '0');
 

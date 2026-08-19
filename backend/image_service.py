@@ -356,6 +356,7 @@ async def get_image_record(image_id: int) -> Optional[Dict[str, Any]]:
 async def list_images(
     source: Optional[str] = None,
     model: Optional[str] = None,
+    prompt: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[Dict[str, Any]]:
@@ -370,6 +371,9 @@ async def list_images(
     if model:
         query += " AND model = ?"
         params.append(model)
+    if prompt:
+        query += " AND prompt LIKE ?"
+        params.append(f"%{prompt}%")
     query += " ORDER BY id DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
 

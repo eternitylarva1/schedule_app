@@ -184,6 +184,7 @@ async def handle_image_list(request: web.Request) -> web.Response:
     """
     source = request.query.get("source", "").strip() or None
     model = request.query.get("model", "").strip() or None
+    prompt = request.query.get("prompt", "").strip() or None
     try:
         limit = int(request.query.get("limit", 50))
         offset = int(request.query.get("offset", 0))
@@ -192,7 +193,7 @@ async def handle_image_list(request: web.Request) -> web.Response:
 
     limit = max(1, min(limit, 200))
 
-    records = await image_service.list_images(source=source, model=model, limit=limit, offset=offset)
+    records = await image_service.list_images(source=source, model=model, prompt=prompt, limit=limit, offset=offset)
 
     # Build URLs for each record
     for r in records:

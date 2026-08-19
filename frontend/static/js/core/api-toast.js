@@ -6,12 +6,17 @@
     const state = global.ScheduleAppCore.state;
     const elements = global.ScheduleAppCore.elements;
 
+    // Debug switch: only log when explicitly enabled (e.g. localStorage.setItem('debug', '1'))
+    const __DEBUG__ = (() => {
+        try { return localStorage.getItem('debug') === '1'; } catch { return false; }
+    })();
+
     // ============================================
     // API Functions
     // ============================================
     async function apiCall(endpoint, options = {}, signal = null) {
         const url = `/api/${endpoint}`;
-        console.log('API call:', options.method || 'GET', url);
+        if (__DEBUG__) console.log('API call:', options.method || 'GET', url);
 
         // Get auth headers from ScheduleAppAuth
         const token = window.ScheduleAppAuth?.getToken?.();
@@ -32,11 +37,11 @@
         
         try {
             const response = await fetch(url, fetchOptions);
-            console.log('Response status:', response.status);
+            if (__DEBUG__) console.log('Response status:', response.status);
             
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('HTTP Error:', response.status, errorText);
+                if (__DEBUG__) console.error('HTTP Error:', response.status, errorText);
 
                 // Handle 401 - only redirect to login when we HAD a token (session
                 // expired/revoked). Startup requests without a token will 401 too,
@@ -59,7 +64,7 @@
                         }
                     } catch (parseError) {
                         // Keep raw text logging fallback; user-facing message handled below.
-                        console.debug('Failed to parse error response JSON:', parseError);
+                        if (__DEBUG__) console.debug('Failed to parse error response JSON:', parseError);
                     }
                 }
 
@@ -75,21 +80,21 @@
             }
             
             const json = await response.json();
-            console.log('Response JSON:', json);
+            if (__DEBUG__) console.log('Response JSON:', json);
             
             if (json.code === 0) {
                 return json.data;
             } else {
-                console.error('API Error:', json.message);
+                if (__DEBUG__) console.error('API Error:', json.message);
                 showToast(json.message || '请求失败');
                 return null;
             }
         } catch (error) {
             if (error && error.name === 'AbortError') {
-                console.log('API aborted:', endpoint);
+                if (__DEBUG__) console.log('API aborted:', endpoint);
                 throw error;
             }
-            console.error('Network Error:', error);
+            if (__DEBUG__) console.error('Network Error:', error);
             showToast('网络错误: ' + (error.message || '请检查连接'));
             return null;
         }
@@ -384,11 +389,11 @@
         const now = Date.now();
         const key = JSON.stringify(expenseData);
         
-        console.log('[' + countId + '] createExpense called, total calls:', _expenseCallCount, 'data:', key);
+        if (__DEBUG__) console.log('[' + countId + '] createExpense called, total calls:', _expenseCallCount, 'data:', key);
         
         // Debounce: if same data called within 2 seconds, skip
         if (_lastExpenseKey === key && now - _lastExpenseTime < 2000) {
-            console.log('[' + countId + '] createExpense: DUPLICATE DETECTED, skipping');
+            if (__DEBUG__) console.log('[' + countId + '] createExpense: DUPLICATE DETECTED, skipping');
             return null;
         }
         _lastExpenseKey = key;
@@ -401,7 +406,7 @@
         
         // If API succeeded, reset the debounce timer to allow next call
         if (response && response.code === 0) {
-            console.log('[' + countId + '] createExpense: success, resetting debounce');
+            if (__DEBUG__) console.log('[' + countId + '] createExpense: success, resetting debounce');
             _lastExpenseKey = null;
             _lastExpenseTime = 0;
         }
@@ -432,12 +437,12 @@
     }
 
     async function parseExpenseWithLLM(text) {
-        console.log('parseExpenseWithLLM called with:', text);
+        if (__DEBUG__) console.log('parseExpenseWithLLM called with:', text);
         const result = await apiCall('llm/parse_expense', {
             method: 'POST',
             body: JSON.stringify({ text: text })
         });
-        console.log('parseExpenseWithLLM returned:', JSON.stringify(result));
+        if (__DEBUG__) console.log('parseExpenseWithLLM returned:', JSON.stringify(result));
         return result;
     }
 
