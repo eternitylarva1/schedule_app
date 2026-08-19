@@ -799,6 +799,13 @@
     .notes-list-scroll .note-item {
         padding: 10px 14px 10px 36px;
     }
+    /* Fix: 移动端 column 布局下 sidebar 高度随内容增长会被父级裁剪，
+       导致分组展开后超出屏幕无法滚动。让 sidebar 填满并允许收缩，
+       使内部 .notes-list-scroll (flex:1 + overflow-y:auto) 获得受限高度可滚动。 */
+    .notes-sidebar {
+        flex: 1 1 0;
+        min-height: 0;
+    }
 }
 
 /* ── Sidebar Footer ─────────────────────────────────────────── */
