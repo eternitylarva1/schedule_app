@@ -37,6 +37,80 @@
         return div.innerHTML;
     }
 
+    // ===== Note content sanitizer =====
+    // Contenteditable 保存的是 HTML（含 <img> 等）。重新渲染时不能直接
+    // escapeHtml（会把图片转义成字面文本），也不能原样注入（XSS 风险），
+    // 因此用白名单清洗：保留富文本标签与图片，剥除危险元素/属性。
+    const _NOTE_ALLOWED_TAGS = new Set([
+        'BR', 'DIV', 'P', 'SPAN', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'STRIKE',
+        'FONT', 'UL', 'OL', 'LI', 'BLOCKQUOTE', 'A', 'IMG', 'H1', 'H2', 'H3',
+    ]);
+    const _NOTE_STRIP_TAGS = [
+        'SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'LINK', 'META',
+        'FORM', 'INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'VIDEO', 'AUDIO', 'SOURCE',
+    ];
+
+    function _unwrapNode(el) {
+        const parent = el.parentNode;
+        if (!parent) return;
+        while (el.firstChild) parent.insertBefore(el.firstChild, el);
+        el.remove();
+    }
+
+    function sanitizeNoteHtml(html) {
+        if (!html) return '';
+        const doc = new DOMParser().parseFromString(String(html), 'text/html');
+
+        // 1) Remove dangerous elements entirely (with their content)
+        _NOTE_STRIP_TAGS.forEach(tag => {
+            doc.querySelectorAll(tag).forEach(el => el.remove());
+        });
+
+        // 2) Walk every remaining element
+        doc.body.querySelectorAll('*').forEach(el => {
+            const tag = el.tagName;
+            if (!_NOTE_ALLOWED_TAGS.has(tag)) {
+                _unwrapNode(el);
+                return;
+            }
+            // Strip disallowed attributes (always strip on* handlers)
+            const allowedAttrs = tag === 'IMG'
+                ? ['src', 'alt', 'style', 'data-image-id', 'width', 'height']
+                : tag === 'A'
+                    ? ['href']
+                    : ['class', 'contenteditable', 'data-note-id'];
+            for (const attr of Array.from(el.attributes)) {
+                const name = attr.name.toLowerCase();
+                if (name.startsWith('on') || !allowedAttrs.includes(name)) {
+                    el.removeAttribute(name);
+                }
+            }
+            if (tag === 'IMG') {
+                const src = el.getAttribute('src') || '';
+                // Only allow server-hosted images or legacy base64 data URLs
+                if (!/^(\/api\/images\/|data:image\/)/i.test(src)) {
+                    el.remove();
+                    return;
+                }
+            }
+            if (tag === 'A') {
+                const href = el.getAttribute('href') || '';
+                if (!/^(https?:\/\/|\/)/i.test(href)) {
+                    el.removeAttribute('href');
+                    if (!el.hasAttribute('href')) _unwrapNode(el);
+                }
+            }
+        });
+
+        return doc.body.innerHTML;
+    }
+
+    function noteHtmlToPlainText(html) {
+        if (!html) return '';
+        const doc = new DOMParser().parseFromString(String(html), 'text/html');
+        return doc.body.textContent || '';
+    }
+
     function isSameDay(date1, date2) {
         if (!date1 || !date2) return false;
         const d1 = new Date(date1);
@@ -1095,7 +1169,7 @@
         _currentInlineNoteId = note.id;
 
         // Init undo stack
-        _undoStack = [{ title: note.title || '', content: (note.content || '').replace(/\n/g, '<br>') }];
+        _undoStack = [{ title: note.title || '', content: sanitizeNoteHtml(note.content || '') }];
         _redoStack = [];
 
         main.innerHTML = `
@@ -1104,7 +1178,7 @@
                 <div class="note-inline-toolbar">
                     ${_renderToolbarHTML(note)}
                 </div>
-                <div class="note-inline-content" id="noteInlineContent" contenteditable="true" data-placeholder="开始写..." spellcheck="false">${escapeHtml(note.content || '')}</div>
+                <div class="note-inline-content" id="noteInlineContent" contenteditable="true" data-placeholder="开始写..." spellcheck="false">${sanitizeNoteHtml(note.content || '')}</div>
                 <div class="note-inline-footer">
                     <span class="note-inline-time">${formatNoteTime(note.created_at)} · ${formatNoteTime(note.updated_at) !== formatNoteTime(note.created_at) ? '已编辑' : '新建'}</span>
                     <span class="note-inline-save-status" id="noteInlineSaveStatus"></span>
@@ -1641,7 +1715,7 @@
                     </div>
                     <div class="modal-body">
                         ${note.title ? `<div class="note-detail-title">${escapeHtml(note.title)}</div>` : ''}
-                        <div class="note-detail-content">${escapeHtml(note.content)}</div>
+                        <div class="note-detail-content">${sanitizeNoteHtml(note.content)}</div>
                         <div class="note-detail-time">${formatNoteTime(note.created_at)}</div>
                     </div>
                     <div class="modal-footer">
@@ -1728,7 +1802,7 @@
                             </select>
                             <button class="btn btn-secondary note-edit-ai-btn" id="noteEditAiBtn" title="AI 对话">🤖 AI</button>
                         </div>
-                        <textarea id="noteEditTextarea" class="note-edit-textarea">${escapeHtml(note.content)}</textarea>
+                        <textarea id="noteEditTextarea" class="note-edit-textarea">${escapeHtml(noteHtmlToPlainText(note.content))}</textarea>
                     </div>
                     <div class="modal-footer">
                         <button class="btn" id="noteEditCancel">取消</button>

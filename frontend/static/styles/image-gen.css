@@ -4,7 +4,7 @@
 .img-gen-view {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: calc(100% - var(--tab-bar-height) - var(--safe-area-bottom));
     min-height: 0;
     background: var(--bg-primary);
 }
@@ -244,7 +244,7 @@
 .gallery-view {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: calc(100% - var(--tab-bar-height) - var(--safe-area-bottom));
     min-height: 0;
     background: var(--bg-primary);
 }

@@ -117,7 +117,7 @@
                     <div class="search-result-icon" style="background: #FFF3E0; color: #F57C00;">📓</div>
                     <div class="search-result-text">
                         <div class="search-result-title">${escapeHtml(n.title || '无标题')}</div>
-                        <div class="search-result-sub">${escapeHtml((n.content || '').substring(0, 60))}</div>
+                        <div class="search-result-sub">${escapeHtml(String(n.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 60))}</div>
                     </div>
                 </div>`;
             });

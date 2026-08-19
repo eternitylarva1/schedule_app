@@ -32,6 +32,12 @@
         return result;
     }
 
+    // Strip HTML tags from note content for plain-text previews
+    function stripNoteHtml(html) {
+        if (!html) return '';
+        return String(html).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
     function isSameDay(date1, date2) {
         if (!date1 || !date2) return false;
         const d1 = new Date(date1);
@@ -494,7 +500,7 @@
                         <span class="note-drag-handle" title="拖拽排序">⋮⋮</span>
                         ${hasTitle
                             ? `<div class="note-item-title">${escapeHtml(note.title)}</div>`
-                            : `<div class="note-item-preview no-title">${escapeHtml(truncate2Lines(note.content, 80))}</div>`}
+                            : `<div class="note-item-preview no-title">${escapeHtml(truncate2Lines(stripNoteHtml(note.content), 80))}</div>`}
                         <div class="note-item-time">${formatNoteTime(note.updated_at || note.created_at)}</div>
                         <button type="button" class="note-item-menu-btn" data-note-id="${note.id}" title="更多操作" aria-label="更多操作">⋯</button>
                     </div>

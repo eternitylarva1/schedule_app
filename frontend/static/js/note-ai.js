@@ -27,6 +27,12 @@
         return div.innerHTML;
     }
 
+    // Strip HTML tags from note content for plain-text previews
+    function stripNotePreviewHtml(html) {
+        if (!html) return '';
+        return String(html).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
     function isSameDay(date1, date2) {
         if (!date1 || !date2) return false;
         const d1 = new Date(date1);
@@ -147,7 +153,7 @@
             noteTitleEl.textContent = (note.title || '').trim() || '(无标题)';
         }
         if (contextEl) {
-            contextEl.innerHTML = `<div class="ai-drawer-note-preview">${escapeHtml(note.content || '（空笔记）')}</div>`;
+            contextEl.innerHTML = `<div class="ai-drawer-note-preview">${escapeHtml(stripNotePreviewHtml(note.content) || '（空笔记）')}</div>`;
         }
 
         if (backdrop) backdrop.classList.add('visible');
@@ -220,7 +226,7 @@
         const contextEl = document.getElementById('aiDrawerContext');
         if (!contextEl) return;
         const note = aiState.currentNote;
-        let html = `<div class="ai-drawer-note-preview">${escapeHtml(note?.content || '（空笔记）')}</div>`;
+        let html = `<div class="ai-drawer-note-preview">${escapeHtml(stripNotePreviewHtml(note?.content) || '（空笔记）')}</div>`;
         if (aiState.selectedText) {
             html += `<div class="ai-drawer-quote">📎 引用：${escapeHtml(aiState.selectedText.substring(0, 120))}</div>`;
         }
