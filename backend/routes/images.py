@@ -15,6 +15,29 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 IMAGES_BASE = PROJECT_ROOT / "data" / "images"
 
 
+# Magic byte signatures for image formats
+_IMAGE_MAGIC = {
+    "image/png": [b"\x89PNG\r\n\x1a\n"],
+    "image/jpeg": [b"\xff\xd8\xff"],
+    "image/gif": [b"GIF87a", b"GIF89a"],
+    "image/webp": [b"RIFF"],  # WEBP starts with RIFF + ... + WEBP
+}
+
+
+def _validate_magic_bytes(file_bytes: bytes, declared_mime: str) -> bool:
+    """Validate that file content matches declared MIME type via magic bytes."""
+    sigs = _IMAGE_MAGIC.get(declared_mime, [])
+    if not sigs:
+        return False
+    for sig in sigs:
+        if file_bytes.startswith(sig):
+            # WEBP special case: must be RIFF...WEBP (not just any RIFF file)
+            if declared_mime == "image/webp" and b"WEBP" not in file_bytes[:12]:
+                continue
+            return True
+    return False
+
+
 def register_routes(app: web.Application) -> None:
     """Register image routes."""
     app.router.add_post("/api/llm/image-generate", handle_image_generate)
@@ -119,11 +142,15 @@ async def handle_image_upload(request: web.Request) -> web.Response:
         if field is None or field.name != "file":
             return error_response("请提供名为 'file' 的文件字段", 400)
 
-        # Read file data
+        # Read file data (client_max_size 50MB is the aiohttp hard limit)
         file_bytes = await field.read()
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
         if not file_bytes:
             return error_response("文件内容为空", 400)
+
+        if len(file_bytes) > MAX_FILE_SIZE:
+            return error_response("图片过大，最大 10MB", 413)
 
         # Determine MIME type from filename
         filename = field.filename or "image.png"
@@ -134,6 +161,10 @@ async def handle_image_upload(request: web.Request) -> web.Response:
         # Validate it's an image
         if not content_type.startswith("image/"):
             return error_response("只能上传图片文件", 400)
+
+        # Validate magic bytes match declared MIME type
+        if not _validate_magic_bytes(file_bytes, content_type):
+            return error_response("文件内容与扩展名不匹配", 400)
 
         record = await image_service.save_uploaded_image(file_bytes, content_type)
         url = f"/api/images/{record['id']}"
@@ -167,16 +198,10 @@ async def handle_image_get(request: web.Request) -> web.Response:
         return error_response("图片文件不存在", 404)
 
     mime_type = record["mime_type"] or "application/octet-stream"
-    with open(file_path, "rb") as f:
-        file_data = f.read()
-
-    return web.Response(
-        body=file_data,
-        content_type=mime_type,
-        headers={
-            "Cache-Control": "public, max-age=86400",
-        },
-    )
+    response = web.FileResponse(file_path)
+    response.content_type = mime_type
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
 
 
 async def handle_image_list(request: web.Request) -> web.Response:

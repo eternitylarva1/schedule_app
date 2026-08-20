@@ -134,7 +134,7 @@ async def init_app() -> web.Application:
     # CORS setup
     cors = aiohttp_cors.setup(app, defaults={
         "*": aiohttp_cors.ResourceOptions(
-            allow_credentials=True,
+            allow_credentials=False,
             expose_headers="*",
             allow_headers="*",
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],

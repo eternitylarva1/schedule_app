@@ -217,14 +217,22 @@ async def generate_image(
         await db.commit()
         image_id = cursor.lastrowid
 
-    # Build relative path and save file
+    # Build relative path
     subdir = IMAGES_BASE / now[:7]  # YYYY-MM
     subdir.mkdir(parents=True, exist_ok=True)
     rel_path = f"data/images/{now[:7]}/{image_id}.{ext}"
     file_path = Path(__file__).parent.parent / rel_path
 
-    with open(file_path, "wb") as f:
-        f.write(image_bytes)
+    # Write file in try/except; rollback DB record on failure to avoid ghost entries
+    try:
+        with open(file_path, "wb") as f:
+            f.write(image_bytes)
+    except Exception as write_err:
+        # Rollback: delete the DB record we just inserted
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("DELETE FROM images WHERE id = ?", (image_id,))
+            await db.commit()
+        raise RuntimeError(f"写入图片文件失败：{write_err}")
 
     # Update record with correct file_path
     async with aiosqlite.connect(DB_PATH) as db:

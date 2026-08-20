@@ -10,6 +10,27 @@ from ._helpers import json_response, error_response, _sanitize_ai_provider
 
 # ============= Settings Handlers =============
 
+# Cloud metadata IP ranges that must be blocked
+_CLOUD_METADATA_HOSTS = {
+    "169.254.169.254",
+    "169.254.170.2",
+}
+
+
+def _is_cloud_metadata_url(url: str) -> bool:
+    """Return True if URL points to a cloud metadata endpoint."""
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+        # Also check literal IP
+        if parsed.hostname is None:
+            return False
+        # Check hostname (strip port if present)
+        return host in _CLOUD_METADATA_HOSTS
+    except Exception:
+        return False
+
 """GET /api/settings - get settings."""
 async def get_settings(request: web.Request) -> web.Response:
     """GET /api/settings - get all settings."""
@@ -79,13 +100,22 @@ async def create_ai_provider(request: web.Request) -> web.Response:
         if not api_key:
             return error_response("API Key 不能为空，请在设置页填写有效密钥")
 
+        api_base = data.get("api_base", "").strip()
+        image_api_base = data.get("image_api_base", "").strip() or None
+
+        # Block cloud metadata endpoints
+        if _is_cloud_metadata_url(api_base):
+            return error_response("不允许使用云元数据地址", 400)
+        if image_api_base and _is_cloud_metadata_url(image_api_base):
+            return error_response("不允许使用云元数据地址（image_api_base）", 400)
+
         provider = await db.create_ai_provider(
             name=data.get("name", "").strip(),
-            api_base=data.get("api_base", "").strip(),
+            api_base=api_base,
             model=data.get("model", "").strip(),
             api_key=api_key,
             image_model=data.get("image_model", "").strip() or None,
-            image_api_base=data.get("image_api_base", "").strip() or None,
+            image_api_base=image_api_base,
         )
         return json_response(_sanitize_ai_provider(provider))
     except Exception as e:
@@ -112,14 +142,23 @@ async def update_ai_provider(request: web.Request) -> web.Response:
             if normalized_value != "":
                 normalized_api_key = normalized_value
 
+        api_base = data.get("api_base", "").strip()
+        image_api_base = data.get("image_api_base", "").strip() or None
+
+        # Block cloud metadata endpoints
+        if _is_cloud_metadata_url(api_base):
+            return error_response("不允许使用云元数据地址", 400)
+        if image_api_base and _is_cloud_metadata_url(image_api_base):
+            return error_response("不允许使用云元数据地址（image_api_base）", 400)
+
         provider = await db.update_ai_provider(
             provider_id=provider_id,
             name=data.get("name", "").strip(),
-            api_base=data.get("api_base", "").strip(),
+            api_base=api_base,
             model=data.get("model", "").strip(),
             api_key=normalized_api_key,
             image_model=data.get("image_model", "").strip() or None,
-            image_api_base=data.get("image_api_base", "").strip() or None,
+            image_api_base=image_api_base,
         )
         if provider:
             return json_response(_sanitize_ai_provider(provider))
