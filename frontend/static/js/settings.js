@@ -276,7 +276,7 @@
         `).join('');
     }
 
-    function openAiProviderModal(id = null) {
+    function openAiProviderModal(id = null, forImage = false) {
         const state = getState();
         const elements = getElements();
         const provider = id ? (state.aiProviders || []).find((p) => p.id === id) : null;
@@ -286,7 +286,13 @@
         elements.aiProviderApiBase.value = provider?.api_base || '';
         elements.aiProviderModel.value = provider?.model || '';
         elements.aiProviderApiKey.value = '';
-        
+
+        // Image model field (for providers that support image generation)
+        const imgModelInput = document.getElementById('aiProviderImageModel');
+        if (imgModelInput) {
+            imgModelInput.value = provider?.image_model || '';
+        }
+
         // API Key status display
         const keyStatus = document.getElementById('aiProviderKeyStatus');
         if (provider && provider.has_api_key) {
@@ -318,6 +324,7 @@
         const apiBase = elements.aiProviderApiBase.value.trim();
         const model = elements.aiProviderModel.value.trim();
         const apiKey = elements.aiProviderApiKey.value.trim();
+        const imageModel = document.getElementById('aiProviderImageModel')?.value.trim() || '';
 
         if (!name || !apiBase || !model) {
             showToast('请填写完整信息');
@@ -329,7 +336,7 @@
             if (id) {
                 result = await apiCall(`ai-providers/${id}`, {
                     method: 'PUT',
-                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey })
+                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey, image_model: imageModel })
                 });
             } else {
                 if (!apiKey) {
@@ -338,7 +345,7 @@
                 }
                 result = await apiCall('ai-providers', {
                     method: 'POST',
-                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey })
+                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey, image_model: imageModel })
                 });
             }
 
@@ -346,6 +353,7 @@
                 showToast(id ? 'AI配置已更新' : 'AI配置已添加');
                 closeAiProviderModal();
                 await loadAiProviders();
+                await loadImageProviders();
             } else {
                 showToast(result?.message || '保存失败');
             }
@@ -1815,78 +1823,10 @@ async deletePattern(patternId) {
         }
     }
 
-    // Override openAiProviderModal to load image_model for existing providers
-    const _originalOpenAiProviderModal = openAiProviderModal;
-    function openAiProviderModal(id = null, forImage = false) {
-        _originalOpenAiProviderModal(id);
+    // Override openAiProviderModal removed (was causing infinite recursion).
+    // image_model loading is now handled directly inside the function above.
 
-        // Load image_model for existing provider
-        if (id) {
-            const provider = getState().aiProviders?.find(p => p.id === id);
-            const imgModelInput = document.getElementById('aiProviderImageModel');
-            if (imgModelInput && provider) {
-                imgModelInput.value = provider.image_model || '';
-            }
-        } else {
-            const imgModelInput = document.getElementById('aiProviderImageModel');
-            if (imgModelInput) imgModelInput.value = '';
-        }
-
-        // Update modal title
-        const titleEl = document.getElementById('aiProviderModalTitle');
-        if (titleEl) {
-            titleEl.textContent = id ? '编辑 AI 提供商' : '添加 AI 提供商';
-        }
-    }
-
-    // Override saveAiProvider to include image_model
-    const _originalSaveAiProvider = saveAiProvider;
-    async function saveAiProvider() {
-        const elements = getElements();
-        const { apiCall, showToast } = getUtils();
-        const id = elements.aiProviderId.value;
-        const name = elements.aiProviderName.value.trim();
-        const apiBase = elements.aiProviderApiBase.value.trim();
-        const model = elements.aiProviderModel.value.trim();
-        const apiKey = elements.aiProviderApiKey.value.trim();
-        const imageModel = document.getElementById('aiProviderImageModel')?.value.trim() || '';
-
-        if (!name || !apiBase || !model) {
-            showToast('请填写完整信息');
-            return;
-        }
-
-        try {
-            let result;
-            if (id) {
-                result = await apiCall(`ai-providers/${id}`, {
-                    method: 'PUT',
-                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey, image_model: imageModel }),
-                });
-            } else {
-                if (!apiKey) {
-                    showToast('请填写 API Key');
-                    return;
-                }
-                result = await apiCall('ai-providers', {
-                    method: 'POST',
-                    body: JSON.stringify({ name, api_base: apiBase, model, api_key: apiKey, image_model: imageModel }),
-                });
-            }
-
-            if (result && !result.error) {
-                showToast(id ? 'AI配置已更新' : 'AI配置已添加');
-                closeAiProviderModal();
-                await loadAiProviders();
-                await loadImageProviders();
-            } else {
-                showToast(result?.message || '保存失败');
-            }
-        } catch (e) {
-            showToast('保存失败');
-            console.error(e);
-        }
-    }
+        // Override removed; image_model saving is now handled inside saveAiProvider above.
 
     // Auth settings entries
     function addAuthSettingsEntries() {
