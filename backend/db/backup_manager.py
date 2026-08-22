@@ -47,11 +47,21 @@ async def list_backups() -> list:
     """List all backup files."""
     await ensure_backup_dir()
     backups = sorted(BACKUP_DIR.glob("schedule_*.db"), reverse=True)
-    return [{
-        "name": b.name,
-        "size": os.path.getsize(b),
-        "created_at": datetime.fromtimestamp(os.path.getmtime(b)).isoformat(),
-    } for b in backups]
+    result = []
+    for b in backups:
+        # Parse real creation time from filename (schedule_YYYYMMDD_HHMMSS.db)
+        # because shutil.copy2 preserves source mtime, so file mtime = source db mtime, not backup time
+        try:
+            ts = b.stem.replace("schedule_", "")
+            created = datetime.strptime(ts, "%Y%m%d_%H%M%S").isoformat()
+        except:  # noqa: E722
+            created = datetime.fromtimestamp(b.stat().st_mtime).isoformat()
+        result.append({
+            "name": b.name,
+            "size": os.path.getsize(b),
+            "created_at": created,
+        })
+    return result
 
 async def restore_backup(filename: str) -> dict:
     """Restore from a backup file. This REPLACES the current database."""
