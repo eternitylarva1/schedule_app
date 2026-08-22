@@ -780,12 +780,6 @@
             }
         }
 
-        // If no target found, keep in same group
-        if (targetGroupId === noteDragState.sourceGroupId && !insertAfterNoteId) {
-            noteDragState = { draggedNoteId: null, draggedElement: null, sourceGroupId: null, dragOverGroupId: null, dragOverNoteId: null, selectedGroupId: null };
-            return;
-        }
-
         const sourceGroupId = noteDragState.sourceGroupId;
         const groupChanged = targetGroupId !== sourceGroupId;
 
@@ -800,8 +794,7 @@
                     overSwipe.after(draggedEl);
                 }
             }
-        }
-        if (!targetContainerEl && targetGroupId !== null) {
+        } else if (targetGroupId !== null) {
             // Between-group move: append to end of target group
             const gid = targetGroupId === null ? 'ungrouped' : String(targetGroupId);
             targetContainerEl = document.querySelector(`.note-group[data-group-id="${gid}"] .note-group-content`);

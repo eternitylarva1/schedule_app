@@ -250,6 +250,7 @@
                 <button class="btn btn-secondary" id="imgGenSaveBtn" type="button">📝 保存笔记</button>
                 <button class="btn btn-secondary" id="imgGenDownloadBtn" type="button">⬇ 下载</button>
                 <button class="btn btn-secondary" id="imgGenRegenBtn" type="button">🔄 重绘</button>
+                <button class="btn btn-secondary" id="imgGenGalleryBtn" type="button">🖼 图库</button>
             </div>
         `;
 
@@ -262,6 +263,11 @@
         card.querySelector('#imgGenSaveBtn')?.addEventListener('click', handleSaveToNote);
         card.querySelector('#imgGenDownloadBtn')?.addEventListener('click', handleDownload);
         card.querySelector('#imgGenRegenBtn')?.addEventListener('click', handleRegenerate);
+        card.querySelector('#imgGenGalleryBtn')?.addEventListener('click', () => {
+            const { switchNotepadSubtype } = window.ScheduleAppNotepad || {};
+            if (switchNotepadSubtype) switchNotepadSubtype('gallery');
+            else if (window.ScheduleAppGallery?.renderGalleryView) window.ScheduleAppGallery.renderGalleryView();
+        });
 
         _hideError();
     }
