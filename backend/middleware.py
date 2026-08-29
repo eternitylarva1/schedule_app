@@ -52,6 +52,7 @@ async def auth_middleware(request: web.Request, handler):
 
     if not token_valid:
         # Fallback: check static API key from X-API-Key header
+        # For local dev: set SCHEDULE_API_KEY in .env (git-ignored), scripts read from there
         api_key = request.headers.get("X-API-Key", "").strip()
         if api_key:
             stored_key = await get_api_key()

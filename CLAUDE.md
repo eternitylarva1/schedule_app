@@ -19,6 +19,15 @@ python -m backend.main
 # 访问 http://localhost:8080
 ```
 
+## 本地开发 Token 配置
+
+**`.env`** 文件（不会被 git 提交）存放本地开发用的 API Key：
+```
+SCHEDULE_API_KEY=your_api_key_here
+```
+
+其他 AI 或脚本调试时优先从 `.env` 读取 `SCHEDULE_API_KEY`，使用 `X-API-Key` header 调用本地 API。
+
 ## Architecture
 
 ### Backend (`backend/`)

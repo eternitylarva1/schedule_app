@@ -622,7 +622,7 @@
         
         // Date badge click → open edit modal
         listEl.addEventListener('click', (e) => {
-            const btn = e.target.closest('.goal-date-btn');
+            const btn = e.target.closest('.goal-date-badge');
             if (!btn) return;
             if (state.selectionMode.active && state.selectionMode.type === 'goals') return;
             e.stopPropagation();
@@ -640,7 +640,7 @@
             if (!cell) return;
             if (cell.classList.contains('sub-covered') || cell.classList.contains('outside')) return;
             if (e.target.closest('.goal-calendar-nav-btn')) return;
-            if (e.target.closest('.goal-date-btn')) return;
+            if (e.target.closest('.goal-date-badge')) return;
             e.stopPropagation();
             if (state.selectionMode.active) return;
             const container = cell.closest('.goal-calendar');

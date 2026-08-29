@@ -1,5 +1,6 @@
 """Settings HTTP endpoints."""
 import json
+import os
 import secrets
 import aiosqlite
 from aiohttp import web
@@ -340,8 +341,69 @@ async def save_prompt(request: web.Request) -> web.Response:
         return error_response(str(e))
 
 
-
 # ============ Static API Key Endpoints ============
+
+
+def _load_env_file():
+    """Load .env file and return dict of settings."""
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
+    settings = {}
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    settings[key.strip()] = value.strip().strip('"').strip("'")
+    return settings
+
+
+async def get_llm_env_config(request: web.Request) -> web.Response:
+    """GET /api/settings/llm-env — get LLM config from .env file."""
+    env_settings = _load_env_file()
+    return json_response({
+        "api_base": env_settings.get("LLM_API_BASE", ""),
+        "model": env_settings.get("LLM_MODEL", ""),
+        "api_key": env_settings.get("LLM_API_KEY", ""),
+    })
+
+
+async def list_llm_models(request: web.Request) -> web.Response:
+    """POST /api/settings/llm-models — call LLM API to list available models."""
+    try:
+        body = await request.json()
+        api_base = body.get("api_base", "").strip()
+        api_key = body.get("api_key", "").strip()
+
+        if not api_base or not api_key:
+            return error_response("请提供 API 地址和密钥")
+
+        # Call the LLM provider's models endpoint
+        import aiohttp
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async with aiohttp.ClientSession() as session:
+            # Try OpenAI-compatible endpoint
+            url = api_base.rstrip('/') + "/models"
+            async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    models = []
+                    if "data" in data:
+                        for m in data["data"]:
+                            models.append({
+                                "id": m.get("id", ""),
+                                "object": m.get("object", "model"),
+                            })
+                    return json_response({"models": models})
+                else:
+                    return error_response(f"获取模型列表失败: {resp.status}")
+
+    except Exception as e:
+        return error_response(f"获取模型列表失败: {str(e)}")
 
 
 async def get_api_key_handler(request: web.Request) -> web.Response:
@@ -392,3 +454,5 @@ def register_routes(app: web.Application) -> None:
     app.router.add_get("/api/settings/api-key", get_api_key_handler)
     app.router.add_post("/api/settings/api-key", create_api_key_handler)
     app.router.add_delete("/api/settings/api-key", delete_api_key_handler)
+    app.router.add_get("/api/settings/llm-env", get_llm_env_config)
+    app.router.add_post("/api/settings/llm-models", list_llm_models)

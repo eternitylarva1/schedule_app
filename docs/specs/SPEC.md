@@ -69,6 +69,11 @@
      - 页面数据提取验证关键节点是否渲染
      - 检查前端报错
 
+5. **本地 API 调试 Token 配置**
+   - `.env` 文件（git-ignored）存放本地 API Key：`SCHEDULE_API_KEY=xxx`
+   - 脚本或 AI 调试时从 `.env` 读取，使用 `X-API-Key` header 调用
+   - 后端中间件支持两种认证：Bearer Token + Fingerprint 或 X-API-Key
+
 ---
 
 ## 3. 交互设计规范

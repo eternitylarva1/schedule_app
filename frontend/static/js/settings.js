@@ -276,7 +276,108 @@
         `).join('');
     }
 
-    function openAiProviderModal(id = null, forImage = false) {
+    // LLM Provider presets
+    const LLM_PRESETS = {
+        'openai':      { api_base: 'https://api.openai.com/v1', model: 'gpt-4o' },
+        'claude':      { api_base: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4-20250514' },
+        'gemini':      { api_base: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.0-flash' },
+        'deepseek':    { api_base: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+    };
+
+    // Image model presets
+    const IMAGE_PRESETS = {
+        'dall-e-3':                   'dall-e-3',
+        'dall-e-2':                   'dall-e-2',
+        'gpt-image-1':                'gpt-image-1',
+        'stable-diffusion-xl-1024-v1-0': 'stable-diffusion-xl-1024-v1-0',
+        'flux-schnell':               'flux-schnell',
+        'flux-dev':                   'flux-dev',
+    };
+
+    function bindAiProviderPresetListeners() {
+        const presetSelect = document.getElementById('aiProviderPreset');
+        const modelPresetSelect = document.getElementById('aiProviderModelPreset');
+        const imageModelPresetSelect = document.getElementById('aiProviderImageModelPreset');
+        const apiBaseInput = document.getElementById('aiProviderApiBase');
+        const modelInput = document.getElementById('aiProviderModel');
+        const imageModelInput = document.getElementById('aiProviderImageModel');
+
+        if (presetSelect) {
+            presetSelect.onchange = () => {
+                const preset = presetSelect.value;
+                if (preset && LLM_PRESETS[preset]) {
+                    apiBaseInput.value = LLM_PRESETS[preset].api_base;
+                    modelInput.value = LLM_PRESETS[preset].model;
+                    // Auto-select matching model preset
+                    const modelPresetVal = Object.entries(LLM_PRESETS).find(([k, v]) => k === preset && v.model === modelInput.value)?.[0] || '';
+                    if (modelPresetVal && modelPresetSelect) modelPresetSelect.value = modelPresetVal;
+                }
+            };
+        }
+
+        if (modelPresetSelect) {
+            modelPresetSelect.onchange = () => {
+                const preset = modelPresetSelect.value;
+                if (preset && LLM_PRESETS[preset]) {
+                    modelInput.value = LLM_PRESETS[preset].model;
+                }
+            };
+        }
+
+        if (imageModelPresetSelect) {
+            imageModelPresetSelect.onchange = () => {
+                const preset = imageModelPresetSelect.value;
+                if (preset && IMAGE_PRESETS[preset]) {
+                    imageModelInput.value = IMAGE_PRESETS[preset];
+                }
+            };
+        }
+
+        // Detect models button
+        const detectBtn = document.getElementById('detectModelsBtn');
+        if (detectBtn) {
+            detectBtn.onclick = async () => {
+                const apiBase = apiBaseInput.value.trim();
+                const apiKey = document.getElementById('aiProviderApiKey')?.value.trim() || document.getElementById('aiProviderApiKey')?.placeholder;
+                if (!apiBase || !apiKey) {
+                    if (window.ScheduleAppCore?.showToast) {
+                        window.ScheduleAppCore.showToast('请先填写 API 地址和密钥');
+                    }
+                    return;
+                }
+                detectBtn.textContent = '检测中...';
+                detectBtn.disabled = true;
+                try {
+                    const { apiCall } = getUtils();
+                    const result = await apiCall('settings/llm-models', {
+                        method: 'POST',
+                        body: JSON.stringify({ api_base: apiBase, api_key: apiKey })
+                    });
+                    if (result && result.models && result.models.length > 0) {
+                        // Populate model dropdown
+                        modelPresetSelect.innerHTML = '<option value="">— 请选择 —</option>';
+                        result.models.forEach(m => {
+                            const opt = document.createElement('option');
+                            opt.value = m.id;
+                            opt.textContent = m.id;
+                            modelPresetSelect.appendChild(opt);
+                        });
+                        modelInput.value = '';
+                        window.ScheduleAppCore?.showToast?.(`检测到 ${result.models.length} 个模型`);
+                    } else {
+                        window.ScheduleAppCore?.showToast?.('未检测到可用模型');
+                    }
+                } catch (e) {
+                    window.ScheduleAppCore?.showToast?.('检测失败');
+                } finally {
+                    detectBtn.textContent = '🔍 检测可用模型';
+                    detectBtn.disabled = false;
+                }
+            };
+        }
+    }
+
+    async function openAiProviderModal(id = null, forImage = false) {
         const state = getState();
         const elements = getElements();
         const provider = id ? (state.aiProviders || []).find((p) => p.id === id) : null;
@@ -286,6 +387,32 @@
         elements.aiProviderApiBase.value = provider?.api_base || '';
         elements.aiProviderModel.value = provider?.model || '';
         elements.aiProviderApiKey.value = '';
+
+        // If adding new provider (not editing), try to load from .env config
+        if (!id) {
+            try {
+                const envConfig = await getUtils().apiCall('settings/llm-env');
+                if (envConfig && envConfig.api_base) {
+                    elements.aiProviderApiBase.value = envConfig.api_base;
+                }
+                if (envConfig && envConfig.model) {
+                    elements.aiProviderModel.value = envConfig.model;
+                }
+            } catch (e) {
+                // Ignore errors, user can still fill manually
+            }
+        }
+
+        // Reset preset dropdowns
+        const presetSelect = document.getElementById('aiProviderPreset');
+        const modelPresetSelect = document.getElementById('aiProviderModelPreset');
+        const imageModelPresetSelect = document.getElementById('aiProviderImageModelPreset');
+        if (presetSelect) presetSelect.value = '';
+        if (modelPresetSelect) modelPresetSelect.value = '';
+        if (imageModelPresetSelect) imageModelPresetSelect.value = '';
+
+        // Bind preset listeners (once)
+        bindAiProviderPresetListeners();
 
         // Image model field (for providers that support image generation)
         const imgModelInput = document.getElementById('aiProviderImageModel');
@@ -1888,8 +2015,8 @@ async deletePattern(patternId) {
                 content.insertAdjacentHTML('afterbegin', sectionHtml);
             }
 
-            // Load API key on first render
-            loadApiKey();
+            // Load API key on first render (deferred until auth token is ready)
+            scheduleApiKeyLoad();
         }
 
         // Image generation provider section
