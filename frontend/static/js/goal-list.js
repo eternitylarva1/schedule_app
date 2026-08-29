@@ -629,9 +629,8 @@
             const goalId = parseInt(btn.dataset.goalId);
             const goal = findGoalById(goals, goalId);
             if (!goal) return;
-            const core = global.ScheduleAppCore;
-            if (core && typeof core.openGoalEditModal === 'function') {
-                core.openGoalEditModal(goal);
+            if (G.openGoalEditModal) {
+                G.openGoalEditModal(goal);
             }
         });
 
