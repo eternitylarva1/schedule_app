@@ -1984,9 +1984,9 @@
                         <div class="form-group">
                             <label style="display:block;font-size:var(--font-size-sm);color:var(--text-secondary);margin-bottom:var(--space-xs)">选择执行时间</label>
                             <div style="display:flex;gap:var(--space-sm);align-items:center">
-                                <input type="date" id="addGoalStart" style="flex:1;padding:8px;border-radius:6px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color)" />
+                                <input type="date" id="addGoalStart" style="flex:1;width:100%;padding:8px;border-radius:6px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);font-size:var(--font-size-base)" />
                                 <span style="color:var(--text-secondary)">至</span>
-                                <input type="date" id="addGoalEnd" style="flex:1;padding:8px;border-radius:6px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color)" />
+                                <input type="date" id="addGoalEnd" style="flex:1;width:100%;padding:8px;border-radius:6px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);font-size:var(--font-size-base)" />
                             </div>
                         </div>
                     </div>
