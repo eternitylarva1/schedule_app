@@ -79,6 +79,14 @@
     gap: var(--space-sm);
 }
 
+/* When the goals list contains the calendar view, reset list layout so the
+   calendar can take full vertical space. */
+.goals-list:has(> .goal-calendar-view) {
+    display: block;
+    height: 100%;
+    min-height: 0;
+}
+
 .goal-card {
     background: var(--bg-card);
     border-radius: var(--radius-md);
