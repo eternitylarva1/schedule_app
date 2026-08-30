@@ -1983,19 +1983,10 @@
                         </div>
                         <div class="form-group">
                             <label style="display:block;font-size:var(--font-size-sm);color:var(--text-secondary);margin-bottom:var(--space-xs)">选择执行时间</label>
-                            <div class="calendar-range" id="addGoalCalendar">
-                                <div class="calendar-range-nav">
-                                    <button class="calendar-range-nav-btn" id="addGoalCalPrev">◀</button>
-                                    <button class="calendar-range-nav-btn" id="addGoalCalNext">▶</button>
-                                </div>
-                                <div class="calendar-range-months" id="addGoalCalMonths"></div>
-                                <div class="calendar-range-summary">
-                                    <div class="calendar-range-bar"><div class="calendar-range-bar-fill" id="addGoalCalBarFill"></div></div>
-                                    <div class="calendar-range-dates">
-                                        <span class="calendar-range-dates-text" id="addGoalCalDates">请选择日期范围</span>
-                                        <span class="calendar-range-days-count" id="addGoalCalDays"></span>
-                                    </div>
-                                </div>
+                            <div style="display:flex;gap:var(--space-sm);align-items:center">
+                                <input type="date" id="addGoalStart" style="flex:1;padding:8px;border-radius:6px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color)" />
+                                <span style="color:var(--text-secondary)">至</span>
+                                <input type="date" id="addGoalEnd" style="flex:1;padding:8px;border-radius:6px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color)" />
                             </div>
                         </div>
                     </div>
@@ -2020,29 +2011,8 @@
         const titleInput = document.getElementById('addGoalTitle');
         const templateSelect = document.getElementById('addGoalTemplate');
 
-        // Render initial calendar
-        renderCalendar();
-
-        // Nav buttons
-        document.getElementById('addGoalCalPrev').addEventListener('click', () => {
-            centerDate = new Date(centerDate.getFullYear(), centerDate.getMonth() - 1, 1);
-            renderCalendar();
-        });
-        document.getElementById('addGoalCalNext').addEventListener('click', () => {
-            centerDate = new Date(centerDate.getFullYear(), centerDate.getMonth() + 1, 1);
-            renderCalendar();
-        });
-
-        // Drag selection
-        const calEl = document.getElementById('addGoalCalendar');
-        calEl.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('.calendar-range-day[data-date]')) {
-                isDragging = true;
-                calEl.setPointerCapture(e.pointerId);
-            }
-        });
-        calEl.addEventListener('pointerup', () => { isDragging = false; });
-        calEl.addEventListener('pointercancel', () => { isDragging = false; });
+        const startInput = document.getElementById('addGoalStart');
+        const endInput = document.getElementById('addGoalEnd');
 
         // Populate template dropdown
         if (templateSelect && G.getGoalTemplates) {
@@ -2074,11 +2044,13 @@
                 return;
             }
 
-            // Resolve start/end: if only one selected, default the other to today
+            // Resolve start/end from date inputs
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            let s = startDate;
-            let e = endDate;
+            const sVal = startInput.value ? new Date(startInput.value) : null;
+            const eVal = endInput.value ? new Date(endInput.value) : null;
+            let s = sVal;
+            let e = eVal;
             if (s && !e) e = s;
             if (!s && e) s = today;
             if (!s && !e) { s = today; e = today; }
