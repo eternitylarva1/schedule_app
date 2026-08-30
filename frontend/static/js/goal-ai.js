@@ -1800,6 +1800,9 @@
         const G = Goals();
         const GOAL_COLORS = (G.GOAL_COLORS || []);
 
+        // Hide auth overlay so calendar is clickable
+        window.ScheduleAppAuth?.hideAuth?.();
+
         // --- Calendar range state ---
         let centerDate = new Date();
         let startDate = null;
