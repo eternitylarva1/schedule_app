@@ -2120,10 +2120,18 @@
         const state = getState();
         const elements = getElements();
         const G = Goals();
+        const mode = state.goalsViewMode || 'list';
         G.renderGoalsViewSkeleton();
-        elements.goalsView.classList.toggle('timeline-mode', state.goalsViewMode === 'timeline');
-        if (state.goalsViewMode === 'timeline') {
+        elements.goalsView.classList.toggle('timeline-mode', mode === 'timeline');
+        elements.goalsView.classList.toggle('calendar-mode', mode === 'calendar');
+        if (mode === 'timeline') {
             await G.renderTimelineView();
+        } else if (mode === 'calendar') {
+            // Calendar view replaces the list body inside #goalsContainer.
+            const listEl = elements.goalsContainer.querySelector('.goals-list');
+            if (listEl) {
+                G.renderCalendarView && G.renderCalendarView(listEl);
+            }
         } else {
             await G.renderGoalsList();
         }

@@ -1,6 +1,16 @@
 /**
  * Schedule App - Goals Timeline Module
  * Gantt-style timeline view
+ *
+ * ⚠️ DEPRECATED — kept for reference only.
+ * This module has been superseded by `goal-calendar.js` (goal-calendar.css).
+ * The new module replaces the Gantt chart with a drag-to-schedule calendar
+ * grid that better supports per-task time editing.
+ *
+ * To re-enable, swap the toolbar segmented control in goal-list.js back to
+ * the two-button toggle, and route `renderGoalsView()` in goal-ai.js to
+ * `G.renderTimelineView()` instead of `G.renderCalendarView()`.
+ * Otherwise, this file is no longer referenced by the live UI.
  */
 
 (function(global) {

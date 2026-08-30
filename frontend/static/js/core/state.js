@@ -43,7 +43,7 @@
     breakdownHorizon: 'short',
     goals: [],
     goalsHorizon: 'short',
-    goalsViewMode: 'list',  // 'list' | 'timeline'
+    goalsViewMode: 'list',  // 'list' | 'timeline' | 'calendar'
     timelineZoom: { short: 1, semester: 1, long: 1 },  // per-group zoom factors
     expandedGoalIds: new Set(),
     enableDragResize: false,

@@ -47,9 +47,11 @@
                     <button class="goals-horizon-tab ${state.goalsHorizon === 'long' ? 'active' : ''}" data-horizon="long">长期</button>
                 </div>
                 <div class="goals-toolbar-right">
-                    <button class="goals-view-toggle-btn ${state.goalsViewMode === 'timeline' ? 'active' : ''}" id="goalsViewToggleBtn">
-                        ${state.goalsViewMode === 'timeline' ? '📋 列表' : '📊 总览'}
-                    </button>
+                    <div class="goals-view-segmented" id="goalsViewMode">
+                        <button class="goals-view-mode-btn ${(state.goalsViewMode || 'list') === 'list' ? 'active' : ''}" data-view-mode="list">📋 列表</button>
+                        <button class="goals-view-mode-btn ${state.goalsViewMode === 'timeline' ? 'active' : ''}" data-view-mode="timeline">📊 总览</button>
+                        <button class="goals-view-mode-btn ${state.goalsViewMode === 'calendar' ? 'active' : ''}" data-view-mode="calendar">📅 日历</button>
+                    </div>
                     <button class="goals-add-btn" id="goalsAddBtn">+ 添加目标</button>
                     <button class="goals-discuss-btn" id="goalsDiscussBtn">💬 AI规划</button>
                     <div class="goals-more-wrap">
@@ -148,16 +150,18 @@
             });
         }
         
-        container.querySelector('#goalsViewToggleBtn').addEventListener('click', async () => {
-            state.goalsViewMode = state.goalsViewMode === 'list' ? 'timeline' : 'list';
-            elements.goalsView.classList.toggle('timeline-mode', state.goalsViewMode === 'timeline');
-            Goals().renderGoalsViewSkeleton();
-            if (state.goalsViewMode === 'list') {
-                await Goals().renderGoalsList();
-            } else {
-                await Goals().renderTimelineView();
-            }
-        });
+        // Three-segment view mode switcher (list / timeline / calendar)
+        const viewModeEl = container.querySelector('#goalsViewMode');
+        if (viewModeEl) {
+            viewModeEl.querySelectorAll('.goals-view-mode-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const next = btn.dataset.viewMode;
+                    if (!next || next === state.goalsViewMode) return;
+                    state.goalsViewMode = next;
+                    await Goals().renderGoalsView();
+                });
+            });
+        }
     }
     
     async function renderGoalsReference() {
