@@ -928,6 +928,7 @@
 
     // Expose expense and note functions to ScheduleAppCore for notepad.js
     window.ScheduleAppCore = window.ScheduleAppCore || {};
+    window.ScheduleAppCore.escapeHtml = escapeHtml;
     window.ScheduleAppCore.loadData = loadData;
     window._renderCategorySelector = renderCategorySelector;
     window.ScheduleAppCore.openExpenseModal = openExpenseModal;
