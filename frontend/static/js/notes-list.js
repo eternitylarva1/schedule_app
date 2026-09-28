@@ -762,10 +762,7 @@
 
         const noteId = noteDragState.draggedNoteId;
         const draggedEl = noteDragState.draggedElement;
-        if (!noteId || !draggedEl) {
-            console.log('[DEBUG handleNoteDrop] early return: noteId=%s draggedEl=%s', noteId, !!draggedEl);
-            return;
-        }
+        if (!noteId || !draggedEl) return;
 
         // Determine target group and position
         let targetGroupId = null;
@@ -785,8 +782,6 @@
 
         const sourceGroupId = noteDragState.sourceGroupId;
         const groupChanged = targetGroupId !== sourceGroupId;
-        console.log('[DEBUG handleNoteDrop] noteId=%s sourceGroupId=%s targetGroupId=%s insertAfterNoteId=%s groupChanged=%s',
-            noteId, sourceGroupId, targetGroupId, insertAfterNoteId, groupChanged);
 
         // === Move DOM element to new position ===
         let targetContainerEl = null;
@@ -848,37 +843,26 @@
     }
 
     async function saveGroupOrder(groupEl) {
-        if (!groupEl) {
-            console.log('[DEBUG saveGroupOrder] early return: groupEl is null');
-            return;
-        }
+        if (!groupEl) return;
         const contentEl = groupEl.querySelector('.note-group-content');
-        if (!contentEl) {
-            console.log('[DEBUG saveGroupOrder] early return: contentEl is null');
-            return;
-        }
+        if (!contentEl) return;
 
         const noteIds = [];
         contentEl.querySelectorAll('.note-swipe').forEach(el => {
             const id = parseInt(el.dataset.noteId);
             if (id) noteIds.push(id);
         });
-        console.log('[DEBUG saveGroupOrder] noteIds=%o count=%d', noteIds, noteIds.length);
 
-        if (noteIds.length <= 1) {
-            console.log('[DEBUG saveGroupOrder] early return: only %d note(s)', noteIds.length);
-            return;
-        }
+        if (noteIds.length <= 1) return; // No reordering needed for 0-1 notes
 
         try {
             const { apiCall } = getUtils();
-            const resp = await apiCall('notes/reorder', {
+            await apiCall('notes/reorder', {
                 method: 'PUT',
                 body: JSON.stringify({ note_ids: noteIds }),
             });
-            console.log('[DEBUG saveGroupOrder] success resp=%o', resp);
         } catch (e) {
-            console.error('[DEBUG saveGroupOrder] failed:', e);
+            console.error('reorder save failed:', e);
         }
     }
 

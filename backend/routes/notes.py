@@ -187,9 +187,19 @@ async def update_note(request: web.Request) -> web.Response:
         if is_archived is None:
             is_archived = existing.is_archived
         
+        # Empty string from frontend means "don't update this field" (e.g. archive
+        # sends { is_archived: true } with no title/content, which becomes "" after
+        # the || '' .trim() transform). Treat empty as "keep existing".
+        title = data.get("title")
+        if title is None or title == "":
+            title = existing.title
+        content = data.get("content")
+        if content is None or content == "":
+            content = existing.content
+
         note = Note(
-            title=data.get("title", existing.title),
-            content=data.get("content", existing.content),
+            title=title,
+            content=content,
             group_id=data.get("group_id", existing.group_id),
             sort_order=sort_order,
             is_pinned=is_pinned,

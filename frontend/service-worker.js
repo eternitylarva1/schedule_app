@@ -17,7 +17,7 @@ const STATIC_ASSETS = [
   '/static/js/core/state.js?v=20260818-03',
   '/static/js/core/elements.js?v=20260720-02',
   '/static/js/core/utils.js?v=20260412-04',
-  '/static/js/core/api-toast.js?v=20260818-07',
+  '/static/js/core/api-toast.js?v=20260819-01',
   '/static/js/core/drag.js?v=20260412-05',
 
   // Feature modules
@@ -25,7 +25,7 @@ const STATIC_ASSETS = [
   '/static/js/budget.js?v=20260629-01',
   '/static/js/note-ai.js?v=20260721-03',
   '/static/js/note-editor.js?v=20260721-05',
-  '/static/js/notes-list.js?v=20260721-05',
+  '/static/js/notes-list.js?v=20260721-06',
   '/static/js/expense.js?v=20260622-02',
   '/static/js/notepad.js?v=20260622-02',
   '/static/js/settings.js?v=20260818-09',

@@ -291,13 +291,17 @@
         const payload = typeof noteInput === 'string'
             ? { title: '', content: noteInput }
             : {
-                title: (noteInput?.title || '').trim(),
-                content: (noteInput?.content || '').trim(),
-                group_id: noteInput?.group_id !== undefined ? noteInput.group_id : undefined,
-                sort_order: noteInput?.sort_order !== undefined ? noteInput.sort_order : undefined,
-                is_pinned: noteInput?.is_pinned !== undefined ? noteInput.is_pinned : undefined,
-                color: noteInput?.color !== undefined ? noteInput.color : undefined,
-                is_archived: noteInput?.is_archived !== undefined ? noteInput.is_archived : undefined,
+                // Only include fields that are explicitly provided (not undefined).
+                // Empty string means "keep existing" — don't send it to avoid
+                // overwriting existing title/content when doing partial updates
+                // like archive/unarchive.
+                ...(noteInput?.title !== undefined ? { title: noteInput.title } : {}),
+                ...(noteInput?.content !== undefined ? { content: noteInput.content } : {}),
+                ...(noteInput?.group_id !== undefined ? { group_id: noteInput.group_id } : {}),
+                ...(noteInput?.sort_order !== undefined ? { sort_order: noteInput.sort_order } : {}),
+                ...(noteInput?.is_pinned !== undefined ? { is_pinned: noteInput.is_pinned } : {}),
+                ...(noteInput?.color !== undefined ? { color: noteInput.color } : {}),
+                ...(noteInput?.is_archived !== undefined ? { is_archived: noteInput.is_archived } : {}),
             };
         return await apiCall(`notes/${noteId}`, {
             method: 'PUT',
