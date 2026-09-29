@@ -52,7 +52,11 @@
                     if (token) {
                         window.ScheduleAppAuth?.handleUnauthorized?.();
                     }
-                    return null;
+                    // Throw so callers' try/catch can show "归档失败" instead of
+                    // silently running the optimistic update (note disappears).
+                    const err = new Error(`请求失败 (401)`);
+                    err.status = 401;
+                    throw err;
                 }
 
                 let toastMessage = '';
