@@ -17,7 +17,7 @@ const STATIC_ASSETS = [
   '/static/js/core/state.js?v=20260818-03',
   '/static/js/core/elements.js?v=20260720-02',
   '/static/js/core/utils.js?v=20260412-04',
-  '/static/js/core/api-toast.js?v=20260819-02',
+  '/static/js/core/api-toast.js?v=20260819-03',
   '/static/js/core/drag.js?v=20260412-05',
 
   // Feature modules

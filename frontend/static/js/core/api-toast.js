@@ -91,7 +91,9 @@
             } else {
                 if (__DEBUG__) console.error('API Error:', json.message);
                 showToast(json.message || '请求失败');
-                return null;
+                const err = new Error(json.message || '请求失败');
+                err.code = json.code;
+                throw err;
             }
         } catch (error) {
             if (error && error.name === 'AbortError') {
