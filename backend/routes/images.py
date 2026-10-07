@@ -1,4 +1,5 @@
 """Image routes for generation, upload, and retrieval."""
+import logging
 import os
 from pathlib import Path
 from typing import Optional
@@ -8,6 +9,8 @@ from aiohttp.web import FileField
 
 from .response import json_response, error_response
 from .. import image_service
+
+logger = logging.getLogger(__name__)
 
 
 # Base path for serving image files
@@ -170,7 +173,8 @@ async def handle_image_upload(request: web.Request) -> web.Response:
         url = f"/api/images/{record['id']}"
         return json_response({"id": record["id"], "url": url})
     except Exception as e:
-        return error_response(f"上传失败：{e}", 500)
+        logger.exception("image upload failed")
+        return error_response("操作失败，请重试")
 
 
 # ============= Image Retrieval =============

@@ -414,11 +414,15 @@
                 showToast('请输入笔记内容');
                 return;
             }
-            const result = await createNote({ title, content });
-            if (result) {
-                showToast('笔记已保存');
-                closeModal();
-                await renderNotesList();
+            try {
+                const result = await createNote({ title, content });
+                if (result) {
+                    showToast('笔记已保存');
+                    closeModal();
+                    await renderNotesList();
+                }
+            } catch (e) {
+                showToast('创建失败');
             }
         });
 

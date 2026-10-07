@@ -1,4 +1,5 @@
 """Event HTTP endpoints."""
+import logging
 from aiohttp import web
 from typing import Any
 from .. import db
@@ -9,6 +10,8 @@ from ._helpers import (
     _append_deadline_label, _has_explicit_clock_time_in_text, _parse_date_range,
     _update_event_stats, _handle_event_operation,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ============= Event Handlers =============
@@ -27,7 +30,8 @@ async def get_events(request: web.Request) -> web.Response:
         events = await db.get_events(date_filter)
         return json_response([e.to_dict() for e in events])
     except Exception as e:
-        return error_response(f"获取事件失败: {str(e)}")
+        logger.exception("get events failed")
+        return error_response("操作失败，请重试")
 
 
 

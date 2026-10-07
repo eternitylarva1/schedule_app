@@ -362,7 +362,7 @@
                         }
                     }
                 } catch (err) {
-                    // Silent fail for time parsing
+                    console.warn('time parse failed:', err);
                 }
             }
         }, 500));

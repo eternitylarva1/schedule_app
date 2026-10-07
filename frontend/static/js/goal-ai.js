@@ -291,22 +291,26 @@
                 updates.color = selectedColor.dataset.color || '';
             }
             
-            const result = await G.updateGoal(goal.id, updates);
-            if (result) {
-                showToast('已保存');
-                closeModal();
-                const goalCard = document.querySelector(`[data-goal-id="${goal.id}"]`);
-                if (goalCard) {
-                    const titleEl = goalCard.querySelector('.goal-title');
-                    if (titleEl && updates.title) titleEl.textContent = updates.title;
-                    const dateBadge = goalCard.querySelector('.goal-date-badge .date-range');
-                    if (dateBadge) {
-                        if (updates.start_date || updates.end_date) {
-                            dateBadge.textContent = '📅 ' + formatGoalDate(updates.start_date || goal.start_date, updates.end_date || goal.end_date);
-                            goalCard.querySelector('.goal-date-badge')?.classList.remove('goal-date-placeholder');
+            try {
+                const result = await G.updateGoal(goal.id, updates);
+                if (result) {
+                    showToast('已保存');
+                    closeModal();
+                    const goalCard = document.querySelector(`[data-goal-id="${goal.id}"]`);
+                    if (goalCard) {
+                        const titleEl = goalCard.querySelector('.goal-title');
+                        if (titleEl && updates.title) titleEl.textContent = updates.title;
+                        const dateBadge = goalCard.querySelector('.goal-date-badge .date-range');
+                        if (dateBadge) {
+                            if (updates.start_date || updates.end_date) {
+                                dateBadge.textContent = '📅 ' + formatGoalDate(updates.start_date || goal.start_date, updates.end_date || goal.end_date);
+                                goalCard.querySelector('.goal-date-badge')?.classList.remove('goal-date-placeholder');
+                            }
                         }
                     }
                 }
+            } catch (e) {
+                showToast('更新失败');
             }
         });
         

@@ -513,12 +513,16 @@
         const { createNoteGroup, showToast, showPrompt } = getUtils();
         const name = await showPrompt('请输入分组名称：', { placeholder: '例如：项目灵感' });
         if (name && name.trim()) {
-            const result = await createNoteGroup(name.trim());
-            if (result) {
-                showToast('分组已创建');
-                const state = getState();
-                state.expandedGroups.add(String(result.id));
-                await renderNotesList();
+            try {
+                const result = await createNoteGroup(name.trim());
+                if (result) {
+                    showToast('分组已创建');
+                    const state = getState();
+                    state.expandedGroups.add(String(result.id));
+                    await renderNotesList();
+                }
+            } catch (e) {
+                showToast('创建失败');
             }
         }
     }

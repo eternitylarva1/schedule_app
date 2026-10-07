@@ -1786,12 +1786,16 @@
         deleteBtn.addEventListener('click', async () => {
             const confirmed = await showConfirm('确定删除这条笔记吗？');
             if (confirmed) {
-                await deleteNote(note.id);
-                showToast('已删除');
-                closeModal();
-                // Incremental DOM update — remove just this row
-                if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.removeNoteRow === 'function') {
-                    window.ScheduleAppNotesList.removeNoteRow(note.id);
+                try {
+                    await deleteNote(note.id);
+                    showToast('已删除');
+                    closeModal();
+                    // Incremental DOM update — remove just this row
+                    if (window.ScheduleAppNotesList && typeof window.ScheduleAppNotesList.removeNoteRow === 'function') {
+                        window.ScheduleAppNotesList.removeNoteRow(note.id);
+                    }
+                } catch (e) {
+                    showToast('删除失败');
                 }
             }
         });
@@ -1897,31 +1901,35 @@
             }
             const payload = { title: newTitle, group_id: newGroupId };
             if (contentChanged) payload.content = newContent;
-            const result = await updateNote(note.id, payload);
-            if (result) {
-                showToast('笔记已更新');
-                const ai = getAIWindow();
-                if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === note.id && ai.updateCurrentNoteContent) {
-                    ai.updateCurrentNoteContent(newContent);
+            try {
+                const result = await updateNote(note.id, payload);
+                if (result) {
+                    showToast('笔记已更新');
+                    const ai = getAIWindow();
+                    if (ai && ai.getCurrentNoteId && ai.getCurrentNoteId() === note.id && ai.updateCurrentNoteContent) {
+                        ai.updateCurrentNoteContent(newContent);
+                    }
+                    // Update the note object (reference in state.notes)
+                    note.title = newTitle;
+                    note.content = newContent;
+                    note.updated_at = result.updated_at;
+                    const oldGroupId = note.group_id;
+                    note.group_id = newGroupId;
+                    closeModal();
+                    // Incremental DOM update — refresh the row; if group changed, move it too
+                    const notesList = window.ScheduleAppNotesList;
+                    if (notesList && typeof notesList.updateNoteRow === 'function') {
+                        notesList.updateNoteRow(note);
+                    }
+                    if (oldGroupId !== newGroupId && notesList && typeof notesList.moveNoteRow === 'function') {
+                        // Delay slightly to let updateNoteRow finish replacing the element
+                        setTimeout(() => {
+                            notesList.moveNoteRow(note.id, newGroupId);
+                        }, 0);
+                    }
                 }
-                // Update the note object (reference in state.notes)
-                note.title = newTitle;
-                note.content = newContent;
-                note.updated_at = result.updated_at;
-                const oldGroupId = note.group_id;
-                note.group_id = newGroupId;
-                closeModal();
-                // Incremental DOM update — refresh the row; if group changed, move it too
-                const notesList = window.ScheduleAppNotesList;
-                if (notesList && typeof notesList.updateNoteRow === 'function') {
-                    notesList.updateNoteRow(note);
-                }
-                if (oldGroupId !== newGroupId && notesList && typeof notesList.moveNoteRow === 'function') {
-                    // Delay slightly to let updateNoteRow finish replacing the element
-                    setTimeout(() => {
-                        notesList.moveNoteRow(note.id, newGroupId);
-                    }, 0);
-                }
+            } catch (e) {
+                showToast('保存失败');
             }
         });
 

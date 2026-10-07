@@ -50,7 +50,12 @@
                 // the auth overlay unexpectedly). Callers like _insertImageFile have
                 // their own try/catch that shows a relevant toast like "图片上传失败".
                 if (response.status === 401 && !endpoint.startsWith('auth/')) {
-                    const err = new Error(`请求失败 (401)`);
+                    let msg = '请先登录';
+                    try {
+                        const errJson = JSON.parse(errorText);
+                        if (errJson.message) msg = errJson.message;
+                    } catch {}
+                    const err = new Error(msg);
                     err.status = 401;
                     throw err;
                 }
@@ -69,7 +74,7 @@
                 }
 
                 if (!toastMessage) {
-                    toastMessage = `请求失败 (${response.status})`;
+                    toastMessage = '操作失败，请重试';
                 }
                 if (response.status === 409) {
                     toastMessage = `时间冲突：${toastMessage}`;
@@ -97,7 +102,7 @@
                 throw error;
             }
             if (__DEBUG__) console.error('Network Error:', error);
-            showToast('网络错误: ' + (error.message || '请检查连接'));
+            showToast('网络连接失败，请检查网络');
             return null;
         }
     }
@@ -411,7 +416,7 @@
         });
         
         // If API succeeded, reset the debounce timer to allow next call
-        if (response && response.code === 0) {
+        if (response) {
             if (__DEBUG__) console.log('[' + countId + '] createExpense: success, resetting debounce');
             _lastExpenseKey = null;
             _lastExpenseTime = 0;
