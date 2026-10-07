@@ -43,17 +43,13 @@
                 const errorText = await response.text();
                 if (__DEBUG__) console.error('HTTP Error:', response.status, errorText);
 
-                // Handle 401 - only redirect to login when we HAD a token (session
-                // expired/revoked). Startup requests without a token will 401 too,
-                // but the auth overlay already shows the correct panel; overriding it
-                // here would clobber the setup panel with the login panel. Keep those
-                // silent (no toast) since the login/setup screen is the correct state.
+                // Handle 401 - throw so callers' try/catch handle it.
+                // Do NOT call handleUnauthorized() here: it clears the token and shows
+                // the login overlay, which is wrong when the user hasn't set up auth
+                // (e.g. pasting an image in the editor while logged out would pop up
+                // the auth overlay unexpectedly). Callers like _insertImageFile have
+                // their own try/catch that shows a relevant toast like "图片上传失败".
                 if (response.status === 401 && !endpoint.startsWith('auth/')) {
-                    if (token) {
-                        window.ScheduleAppAuth?.handleUnauthorized?.();
-                    }
-                    // Throw so callers' try/catch can show "归档失败" instead of
-                    // silently running the optimistic update (note disappears).
                     const err = new Error(`请求失败 (401)`);
                     err.status = 401;
                     throw err;
